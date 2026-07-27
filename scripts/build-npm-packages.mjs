@@ -22,7 +22,8 @@ const PLATFORMS = {
     'linux-arm64': { os: 'linux', cpu: 'arm64', binary: 'weavatrix' },
 }
 
-const wrapperManifest = JSON.parse(readFileSync(join(WRAPPER, 'package.json'), 'utf8'))
+const wrapperManifest = JSON.parse(
+    readFileSync(join(WRAPPER, 'package.json'), 'utf8').replace(/^﻿/, ''))
 const [, , mode, ...rest] = process.argv
 if (!mode) usage()
 
