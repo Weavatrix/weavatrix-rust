@@ -163,6 +163,16 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
         }
         depth += brace_delta(line);
     }
+    finalize_mounts(raw_mounts, &bindings, &mut facts);
+    sort_facts(&mut facts);
+    facts
+}
+
+fn finalize_mounts(
+    raw_mounts: Vec<(String, MountRef)>,
+    bindings: &BTreeMap<String, String>,
+    facts: &mut FileFacts,
+) {
     for (prefix, target) in raw_mounts {
         let specifier = match target {
             MountRef::Specifier(specifier) => Some(specifier),
@@ -172,8 +182,6 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
             facts.mounts.push(MountFact { prefix, target });
         }
     }
-    sort_facts(&mut facts);
-    facts
 }
 
 /// Tracks `{ '/path': { GET: handler } }` route-table objects.
