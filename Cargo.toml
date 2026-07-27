@@ -1,0 +1,60 @@
+[package]
+name = "weavatrix-rust"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.89"
+description = "Read-only Rust repository intelligence and MCP server"
+license = "MIT"
+authors = ["Sergii Ziborov <sergii.ziborov@gmail.com>"]
+homepage = "https://weavatrix.com"
+repository = "https://github.com/sergii-ziborov/weavatrix-rust"
+readme = "README.md"
+keywords = ["code-graph", "static-analysis", "repository", "architecture", "impact"]
+categories = ["development-tools", "parser-implementations"]
+
+[lib]
+name = "weavatrix_rust"
+path = "src/lib.rs"
+
+[[bin]]
+name = "weavatrix"
+path = "src/main.rs"
+
+[[bench]]
+name = "repository_suite"
+harness = false
+
+[features]
+default = ["full", "lang-rust"]
+full = ["clone", "git", "memory", "search", "semantic", "vector"]
+clone = ["dep:weavatrix-clone"]
+git = ["dep:weavatrix-git"]
+lang-rust = ["dep:proc-macro2", "dep:syn"]
+memory = ["dep:weavatrix-memory"]
+search = ["dep:weavatrix-search"]
+semantic = ["dep:weavatrix-semantic"]
+vector = ["dep:weavatrix-search-vector"]
+
+[dependencies]
+proc-macro2 = { version = "1.0.107", default-features = false, features = ["span-locations"], optional = true }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+syn = { version = "3.0.3", default-features = false, features = ["clone-impls", "full", "parsing", "printing", "visit"], optional = true }
+weavatrix-clone = { version = "0.1.0", path = "../weavatrix-clone", optional = true }
+weavatrix-git = { version = "0.2.0", optional = true }
+weavatrix-graph = "0.6.0"
+weavatrix-mcp = { version = "0.1.0", path = "../weavatrix-mcp" }
+weavatrix-memory = { version = "0.3.0", path = "../weavatrix-memory", optional = true, features = ["json"] }
+weavatrix-scan = "0.4.2"
+weavatrix-search = { version = "0.3.0", optional = true, default-features = false }
+weavatrix-search-vector = { version = "0.3.0", optional = true }
+weavatrix-semantic = { version = "0.2.0", path = "../weavatrix-semantic", optional = true, features = ["vector-search"] }
+
+[dev-dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

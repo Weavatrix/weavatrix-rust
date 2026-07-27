@@ -1,0 +1,393 @@
+{
+  "schemaVersion": "weavatrix.real-benchmark.v1",
+  "baselineVersion": "0.2.1",
+  "repositories": [
+    {
+      "id": "frontend",
+      "language": "TypeScript",
+      "status": "STALE",
+      "revision": "3c496a662e8b9595f599cfa8e2e38c1a8a61761f",
+      "dirty": true,
+      "metrics": {
+        "files": 1724,
+        "languageFiles": 1591,
+        "symbols": 6585,
+        "nodes": 8309,
+        "links": 22136,
+        "relations": {
+          "calls": 3468,
+          "contains": 6585,
+          "imports": 7019,
+          "inherits": 1,
+          "re_exports": 325,
+          "references": 4738
+        },
+        "symbolKinds": {
+          "class": 4,
+          "enum": 27,
+          "function": 182,
+          "interface": 409,
+          "method": 10,
+          "type": 418,
+          "unknown": 21,
+          "variable": 5514
+        },
+        "endpoints": 0,
+        "endpointMethods": {},
+        "edgeProvenanceV": 1,
+        "edgeProvenance": {
+          "EXACT_LSP": 0,
+          "EXTRACTED": 6585,
+          "RESOLVED": 9407,
+          "INFERRED": 6144,
+          "CONFLICT": 0,
+          "UNKNOWN": 0
+        },
+        "edgeProvenanceComplete": true,
+        "testFiles": 289,
+        "generatedFiles": 0,
+        "nonProductFiles": 367,
+        "graphBytes": 13360504,
+        "coldMs": 51240.45
+      },
+      "fingerprint": "1f80cb0e70027be1",
+      "gaps": [],
+      "comparison": {
+        "status": "PASS",
+        "regressions": []
+      },
+      "gates": {
+        "languagePresent": true,
+        "provenance": true,
+        "expectedSignals": true,
+        "relationRegression": true,
+        "baselineRevision": false
+      }
+    },
+    {
+      "id": "analytics",
+      "language": "JavaScript",
+      "status": "STALE",
+      "revision": "38c32abaac840936e985e527ddf4af4a9b67a2b0",
+      "dirty": false,
+      "metrics": {
+        "files": 362,
+        "languageFiles": 330,
+        "symbols": 2540,
+        "nodes": 2902,
+        "links": 8891,
+        "relations": {
+          "calls": 4628,
+          "contains": 2545,
+          "imports": 1693,
+          "inherits": 6,
+          "re_exports": 19
+        },
+        "symbolKinds": {
+          "class": 8,
+          "function": 85,
+          "method": 13,
+          "variable": 2434
+        },
+        "endpoints": 67,
+        "endpointMethods": {
+          "ANY": 3,
+          "DELETE": 6,
+          "GET": 35,
+          "POST": 16,
+          "PUT": 7
+        },
+        "edgeProvenanceV": 1,
+        "edgeProvenance": {
+          "EXACT_LSP": 0,
+          "EXTRACTED": 2545,
+          "RESOLVED": 1881,
+          "INFERRED": 4465,
+          "CONFLICT": 0,
+          "UNKNOWN": 0
+        },
+        "edgeProvenanceComplete": true,
+        "testFiles": 108,
+        "generatedFiles": 0,
+        "nonProductFiles": 127,
+        "graphBytes": 5001097,
+        "coldMs": 12888.44
+      },
+      "fingerprint": "84a634a8790e2784",
+      "gaps": [],
+      "comparison": {
+        "status": "PASS",
+        "regressions": []
+      },
+      "gates": {
+        "languagePresent": true,
+        "provenance": true,
+        "expectedSignals": true,
+        "relationRegression": true,
+        "baselineRevision": false
+      }
+    },
+    {
+      "id": "automation",
+      "language": "Python",
+      "status": "PASS",
+      "revision": "8ab859acb1401dd708abc046604e1cea14988379",
+      "dirty": false,
+      "metrics": {
+        "files": 1670,
+        "languageFiles": 1008,
+        "symbols": 5711,
+        "nodes": 7381,
+        "links": 23441,
+        "relations": {
+          "calls": 1665,
+          "contains": 9771,
+          "imports": 11575,
+          "inherits": 430
+        },
+        "symbolKinds": {
+          "class": 938,
+          "function": 498,
+          "method": 4060,
+          "variable": 215
+        },
+        "endpoints": 0,
+        "endpointMethods": {},
+        "edgeProvenanceV": 1,
+        "edgeProvenance": {
+          "EXACT_LSP": 0,
+          "EXTRACTED": 9771,
+          "RESOLVED": 11747,
+          "INFERRED": 1923,
+          "CONFLICT": 0,
+          "UNKNOWN": 0
+        },
+        "edgeProvenanceComplete": true,
+        "testFiles": 493,
+        "generatedFiles": 449,
+        "nonProductFiles": 1406,
+        "graphBytes": 12413216,
+        "coldMs": 30989.54
+      },
+      "fingerprint": "705874a74dc2da06",
+      "gaps": [],
+      "comparison": {
+        "status": "PASS",
+        "regressions": []
+      },
+      "gates": {
+        "languagePresent": true,
+        "provenance": true,
+        "expectedSignals": true,
+        "relationRegression": true,
+        "baselineRevision": true
+      }
+    },
+    {
+      "id": "bgp-speaker",
+      "language": "Go",
+      "status": "STALE",
+      "revision": "b1121fd698c04208d6c4a2891d60dbe472541d8c",
+      "dirty": false,
+      "metrics": {
+        "files": 30,
+        "languageFiles": 20,
+        "symbols": 456,
+        "nodes": 486,
+        "links": 1237,
+        "relations": {
+          "calls": 356,
+          "contains": 456,
+          "imports": 114,
+          "references": 311
+        },
+        "symbolKinds": {
+          "function": 111,
+          "method": 74,
+          "type": 50,
+          "unknown": 221
+        },
+        "endpoints": 0,
+        "endpointMethods": {},
+        "edgeProvenanceV": 1,
+        "edgeProvenance": {
+          "EXACT_LSP": 0,
+          "EXTRACTED": 456,
+          "RESOLVED": 273,
+          "INFERRED": 508,
+          "CONFLICT": 0,
+          "UNKNOWN": 0
+        },
+        "edgeProvenanceComplete": true,
+        "testFiles": 5,
+        "generatedFiles": 0,
+        "nonProductFiles": 6,
+        "graphBytes": 534241,
+        "coldMs": 1045.84
+      },
+      "fingerprint": "edf46aa90d245ffa",
+      "gaps": [],
+      "comparison": {
+        "status": "PASS",
+        "regressions": []
+      },
+      "gates": {
+        "languagePresent": true,
+        "provenance": true,
+        "expectedSignals": true,
+        "relationRegression": true,
+        "baselineRevision": false
+      }
+    },
+    {
+      "id": "warroom",
+      "language": "Java",
+      "status": "STALE",
+      "revision": "6a887f0e0a7cbe232312957b99b12d7b0ff05923",
+      "dirty": false,
+      "metrics": {
+        "files": 805,
+        "languageFiles": 381,
+        "symbols": 6516,
+        "nodes": 7321,
+        "links": 24285,
+        "relations": {
+          "calls": 8111,
+          "contains": 6516,
+          "implements": 25,
+          "imports": 1767,
+          "inherits": 55,
+          "method": 3902,
+          "references": 3909
+        },
+        "symbolKinds": {
+          "class": 365,
+          "constructor": 230,
+          "enum": 29,
+          "field": 2201,
+          "interface": 19,
+          "method": 3672
+        },
+        "endpoints": 8,
+        "endpointMethods": {
+          "GET": 6,
+          "POST": 2
+        },
+        "edgeProvenanceV": 1,
+        "edgeProvenance": {
+          "EXACT_LSP": 0,
+          "EXTRACTED": 10418,
+          "RESOLVED": 1767,
+          "INFERRED": 12100,
+          "CONFLICT": 0,
+          "UNKNOWN": 0
+        },
+        "edgeProvenanceComplete": true,
+        "testFiles": 477,
+        "generatedFiles": 12,
+        "nonProductFiles": 478,
+        "graphBytes": 15657737,
+        "coldMs": 15309.42
+      },
+      "fingerprint": "7e0790c3ba28b96f",
+      "gaps": [],
+      "comparison": {
+        "status": "PASS",
+        "regressions": []
+      },
+      "gates": {
+        "languagePresent": true,
+        "provenance": true,
+        "expectedSignals": true,
+        "relationRegression": true,
+        "baselineRevision": false
+      }
+    },
+    {
+      "id": "ai-dev-system",
+      "language": "Rust",
+      "status": "PASS",
+      "revision": "81e7e9a127cfc9362c8bc5322ec2e027b42620a8",
+      "dirty": false,
+      "metrics": {
+        "files": 504,
+        "languageFiles": 112,
+        "symbols": 1988,
+        "nodes": 2492,
+        "links": 5203,
+        "relations": {
+          "calls": 1387,
+          "contains": 2086,
+          "imports": 629,
+          "inherits": 3,
+          "method": 98,
+          "re_exports": 29,
+          "references": 971
+        },
+        "symbolKinds": {
+          "class": 39,
+          "column": 87,
+          "constant": 23,
+          "enum": 8,
+          "function": 1015,
+          "index": 17,
+          "interface": 154,
+          "macro": 5,
+          "method": 189,
+          "module": 100,
+          "static": 9,
+          "struct": 51,
+          "table": 11,
+          "type": 54,
+          "variable": 226
+        },
+        "endpoints": 18,
+        "endpointMethods": {
+          "DELETE": 1,
+          "GET": 11,
+          "PATCH": 1,
+          "POST": 5
+        },
+        "edgeProvenanceV": 1,
+        "edgeProvenance": {
+          "EXACT_LSP": 0,
+          "EXTRACTED": 2184,
+          "RESOLVED": 1442,
+          "INFERRED": 1577,
+          "CONFLICT": 0,
+          "UNKNOWN": 0
+        },
+        "edgeProvenanceComplete": true,
+        "testFiles": 0,
+        "generatedFiles": 3,
+        "nonProductFiles": 127,
+        "graphBytes": 3380116,
+        "coldMs": 13761.97
+      },
+      "fingerprint": "40a3433451bd2519",
+      "gaps": [],
+      "comparison": {
+        "status": "PASS",
+        "regressions": []
+      },
+      "gates": {
+        "languagePresent": true,
+        "provenance": true,
+        "expectedSignals": true,
+        "relationRegression": true,
+        "baselineRevision": true
+      }
+    }
+  ],
+  "counts": {
+    "PASS": 2,
+    "STALE": 4
+  },
+  "completeness": "PARTIAL",
+  "gaps": {
+    "java": [],
+    "rust": []
+  },
+  "reportBytes": 5787,
+  "status": "PARTIAL"
+}

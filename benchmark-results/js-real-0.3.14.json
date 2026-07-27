@@ -1,0 +1,135 @@
+{
+  "schema": "weavatrix.js-fair-benchmark.v1",
+  "version": "0.3.14",
+  "node": "v24.15.0",
+  "methodology": "buildInternalGraph timed per sample in a fresh node process per repository; median of 3 samples (frontend: 1 sample); endpoint detection timed separately because the Rust cold build includes endpoint extraction and this timing does not",
+  "repositories": [
+    {
+      "repository": "frontend",
+      "revision": "8b39a8adfefec6fedb846db54905d16980ccc911",
+      "cold_build_ms": {
+        "min": 14284.0751,
+        "median": 14284.0751,
+        "max": 14284.0751
+      },
+      "sample_count": 1,
+      "files": 1724,
+      "nodes": 8309,
+      "links": 22128,
+      "endpoints": 0,
+      "endpoint_detect_ms": 675.1666000000005
+    },
+    {
+      "repository": "analytics",
+      "revision": "38c32abaac840936e985e527ddf4af4a9b67a2b0",
+      "cold_build_ms": {
+        "min": 2827.5728,
+        "median": 3151.5955999999996,
+        "max": 11749.742199999999
+      },
+      "files": 362,
+      "nodes": 2902,
+      "links": 8891,
+      "endpoints": 67,
+      "endpoint_detect_ms": 278.27999999999884
+    },
+    {
+      "repository": "automation",
+      "revision": "8ab859acb1401dd708abc046604e1cea14988379",
+      "cold_build_ms": {
+        "min": 5453.201000000001,
+        "median": 23110.7405,
+        "max": 32190.1645
+      },
+      "files": 1670,
+      "nodes": 7381,
+      "links": 23441,
+      "endpoints": 0,
+      "endpoint_detect_ms": 380.8235000000059
+    },
+    {
+      "repository": "bgp-speaker",
+      "revision": "b1121fd698c04208d6c4a2891d60dbe472541d8c",
+      "cold_build_ms": {
+        "min": 480.6962000000001,
+        "median": 533.3212,
+        "max": 626.4621
+      },
+      "files": 30,
+      "nodes": 486,
+      "links": 1237,
+      "endpoints": 0,
+      "endpoint_detect_ms": 15.742600000000039
+    },
+    {
+      "repository": "warroom",
+      "revision": "6a887f0e0a7cbe232312957b99b12d7b0ff05923",
+      "cold_build_ms": {
+        "min": 2907.9676999999992,
+        "median": 2988.2758999999996,
+        "max": 3130.3455
+      },
+      "files": 805,
+      "nodes": 7321,
+      "links": 24285,
+      "endpoints": 8,
+      "endpoint_detect_ms": 261.0789999999997
+    },
+    {
+      "repository": "AI-Dev-System",
+      "revision": "81e7e9a127cfc9362c8bc5322ec2e027b42620a8",
+      "cold_build_ms": {
+        "min": 2928.184299999999,
+        "median": 3001.9744,
+        "max": 4545.4253
+      },
+      "files": 504,
+      "nodes": 2492,
+      "links": 5203,
+      "endpoints": 18,
+      "endpoint_detect_ms": 158.13580000000002
+    },
+    {
+      "repository": "grpc-server",
+      "revision": "a9376fd7264ea522ee237c869b26b80d26489b73",
+      "cold_build_ms": {
+        "min": 865.4480999999996,
+        "median": 2491.2794999999996,
+        "max": 6309.0148
+      },
+      "files": 30,
+      "nodes": 366,
+      "links": 665,
+      "endpoints": 0,
+      "endpoint_detect_ms": 110.65179999999964
+    },
+    {
+      "repository": "controller-rest-api",
+      "revision": "11a66fabbcb8d0168ca15b34b2ecc54d24b9363a",
+      "cold_build_ms": {
+        "min": 14574.730400000004,
+        "median": 14830.410200000006,
+        "max": 22195.384000000002
+      },
+      "files": 1098,
+      "nodes": 10272,
+      "links": 21990,
+      "endpoints": 987,
+      "endpoint_detect_ms": 1771.9442999999956
+    },
+    {
+      "repository": "radiochron",
+      "revision": "6093530cc7740e15088da2c60c396309e8f22e69",
+      "cold_build_ms": {
+        "min": 746.8398999999995,
+        "median": 1126.0259,
+        "max": 2457.5045
+      },
+      "files": 99,
+      "nodes": 1161,
+      "links": 2384,
+      "endpoints": 0,
+      "endpoint_detect_ms": 45.54079999999976
+    }
+  ]
+}

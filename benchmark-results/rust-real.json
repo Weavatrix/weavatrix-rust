@@ -1,0 +1,385 @@
+{
+  "profile": "release",
+  "repositories": [
+    {
+      "cold_build_ms": {
+        "max": 4796.5475,
+        "median": 905.9666,
+        "min": 900.8697
+      },
+      "collections": null,
+      "edges": 35114,
+      "endpoints": 1,
+      "evidence": {
+        "parsed": 24121,
+        "resolved": 10993
+      },
+      "files": 1612,
+      "hot_graph_stats_us": 5230.3105,
+      "literal_search_ms": 537.6239800000001,
+      "node_kinds": {
+        "endpoint": 1,
+        "enum": 26,
+        "file": 1612,
+        "function": 3496,
+        "kubernetes_resource": 4,
+        "package": 147,
+        "repository": 1,
+        "struct": 4,
+        "trait": 409,
+        "type_alias": 421,
+        "variable": 9615
+      },
+      "nodes": 15736,
+      "queues": null,
+      "relations": {
+        "calls": 10801,
+        "contains": 15583,
+        "deploys": 5,
+        "exposes": 1,
+        "imports": 8532,
+        "inherits": 192
+      },
+      "repository": "frontend",
+      "revision": "8b39a8adfefec6fedb846db54905d16980ccc911",
+      "tables": null,
+      "topics": null,
+      "unchanged_refresh_ms": 54.543733333333336
+    },
+    {
+      "cold_build_ms": {
+        "max": 1001.1736,
+        "median": 250.8035,
+        "min": 241.7808
+      },
+      "collections": null,
+      "edges": 13201,
+      "endpoints": 73,
+      "evidence": {
+        "parsed": 7942,
+        "resolved": 5259
+      },
+      "files": 354,
+      "hot_graph_stats_us": 1884.6859,
+      "literal_search_ms": 42.59186,
+      "node_kinds": {
+        "endpoint": 73,
+        "file": 354,
+        "function": 1782,
+        "package": 31,
+        "repository": 1,
+        "struct": 8,
+        "variable": 4272
+      },
+      "nodes": 6521,
+      "queues": null,
+      "relations": {
+        "calls": 5233,
+        "contains": 6416,
+        "exposes": 74,
+        "imports": 1452,
+        "inherits": 26
+      },
+      "repository": "analytics",
+      "revision": "38c32abaac840936e985e527ddf4af4a9b67a2b0",
+      "tables": null,
+      "topics": null,
+      "unchanged_refresh_ms": 14.873133333333334
+    },
+    {
+      "cold_build_ms": {
+        "max": 5332.1838,
+        "median": 599.5933,
+        "min": 538.1308
+      },
+      "collections": null,
+      "edges": 15308,
+      "endpoints": null,
+      "evidence": {
+        "parsed": 12048,
+        "resolved": 3260
+      },
+      "files": 1025,
+      "hot_graph_stats_us": 2276.8365,
+      "literal_search_ms": 982.79334,
+      "node_kinds": {
+        "file": 1025,
+        "function": 4558,
+        "package": 72,
+        "repository": 1,
+        "struct": 938
+      },
+      "nodes": 6594,
+      "queues": null,
+      "relations": {
+        "calls": 3260,
+        "contains": 6521,
+        "imports": 5527
+      },
+      "repository": "automation",
+      "revision": "8ab859acb1401dd708abc046604e1cea14988379",
+      "tables": null,
+      "topics": null,
+      "unchanged_refresh_ms": 12.2754
+    },
+    {
+      "cold_build_ms": {
+        "max": 804.3311,
+        "median": 21.0401,
+        "min": 17.7276
+      },
+      "collections": null,
+      "edges": 916,
+      "endpoints": null,
+      "evidence": {
+        "parsed": 580,
+        "resolved": 336
+      },
+      "files": 28,
+      "hot_graph_stats_us": 135.67870000000002,
+      "literal_search_ms": 13.9866,
+      "node_kinds": {
+        "file": 28,
+        "function": 111,
+        "method": 74,
+        "package": 113,
+        "repository": 1,
+        "struct": 50,
+        "variable": 42
+      },
+      "nodes": 419,
+      "queues": null,
+      "relations": {
+        "calls": 336,
+        "contains": 305,
+        "imports": 275
+      },
+      "repository": "bgp-speaker",
+      "revision": "b1121fd698c04208d6c4a2891d60dbe472541d8c",
+      "tables": null,
+      "topics": null,
+      "unchanged_refresh_ms": 1.6857666666666666
+    },
+    {
+      "cold_build_ms": {
+        "max": 3301.9858000000004,
+        "median": 415.6255,
+        "min": 335.1336
+      },
+      "collections": 3,
+      "edges": 14447,
+      "endpoints": 9,
+      "evidence": {
+        "parsed": 9123,
+        "resolved": 5324
+      },
+      "files": 391,
+      "hot_graph_stats_us": 1989.6834000000001,
+      "literal_search_ms": 511.78454,
+      "node_kinds": {
+        "collection": 3,
+        "endpoint": 9,
+        "enum": 30,
+        "file": 391,
+        "function": 1,
+        "method": 3721,
+        "package": 541,
+        "repository": 1,
+        "struct": 373,
+        "trait": 19
+      },
+      "nodes": 5089,
+      "queues": null,
+      "relations": {
+        "calls": 5269,
+        "contains": 4535,
+        "exposes": 9,
+        "implements": 25,
+        "imports": 4576,
+        "inherits": 30,
+        "reads": 3
+      },
+      "repository": "warroom",
+      "revision": "6a887f0e0a7cbe232312957b99b12d7b0ff05923",
+      "tables": null,
+      "topics": null,
+      "unchanged_refresh_ms": 41.84396666666667
+    },
+    {
+      "cold_build_ms": {
+        "max": 3835.4687,
+        "median": 349.7656,
+        "min": 304.7635
+      },
+      "collections": null,
+      "edges": 7815,
+      "endpoints": 20,
+      "evidence": {
+        "parsed": 5025,
+        "resolved": 2790
+      },
+      "files": 297,
+      "hot_graph_stats_us": 1161.3189,
+      "literal_search_ms": 370.88878000000005,
+      "node_kinds": {
+        "constant": 23,
+        "endpoint": 20,
+        "enum": 8,
+        "file": 297,
+        "function": 1448,
+        "method": 104,
+        "module": 100,
+        "package": 120,
+        "repository": 1,
+        "static": 9,
+        "struct": 92,
+        "table": 11,
+        "trait": 154,
+        "type_alias": 77,
+        "variable": 1830
+      },
+      "nodes": 4294,
+      "queues": null,
+      "relations": {
+        "calls": 2713,
+        "configures": 11,
+        "contains": 4142,
+        "exposes": 21,
+        "implements": 3,
+        "imports": 851,
+        "inherits": 74
+      },
+      "repository": "AI-Dev-System",
+      "revision": "81e7e9a127cfc9362c8bc5322ec2e027b42620a8",
+      "tables": 11,
+      "topics": null,
+      "unchanged_refresh_ms": 11.894600000000002
+    },
+    {
+      "cold_build_ms": {
+        "max": 748.0419,
+        "median": 14.5523,
+        "min": 14.4948
+      },
+      "collections": null,
+      "edges": 584,
+      "endpoints": null,
+      "evidence": {
+        "parsed": 421,
+        "resolved": 163
+      },
+      "files": 29,
+      "hot_graph_stats_us": 84.5244,
+      "literal_search_ms": 12.0794,
+      "node_kinds": {
+        "constant": 3,
+        "file": 29,
+        "function": 52,
+        "method": 81,
+        "package": 62,
+        "repository": 1,
+        "struct": 51,
+        "trait": 1,
+        "type_alias": 3,
+        "variable": 30
+      },
+      "nodes": 313,
+      "queues": null,
+      "relations": {
+        "calls": 163,
+        "contains": 250,
+        "imports": 171
+      },
+      "repository": "grpc-server",
+      "revision": "a9376fd7264ea522ee237c869b26b80d26489b73",
+      "tables": null,
+      "topics": null,
+      "unchanged_refresh_ms": 2.7499000000000002
+    },
+    {
+      "cold_build_ms": {
+        "max": 8428.8354,
+        "median": 845.02,
+        "min": 842.7344
+      },
+      "collections": null,
+      "edges": 32303,
+      "endpoints": 353,
+      "evidence": {
+        "parsed": 22018,
+        "resolved": 10285
+      },
+      "files": 943,
+      "hot_graph_stats_us": 5457.168000000001,
+      "literal_search_ms": 400.45382,
+      "node_kinds": {
+        "endpoint": 353,
+        "file": 943,
+        "function": 5097,
+        "package": 49,
+        "repository": 1,
+        "struct": 6,
+        "variable": 12056
+      },
+      "nodes": 18505,
+      "queues": null,
+      "relations": {
+        "calls": 10247,
+        "contains": 18102,
+        "exposes": 519,
+        "imports": 3397,
+        "inherits": 38
+      },
+      "repository": "controller-rest-api",
+      "revision": "11a66fabbcb8d0168ca15b34b2ecc54d24b9363a",
+      "tables": null,
+      "topics": null,
+      "unchanged_refresh_ms": 51.38146666666666
+    },
+    {
+      "cold_build_ms": {
+        "max": 2996.8183000000004,
+        "median": 90.8909,
+        "min": 90.84689999999999
+      },
+      "collections": null,
+      "edges": 2324,
+      "endpoints": null,
+      "evidence": {
+        "parsed": 1475,
+        "resolved": 849
+      },
+      "files": 97,
+      "hot_graph_stats_us": 266.7573,
+      "literal_search_ms": 42.80372,
+      "node_kinds": {
+        "constant": 137,
+        "enum": 15,
+        "file": 97,
+        "function": 393,
+        "method": 195,
+        "module": 99,
+        "package": 46,
+        "repository": 1,
+        "static": 8,
+        "struct": 132,
+        "trait": 8,
+        "type_alias": 20
+      },
+      "nodes": 1151,
+      "queues": null,
+      "relations": {
+        "calls": 849,
+        "contains": 1104,
+        "imports": 371
+      },
+      "repository": "radiochron",
+      "revision": "6093530cc7740e15088da2c60c396309e8f22e69",
+      "tables": null,
+      "topics": null,
+      "unchanged_refresh_ms": 3.7150666666666665
+    }
+  ],
+  "samples": 3,
+  "schema": "weavatrix.repository-benchmark.v1"
+}
