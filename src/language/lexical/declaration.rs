@@ -18,6 +18,9 @@ pub(super) fn inheritance(
     line: &str,
     language: &Language,
 ) -> Vec<(String, weavatrix_graph::EdgeKind)> {
+    if *language == Language::Python {
+        return python_inheritance(line);
+    }
     if !matches!(
         language,
         Language::JavaScript
@@ -45,6 +48,26 @@ pub(super) fn inheritance(
         }
     }
     result
+}
+
+fn python_inheritance(line: &str) -> Vec<(String, weavatrix_graph::EdgeKind)> {
+    let Some(rest) = line.strip_prefix("class ") else {
+        return Vec::new();
+    };
+    let Some(start) = rest.find('(') else {
+        return Vec::new();
+    };
+    let bases = rest[start + 1..].split(')').next().unwrap_or_default();
+    bases
+        .split(',')
+        .filter(|base| !base.contains('='))
+        .map(|base| {
+            let base = base.trim().trim_start_matches('*');
+            identifier(base.rsplit('.').next().unwrap_or(base))
+        })
+        .filter(|name| !name.is_empty() && *name != "object" && !control_word(name))
+        .map(|name| (name.to_owned(), weavatrix_graph::EdgeKind::Inherits))
+        .collect()
 }
 
 fn go_declaration(line: &str) -> Option<(String, NodeKind)> {
@@ -128,7 +151,46 @@ fn object_declaration(line: &str, language: &Language) -> Option<(String, NodeKi
             return named(rest, kind);
         }
     }
-    c_like_function(line, language)
+    c_like_function(line, language).or_else(|| object_field(line))
+}
+
+/// A `Type name;` / `Type name = ...;` member declaration. Statement-level
+/// false positives inside method bodies are filtered by scope in the parser.
+fn object_field(line: &str) -> Option<(String, NodeKind)> {
+    if !line.ends_with(';') {
+        return None;
+    }
+    let head = line.split(['=', ';']).next()?.trim_end();
+    if head.contains('(') || head.contains(['.', '"', '+', '-', '/', '!']) {
+        return None;
+    }
+    let head = strip_modifiers(
+        head,
+        &[
+            "public",
+            "private",
+            "protected",
+            "static",
+            "final",
+            "volatile",
+            "transient",
+            "readonly",
+            "const",
+        ],
+    );
+    if head.starts_with('@') {
+        return None;
+    }
+    let name = head
+        .rsplit(|character: char| !is_ident(character))
+        .find(|part| !part.is_empty())?;
+    let declared_type = head[..head.len() - name.len()].trim_end();
+    let has_type = declared_type
+        .chars()
+        .next()
+        .is_some_and(|character| character.is_alphabetic() || character == '_');
+    (has_type && !control_word(name) && !control_word(declared_type))
+        .then(|| (name.to_owned(), NodeKind::Custom("field".to_owned())))
 }
 
 fn bash_declaration(line: &str) -> Option<(String, NodeKind)> {
@@ -145,6 +207,12 @@ fn c_like_function(line: &str, language: &Language) -> Option<(String, NodeKind)
     let name = before
         .rsplit(|character: char| !is_ident(character))
         .find(|part| !part.is_empty())?;
+    // `.name(` is a call chain and `@Name(` is an annotation, never the
+    // declared function itself.
+    let preceding = before[..before.len() - name.len()].chars().next_back();
+    if matches!(preceding, Some('.' | '@')) {
+        return None;
+    }
     let kind = if matches!(language, Language::Java | Language::CSharp) {
         NodeKind::Method
     } else {

@@ -1,8 +1,20 @@
-# Changelog
+﻿# Changelog
 
 ## Unreleased
 
-- extract the MCP stdio runtime into the reusable `weavatrix-mcp` crate
+- close measured accuracy gaps against JavaScript 0.3.14: Python class
+  inheritance (430/430 parity on the corpus), Java/C# field symbols and
+  call-chain false-positive removal, Go const/var group members and grouped
+  aliased imports, workspace-aware Rust `crate::`/`self::`/`super::`/module
+  import resolution, Python absolute module imports, go-module and Java
+  classpath import resolution, CommonJS `require()` and multi-line
+  `import ... from` extraction (see the accuracy section of
+  docs/benchmarks.md and benchmark-results/accuracy-sweep-vs-js-0.3.14.txt);
+- record the Express mount-chain endpoint gap against the swagger ground
+  truth honestly (Rust recall 11.7% vs JavaScript 85.5%) as the next
+  accuracy target;
+
+- extract the MCP stdio runtime into the reusable `mcport` crate
   (blocking loop, `serde_json`-only, MSRV 1.78) so other MCP ports such as
   radiochron-mcp can drop their async executors;
 - respond to `initialize`, `ping`, and `tools/list` instantly by deferring

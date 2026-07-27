@@ -1,9 +1,9 @@
 use crate::{Weavatrix, tools};
+use mcport::{ServerIdentity, ToolReply, ToolServer};
 use serde_json::{Value, json};
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::path::{Path, PathBuf};
-use weavatrix_mcp::{ServerIdentity, ToolReply, ToolServer};
 
 #[derive(Debug)]
 pub enum McpError {
@@ -36,7 +36,7 @@ impl From<crate::Error> for McpError {
     }
 }
 
-/// Weavatrix tool surface behind the shared `weavatrix-mcp` stdio runtime.
+/// Weavatrix tool surface behind the shared `mcport` stdio runtime.
 ///
 /// Graph construction is deferred to the first tool call; the runtime answers
 /// `initialize`, `ping`, and `tools/list` from the catalog alone, so the
@@ -134,15 +134,15 @@ pub fn serve_with_profile(
         root,
         engine: None,
     };
-    weavatrix_mcp::serve(&mut server).map_err(McpError::Io)
+    mcport::serve(&mut server).map_err(McpError::Io)
 }
 
 #[cfg(test)]
 mod tests {
     use super::WeavatrixServer;
+    use mcport::dispatch;
     use serde_json::json;
     use std::path::PathBuf;
-    use weavatrix_mcp::dispatch;
 
     fn server(profile: crate::mcp::McpProfile) -> WeavatrixServer {
         WeavatrixServer {

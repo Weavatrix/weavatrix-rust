@@ -1,4 +1,4 @@
-# npm distribution and the JavaScript fork plan
+﻿# npm distribution and the JavaScript fork plan
 
 Status: designed and staged in this repository; publishing requires npm
 credentials and is a manual release step.
@@ -25,8 +25,8 @@ If parallel tool dispatch is ever needed, the design is a reader thread plus
 is deliberately not implemented today: every tool call after the first build
 completes in milliseconds, and ordered responses are simpler to reason about.
 
-The runtime is extracted into the reusable `weavatrix-mcp` crate
-(`../weavatrix-mcp`): a `ToolServer` trait (identity/catalog/call), a blocking
+The runtime is extracted into the reusable `mcport` crate
+(`../mcport`): a `ToolServer` trait (identity/catalog/call), a blocking
 `serve` loop, and the JSON-RPC/tool-result shapes, with `serde_json` as its
 only dependency and MSRV 1.78. Any MCP port in the family can adopt it;
 radiochron-mcp is the first planned consumer, replacing the tokio-based
@@ -74,18 +74,20 @@ written for the JavaScript 0.3.x releases keep working after the switch.
 2. **Deprecation pointer, not a breaking surprise.** `weavatrix@0.3.14`
    remains on the registry forever; users who pin keep working. A final
    `0.3.15` may optionally be published whose README points to `weavatrix-js`.
-3. **`weavatrix@0.4.0`** is published from this repository (`npm/weavatrix`)
-   as the Rust launcher with the platform packages above. The MCP surface is
-   a superset of the JavaScript catalog (35 read-only tools plus
-   cross-repository Git, vector, semantic, SEO, and memory tools), the bin
-   names are unchanged, and cold builds are measured 7-38x faster
-   (docs/benchmarks.md).
+3. **`weavatrix@1.0.0`** is published as the Rust launcher with the platform
+   packages above; the engine switch is the major-version signal. The npm
+   package home is the `weavatrix` repository itself (staged here under
+   `npm/weavatrix` until the repository swap); binaries are always built from
+   `weavatrix-rust`. The MCP surface is a superset of the JavaScript catalog
+   (35 read-only tools plus cross-repository Git, vector, semantic, SEO, and
+   memory tools), the bin names are unchanged, and cold builds are measured
+   7-171x faster (docs/benchmarks.md).
 4. **npm organization.** The `@weavatrix` scope must exist before the first
    platform-package publish; create it once under the npm account that owns
    `weavatrix`.
 5. **Order of operations for the first release:**
-   `npm-v0.4.0` tag -> CI builds six binaries -> platform packages publish ->
-   `weavatrix@0.4.0` publishes last (so `optionalDependencies` never dangle).
+   `npm-v1.0.0` tag -> CI builds six binaries -> platform packages publish ->
+   `weavatrix@1.0.0` publishes last (so `optionalDependencies` never dangle).
 
 ## What deliberately stays JavaScript
 

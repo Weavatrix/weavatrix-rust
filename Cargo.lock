@@ -87,6 +87,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
+name = "mcport"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -233,13 +240,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "weavatrix-mcp"
-version = "0.1.0"
-dependencies = [
- "serde_json",
-]
-
-[[package]]
 name = "weavatrix-memory"
 version = "0.3.0"
 dependencies = [
@@ -252,6 +252,7 @@ dependencies = [
 name = "weavatrix-rust"
 version = "0.2.0"
 dependencies = [
+ "mcport",
  "proc-macro2",
  "serde",
  "serde_json",
@@ -259,7 +260,6 @@ dependencies = [
  "weavatrix-clone",
  "weavatrix-git",
  "weavatrix-graph",
- "weavatrix-mcp",
  "weavatrix-memory",
  "weavatrix-scan",
  "weavatrix-search",

@@ -18,6 +18,7 @@ use weavatrix_scan::{ScanWarning, ScannedFile};
 pub(super) struct AnalysisState {
     graph: GraphBuilder,
     repository_id: NodeId,
+    repository_label: String,
     diagnostics: Vec<Diagnostic>,
     file_index: BTreeMap<String, NodeId>,
     symbol_index: BTreeMap<(Language, String), Vec<NodeId>>,
@@ -34,7 +35,7 @@ impl AnalysisState {
             .to_owned();
         let repository_node = Node::new(
             format!("repo:{}", sanitize_id(&label)),
-            label,
+            label.clone(),
             NodeKind::Repository,
         )?;
         let repository_id = repository_node.id.clone();
@@ -43,6 +44,7 @@ impl AnalysisState {
         Ok(Self {
             graph,
             repository_id,
+            repository_label: label,
             diagnostics: Vec::new(),
             file_index: BTreeMap::new(),
             symbol_index: BTreeMap::new(),
@@ -253,6 +255,7 @@ impl AnalysisState {
         resolve_imports(
             &mut self.graph,
             &self.file_index,
+            &self.repository_label,
             std::mem::take(&mut self.pending_imports),
         )?;
         resolve_references(

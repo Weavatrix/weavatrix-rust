@@ -1,4 +1,4 @@
-# Dependency budget
+﻿# Dependency budget
 
 The default package composes independent Rust libraries and launches no
 external runtime process.
@@ -13,7 +13,7 @@ external runtime process.
 | `weavatrix-clone` | Type-1/2/3 detection | `clone` |
 | `weavatrix-semantic` | semantic and SEO linking | `semantic` |
 | `weavatrix-memory` | temporal memory/context compile | `memory` |
-| `weavatrix-mcp` | blocking MCP stdio runtime, no async executor | core |
+| `mcport` | blocking MCP stdio runtime, no async executor | core |
 | `syn`, `proc-macro2` | Rust AST and source locations | `lang-rust` |
 | `serde`, `serde_json` | stable data boundaries | core |
 

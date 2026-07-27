@@ -77,6 +77,7 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
     let route_objects = matches!(language, Language::JavaScript | Language::TypeScript)
         && !source.path.contains("openapi");
     let mut depth = 0_i32;
+    let mut go_block = None::<GoBlock>;
     for (offset, raw) in source.text.lines().enumerate() {
         let line_number = line_number(offset);
         let line = raw.trim();
@@ -85,7 +86,11 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
         }
         discard_completed_scopes(&mut owners, language, raw, depth);
         let span = line_span(source.path, line_number, raw);
-        let declaration = declaration(line, language);
+        if *language == Language::Go && go_group(line, &mut go_block, &mut facts, &span, &owners) {
+            continue;
+        }
+        let declaration =
+            declaration(line, language).filter(|(_, kind)| !scoped_out(kind, language, &owners));
         if let Some((name, kind)) = declaration.as_ref() {
             let locator = SymbolLocator {
                 name: name.clone(),
@@ -165,6 +170,103 @@ struct OwnerScope {
     boundary: ScopeBoundary,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GoBlock {
+    Imports,
+    Constants,
+    Variables,
+}
+
+/// Tracks Go `import (` / `const (` / `var (` groups and records their
+/// members; returns true when the line belongs to such a group.
+fn go_group(
+    line: &str,
+    block: &mut Option<GoBlock>,
+    facts: &mut FileFacts,
+    span: &weavatrix_graph::SourceSpan,
+    owners: &[OwnerScope],
+) -> bool {
+    if let Some(active) = *block {
+        if line.starts_with(')') {
+            *block = None;
+            return true;
+        }
+        match active {
+            GoBlock::Imports => {
+                if let Some(target) = quoted_segment(line) {
+                    facts.imports.push(ImportFact {
+                        target,
+                        span: span.clone(),
+                    });
+                }
+            }
+            GoBlock::Constants | GoBlock::Variables => {
+                let name = support::identifier(line);
+                if !name.is_empty() && owners.is_empty() && !control_word(name) {
+                    facts.symbols.push(SymbolFact {
+                        name: name.to_owned(),
+                        kind: if active == GoBlock::Constants {
+                            NodeKind::Constant
+                        } else {
+                            NodeKind::Custom("variable".to_owned())
+                        },
+                        span: span.clone(),
+                    });
+                }
+            }
+        }
+        return true;
+    }
+    *block = match line {
+        "import (" => Some(GoBlock::Imports),
+        "const (" => Some(GoBlock::Constants),
+        "var (" => Some(GoBlock::Variables),
+        _ => None,
+    };
+    block.is_some()
+}
+
+fn quoted_segment(line: &str) -> Option<String> {
+    let start = line.find(['"', '\'', '`'])?;
+    let quote = line.as_bytes()[start] as char;
+    let rest = &line[start + 1..];
+    let end = rest.find(quote)?;
+    let target = &rest[..end];
+    (!target.is_empty()).then(|| target.to_owned())
+}
+
+/// `require('x')` and dynamic `import('x')` targets anywhere in the line.
+fn script_call_imports(line: &str) -> Vec<String> {
+    let mut targets = Vec::new();
+    for marker in ["require(", "import("] {
+        let mut rest = line;
+        while let Some(position) = rest.find(marker) {
+            let after = &rest[position + marker.len()..];
+            if let Some(target) = quoted_segment(after.split(')').next().unwrap_or(after)) {
+                targets.push(target);
+            }
+            rest = after;
+        }
+    }
+    targets
+}
+
+/// Declarations that only exist at statement level inside an enclosing
+/// function are execution details, not repository symbols.
+fn scoped_out(kind: &NodeKind, language: &Language, owners: &[OwnerScope]) -> bool {
+    let inside_callable = owners
+        .last()
+        .is_some_and(|scope| matches!(scope.locator.kind, NodeKind::Function | NodeKind::Method));
+    if !inside_callable {
+        return false;
+    }
+    match kind {
+        NodeKind::Custom(name) if name == "field" => true,
+        NodeKind::Constant | NodeKind::Custom(_) if *language == Language::Go => true,
+        _ => false,
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 enum ScopeBoundary {
     Brace(i32),
@@ -227,13 +329,34 @@ fn import_targets(line: &str, language: &Language) -> Vec<String> {
             })
             .unwrap_or_default();
     }
+    if matches!(language, Language::JavaScript | Language::TypeScript) {
+        let mut targets = script_call_imports(line);
+        // Closing line of a multi-line `import { ... } from 'x'`.
+        if line.starts_with('}')
+            && let Some((_, from)) = line.split_once(" from ")
+        {
+            if let Some(target) = quoted_segment(from) {
+                targets.push(target);
+            }
+        } else if let Some(value) = line.strip_prefix("import ")
+            && let Some(target) = quoted_segment(value)
+        {
+            targets.push(target);
+        } else if let Some(value) = line.strip_prefix("export ")
+            && value.contains(" from ")
+            && let Some(target) = quoted_segment(value)
+        {
+            targets.push(target);
+        }
+        targets.retain(|target| !target.is_empty());
+        targets.dedup();
+        return targets;
+    }
     let value = match language {
         Language::Go => line
             .strip_prefix("import ")
             .or_else(|| line.starts_with('"').then_some(line)),
-        Language::Java | Language::JavaScript | Language::TypeScript => {
-            line.strip_prefix("import ")
-        }
+        Language::Java => line.strip_prefix("import "),
         Language::CSharp => line.strip_prefix("using "),
         Language::C | Language::Cpp => line.strip_prefix("#include "),
         Language::Bash => line
@@ -243,6 +366,11 @@ fn import_targets(line: &str, language: &Language) -> Vec<String> {
     };
     let Some(value) = value else {
         return Vec::new();
+    };
+    let value = if *language == Language::Java {
+        value.trim_start().strip_prefix("static ").unwrap_or(value)
+    } else {
+        value
     };
     let target = value
         .rsplit_once(" from ")

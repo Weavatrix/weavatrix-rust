@@ -1,6 +1,6 @@
-{
+﻿{
   "name": "weavatrix",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "Local repository intelligence MCP for AI coding agents. Native Rust engine: always-fresh architecture graph, blast radius, dead code, endpoints, clones, Git history, search, and SEO-aware semantic linking - read-only, offline, zero runtime dependencies.",
   "author": "Sergii Ziborov <sergii.ziborov@gmail.com>",
   "license": "MIT",
@@ -37,11 +37,11 @@
     "rust"
   ],
   "optionalDependencies": {
-    "@weavatrix/cli-win32-x64": "0.4.0",
-    "@weavatrix/cli-win32-arm64": "0.4.0",
-    "@weavatrix/cli-darwin-x64": "0.4.0",
-    "@weavatrix/cli-darwin-arm64": "0.4.0",
-    "@weavatrix/cli-linux-x64": "0.4.0",
-    "@weavatrix/cli-linux-arm64": "0.4.0"
+    "@weavatrix/cli-win32-x64": "1.0.0",
+    "@weavatrix/cli-win32-arm64": "1.0.0",
+    "@weavatrix/cli-darwin-x64": "1.0.0",
+    "@weavatrix/cli-darwin-arm64": "1.0.0",
+    "@weavatrix/cli-linux-x64": "1.0.0",
+    "@weavatrix/cli-linux-arm64": "1.0.0"
   }
 }

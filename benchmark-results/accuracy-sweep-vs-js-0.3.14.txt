@@ -1,0 +1,58 @@
+RELEASE: 0
+### analytics
+files	rust=354	js=362	common=354	rust_covers_js=97.8%	js_covers_rust=100%
+symbols	rust=4926	js=2540	common=2471	rust_covers_js=97.3%	js_covers_rust=50.2%
+contains	rust=4926	js=2540	common=2471	rust_covers_js=97.3%	js_covers_rust=50.2%
+imports	rust=1558	js=1654	common=1286	rust_covers_js=77.8%	js_covers_rust=82.5%
+calls	rust=3316	js=3387	common=1986	rust_covers_js=58.6%	js_covers_rust=59.9%
+inherits	rust=26	js=6	common=6	rust_covers_js=100%	js_covers_rust=23.1%
+### automation
+files	rust=1025	js=1670	common=1025	rust_covers_js=61.4%	js_covers_rust=100%
+symbols	rust=5461	js=5669	common=5461	rust_covers_js=96.3%	js_covers_rust=100%
+contains	rust=5461	js=5669	common=5461	rust_covers_js=96.3%	js_covers_rust=100%
+imports	rust=5490	js=3388	common=3317	rust_covers_js=97.9%	js_covers_rust=60.4%
+calls	rust=2736	js=1366	common=831	rust_covers_js=60.8%	js_covers_rust=30.4%
+inherits	rust=430	js=430	common=430	rust_covers_js=100%	js_covers_rust=100%
+### bgp-speaker
+files	rust=28	js=30	common=28	rust_covers_js=93.3%	js_covers_rust=100%
+symbols	rust=524	js=455	common=455	rust_covers_js=100%	js_covers_rust=86.8%
+contains	rust=524	js=455	common=455	rust_covers_js=100%	js_covers_rust=86.8%
+imports	rust=240	js=107	common=107	rust_covers_js=100%	js_covers_rust=44.6%
+calls	rust=285	js=310	common=275	rust_covers_js=88.7%	js_covers_rust=96.5%
+inherits	rust=0	js=0	common=0	rust_covers_js=null%	js_covers_rust=null%
+### warroom
+files	rust=391	js=805	common=391	rust_covers_js=48.6%	js_covers_rust=100%
+symbols	rust=6269	js=6177	common=5759	rust_covers_js=93.2%	js_covers_rust=91.9%
+contains	rust=6269	js=6177	common=5759	rust_covers_js=93.2%	js_covers_rust=91.9%
+imports	rust=4558	js=1765	common=1765	rust_covers_js=100%	js_covers_rust=38.7%
+calls	rust=3714	js=5500	common=1895	rust_covers_js=34.5%	js_covers_rust=51%
+inherits	rust=70	js=55	common=28	rust_covers_js=50.9%	js_covers_rust=40%
+### AI-Dev-System
+files	rust=297	js=504	common=297	rust_covers_js=58.9%	js_covers_rust=100%
+symbols	rust=3582	js=1949	common=1772	rust_covers_js=90.9%	js_covers_rust=49.5%
+contains	rust=3582	js=1949	common=1772	rust_covers_js=90.9%	js_covers_rust=49.5%
+imports	rust=791	js=614	common=447	rust_covers_js=72.8%	js_covers_rust=56.5%
+calls	rust=2016	js=1036	common=825	rust_covers_js=79.6%	js_covers_rust=40.9%
+inherits	rust=69	js=3	common=2	rust_covers_js=66.7%	js_covers_rust=2.9%
+### grpc-server
+files	rust=29	js=30	common=29	rust_covers_js=96.7%	js_covers_rust=100%
+symbols	rust=335	js=335	common=335	rust_covers_js=100%	js_covers_rust=100%
+contains	rust=335	js=335	common=335	rust_covers_js=100%	js_covers_rust=100%
+imports	rust=171	js=47	common=47	rust_covers_js=100%	js_covers_rust=27.5%
+calls	rust=144	js=140	common=127	rust_covers_js=90.7%	js_covers_rust=88.2%
+inherits	rust=0	js=0	common=0	rust_covers_js=null%	js_covers_rust=null%
+### controller-rest-api
+files	rust=943	js=1098	common=943	rust_covers_js=85.9%	js_covers_rust=100%
+symbols	rust=14393	js=9164	common=8719	rust_covers_js=95.1%	js_covers_rust=60.6%
+contains	rust=14393	js=9164	common=8719	rust_covers_js=95.1%	js_covers_rust=60.6%
+imports	rust=2105	js=2957	common=1034	rust_covers_js=35%	js_covers_rust=49.1%
+calls	rust=7244	js=6767	common=3216	rust_covers_js=47.5%	js_covers_rust=44.4%
+inherits	rust=34	js=0	common=0	rust_covers_js=null%	js_covers_rust=0%
+### frontend
+files	rust=1612	js=1724	common=1612	rust_covers_js=93.5%	js_covers_rust=100%
+symbols	rust=13040	js=6577	common=6552	rust_covers_js=99.6%	js_covers_rust=50.2%
+contains	rust=13040	js=6577	common=6552	rust_covers_js=99.6%	js_covers_rust=50.2%
+imports	rust=8246	js=6977	common=3813	rust_covers_js=54.7%	js_covers_rust=46.2%
+calls	rust=4295	js=2738	common=1273	rust_covers_js=46.5%	js_covers_rust=29.6%
+inherits	rust=117	js=1	common=1	rust_covers_js=100%	js_covers_rust=0.9%
+SWEEP DONE
