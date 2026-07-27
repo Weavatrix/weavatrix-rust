@@ -126,7 +126,7 @@ cargo llvm-cov --workspace --all-features --ignore-filename-regex '(main|error)\
 cargo bench --bench repository_suite -- <repository>...
 ```
 
-The release gate currently measures 85.07% line coverage. It excludes only
+The release gate currently measures 85.52% line coverage. It excludes only
 the binary CLI wiring and error-enum declarations, while all engine, parser,
 MCP, integration, and tool modules remain in scope.
 
