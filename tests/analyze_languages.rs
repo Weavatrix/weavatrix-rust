@@ -246,6 +246,40 @@ fn resolves_language_specific_repository_imports() {
     );
 }
 
+#[test]
+fn resolves_express_mount_chains_to_full_paths() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "services/users/router.js",
+        "const express = require('express');\nconst router = express.Router();\nrouter.get('/', list);\nrouter.get('/:id', read);\nmodule.exports = router;\n",
+    );
+    fixture.write(
+        "services/api.js",
+        "const usersRouter = require('./users/router');\nconst api = require('express').Router();\napi.use('/users', usersRouter);\nmodule.exports = api;\n",
+    );
+    fixture.write(
+        "app.js",
+        "const api = require('./services/api');\napp.use('/api', api);\n",
+    );
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    for label in ["GET /api/users", "GET /api/users/:id"] {
+        assert!(
+            snapshot
+                .nodes
+                .iter()
+                .any(|node| node.kind == NodeKind::Endpoint && node.label == label),
+            "missing mounted endpoint {label}"
+        );
+    }
+    assert!(
+        snapshot
+            .nodes
+            .iter()
+            .any(|node| node.kind == NodeKind::Endpoint && node.label == "GET /"),
+        "locally declared endpoint evidence is preserved"
+    );
+}
+
 struct Fixture {
     root: PathBuf,
 }

@@ -3,14 +3,15 @@ mod domain;
 mod support;
 
 use super::{
-    FileFacts, ImportFact, Language, LanguageAdapter, ReferenceFact, SourceFile, SymbolFact,
-    SymbolLocator,
+    FileFacts, ImportFact, Language, LanguageAdapter, MountFact, ReferenceFact, SourceFile,
+    SymbolFact, SymbolLocator,
 };
 use crate::Result;
 use declaration::{declaration, inheritance};
 use domain::{
     domain_facts, object_route_key, object_route_method, parse_sql, parse_yaml, route_fact,
 };
+use std::collections::BTreeMap;
 use support::{brace_delta, control_word, is_ident, line_number, line_span, sort_facts};
 use weavatrix_graph::{EdgeKind, NodeKind};
 
@@ -78,6 +79,10 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
         && !source.path.contains("openapi");
     let mut depth = 0_i32;
     let mut go_block = None::<GoBlock>;
+    let script = matches!(language, Language::JavaScript | Language::TypeScript);
+    let mut bindings = BTreeMap::<String, String>::new();
+    let mut raw_mounts = Vec::<(String, MountRef)>::new();
+    let mut pending_route = None::<&'static str>;
     for (offset, raw) in source.text.lines().enumerate() {
         let line_number = line_number(offset);
         let line = raw.trim();
@@ -110,25 +115,18 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
             }
         }
         let owner = owners.last().map(|scope| scope.locator.clone());
+        if script
+            && let Some(method) = pending_route.take()
+            && line.starts_with(['\'', '"', '`'])
+            && let Some(path) = quoted_segment(line)
+            && path.starts_with('/')
+        {
+            facts
+                .domains
+                .push(route_fact(method, &path, &span, owner.clone()));
+        }
         if route_objects {
-            if let Some((path, block)) = object_route_key(line) {
-                if block {
-                    object_route = Some(path);
-                } else {
-                    facts
-                        .domains
-                        .push(route_fact("ANY", &path, &span, owner.clone()));
-                    object_route = None;
-                }
-            } else if let Some(method) = object_route_method(line)
-                && let Some(path) = &object_route
-            {
-                facts
-                    .domains
-                    .push(route_fact(method, path, &span, owner.clone()));
-            } else if line.starts_with('}') {
-                object_route = None;
-            }
+            track_object_routes(line, &span, owner.as_ref(), &mut object_route, &mut facts);
         }
         for (name, kind) in inheritance(line, language) {
             facts.references.push(ReferenceFact {
@@ -158,10 +156,159 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
         facts
             .domains
             .extend(domain_facts(line, &span, owner.as_ref()));
+        if script {
+            collect_script_bindings(line, &mut bindings);
+            collect_script_mounts(line, &mut raw_mounts);
+            pending_route = route_method_opening(line);
+        }
         depth += brace_delta(line);
+    }
+    for (prefix, target) in raw_mounts {
+        let specifier = match target {
+            MountRef::Specifier(specifier) => Some(specifier),
+            MountRef::Binding(name) => bindings.get(&name).cloned(),
+        };
+        if let Some(target) = specifier {
+            facts.mounts.push(MountFact { prefix, target });
+        }
     }
     sort_facts(&mut facts);
     facts
+}
+
+/// Tracks `{ '/path': { GET: handler } }` route-table objects.
+fn track_object_routes(
+    line: &str,
+    span: &weavatrix_graph::SourceSpan,
+    owner: Option<&SymbolLocator>,
+    object_route: &mut Option<String>,
+    facts: &mut FileFacts,
+) {
+    if let Some((path, block)) = object_route_key(line) {
+        if block {
+            *object_route = Some(path);
+        } else {
+            facts
+                .domains
+                .push(route_fact("ANY", &path, span, owner.cloned()));
+            *object_route = None;
+        }
+    } else if let Some(method) = object_route_method(line)
+        && let Some(path) = &*object_route
+    {
+        facts
+            .domains
+            .push(route_fact(method, path, span, owner.cloned()));
+    } else if line.starts_with('}') {
+        *object_route = None;
+    }
+}
+
+/// A route registration whose path argument continues on the next line.
+fn route_method_opening(line: &str) -> Option<&'static str> {
+    [
+        (".get(", "GET"),
+        (".post(", "POST"),
+        (".put(", "PUT"),
+        (".patch(", "PATCH"),
+        (".delete(", "DELETE"),
+    ]
+    .into_iter()
+    .find_map(|(suffix, method)| line.ends_with(suffix).then_some(method))
+}
+
+#[derive(Debug, Clone)]
+enum MountRef {
+    /// `use(p, require('./x'))` names the module inline.
+    Specifier(String),
+    /// `use(p, router)` references a binding declared elsewhere in the file.
+    Binding(String),
+}
+
+/// Records `const x = require('spec')`, destructured
+/// `const { a, b: c } = require('spec')`, and default/namespace
+/// `import x from 'spec'` bindings usable as mount targets.
+fn collect_script_bindings(line: &str, bindings: &mut BTreeMap<String, String>) {
+    for prefix in ["const ", "let ", "var "] {
+        if let Some(rest) = line.strip_prefix(prefix) {
+            let Some((left, right)) = rest.split_once('=') else {
+                return;
+            };
+            let Some(after) = right.split_once("require(") else {
+                return;
+            };
+            let Some(specifier) = quoted_segment(after.1) else {
+                return;
+            };
+            let left = left.trim();
+            if let Some(inner) = left.strip_prefix('{') {
+                for part in inner.trim_end_matches(['}', ' ']).split(',') {
+                    let local = part.split(':').next_back().unwrap_or(part);
+                    let name = support::identifier(local);
+                    if !name.is_empty() {
+                        bindings.insert(name.to_owned(), specifier.clone());
+                    }
+                }
+            } else {
+                let name = support::identifier(left);
+                if !name.is_empty() {
+                    bindings.insert(name.to_owned(), specifier);
+                }
+            }
+            return;
+        }
+    }
+    let Some(rest) = line.strip_prefix("import ") else {
+        return;
+    };
+    let rest = rest.trim_start();
+    let rest = rest.strip_prefix("* as ").unwrap_or(rest);
+    let name = support::identifier(rest);
+    if name.is_empty() || !rest.contains(" from ") {
+        return;
+    }
+    if let Some(specifier) = quoted_segment(rest) {
+        bindings.insert(name.to_owned(), specifier);
+    }
+}
+
+/// Records `X.use('/prefix', target)` router mounts on the line.
+fn collect_script_mounts(line: &str, mounts: &mut Vec<(String, MountRef)>) {
+    let mut rest = line;
+    while let Some(position) = rest.find(".use(") {
+        let after = &rest[position + 5..];
+        let argument = after.trim_start();
+        let (prefix, target_text) = match argument.chars().next() {
+            Some(quote @ ('"' | '\'' | '`')) => {
+                let body = &argument[1..];
+                let Some(end) = body.find(quote) else {
+                    rest = after;
+                    continue;
+                };
+                let remainder = body[end + 1..].trim_start().trim_start_matches(',');
+                (body[..end].to_owned(), remainder.trim_start())
+            }
+            _ => (String::new(), argument),
+        };
+        if prefix.is_empty() || prefix.starts_with('/') {
+            // Middleware may sit between the prefix and the router; treat
+            // every argument as a candidate - non-routers add no endpoints.
+            for part in target_text.split(',').take(4) {
+                if let Some(target) = mount_target(part.trim()) {
+                    mounts.push((prefix.clone(), target));
+                }
+            }
+        }
+        rest = after;
+    }
+}
+
+fn mount_target(text: &str) -> Option<MountRef> {
+    if let Some(rest) = text.strip_prefix("require(") {
+        return quoted_segment(rest).map(MountRef::Specifier);
+    }
+    let name = support::identifier(text);
+    (!name.is_empty()).then(|| MountRef::Binding(name.to_owned()))
 }
 
 #[derive(Debug, Clone)]

@@ -3,17 +3,71 @@ use super::references::{PendingReference, resolve as resolve_references};
 use super::support::{
     locator_key, normalized_path, parsed_provenance, sanitize_id, symbol_id, symbol_locator_key,
 };
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::language::{
-    DomainFact, FileFacts, ImportFact, Language, LanguageAdapter, LanguageRegistry, ReferenceFact,
-    SymbolFact,
+    DomainFact, FileFacts, ImportFact, Language, LanguageRegistry, ReferenceFact, SymbolFact,
 };
 use crate::snapshot::{Capability, Diagnostic, SNAPSHOT_SCHEMA_VERSION, Snapshot};
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::Path;
 use weavatrix_graph::{Edge, EdgeKind, GraphBuilder, Node, NodeId, NodeKind};
-use weavatrix_scan::{ScanWarning, ScannedFile};
+use weavatrix_scan::ScanWarning;
+
+/// A file parsed off the graph thread; integration stays sequential and
+/// deterministic while parsing fans out across cores.
+pub(super) struct ParsedSource {
+    pub relative: String,
+    pub bytes: u64,
+    pub content_hash: Option<String>,
+    pub outcome: ParseOutcome,
+}
+
+pub(super) enum ParseOutcome {
+    Skipped,
+    NonUtf8,
+    Parsed {
+        language: Language,
+        extractor: &'static str,
+        facts: FileFacts,
+    },
+}
+
+/// Parses one source blob into integration-ready facts. Pure with respect to
+/// analysis state, so it is safe to run from worker threads.
+pub(super) fn parse_source(
+    relative: &str,
+    bytes: &[u8],
+    content_hash: Option<&str>,
+    registry: &LanguageRegistry,
+) -> Result<ParsedSource> {
+    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    let sourced = |outcome: ParseOutcome| ParsedSource {
+        relative: relative.to_owned(),
+        bytes: size,
+        content_hash: content_hash.map(str::to_owned),
+        outcome,
+    };
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return Ok(sourced(ParseOutcome::NonUtf8));
+    };
+    let extension = Path::new(relative)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_default();
+    let Some(adapter) = registry.adapter_for_extension(&extension) else {
+        return Ok(sourced(ParseOutcome::Skipped));
+    };
+    let facts = adapter.parse(crate::language::SourceFile {
+        path: relative,
+        text,
+    })?;
+    Ok(sourced(ParseOutcome::Parsed {
+        language: adapter.language(),
+        extractor: adapter.extractor(),
+        facts,
+    }))
+}
 
 pub(super) struct AnalysisState {
     graph: GraphBuilder,
@@ -62,65 +116,43 @@ impl AnalysisState {
             }));
     }
 
-    pub(super) fn process_file(
-        &mut self,
-        file: &ScannedFile,
-        registry: &LanguageRegistry,
-    ) -> Result<()> {
-        let bytes = fs::read(&file.absolute).map_err(|source| Error::io(&file.absolute, source))?;
-        self.process_source(
-            &file.relative,
-            &bytes,
-            file.content_hash.as_deref(),
-            registry,
-        )
-    }
-
-    pub(super) fn process_source(
-        &mut self,
-        relative: &str,
-        bytes: &[u8],
-        content_hash: Option<&str>,
-        registry: &LanguageRegistry,
-    ) -> Result<()> {
-        let Ok(text) = std::str::from_utf8(bytes) else {
-            self.diagnostics.push(Diagnostic {
-                code: "scan.non_utf8".into(),
-                message: format!("skipped non-UTF-8 source file {relative}"),
-                span: None,
-            });
-            return Ok(());
-        };
-        let extension = Path::new(relative)
-            .extension()
-            .and_then(|value| value.to_str())
-            .map(str::to_ascii_lowercase)
-            .unwrap_or_default();
-        let Some(adapter) = registry.adapter_for_extension(&extension) else {
-            return Ok(());
-        };
-        let language = adapter.language();
-        let file_id = self.add_file_node(
+    pub(super) fn integrate(&mut self, parsed: ParsedSource) -> Result<()> {
+        let ParsedSource {
             relative,
-            u64::try_from(bytes.len()).unwrap_or(u64::MAX),
+            bytes,
             content_hash,
-            &language,
-        )?;
+            outcome,
+        } = parsed;
+        let (language, extractor, facts) = match outcome {
+            ParseOutcome::Skipped => return Ok(()),
+            ParseOutcome::NonUtf8 => {
+                self.diagnostics.push(Diagnostic {
+                    code: "scan.non_utf8".into(),
+                    message: format!("skipped non-UTF-8 source file {relative}"),
+                    span: None,
+                });
+                return Ok(());
+            }
+            ParseOutcome::Parsed {
+                language,
+                extractor,
+                facts,
+            } => (language, extractor, facts),
+        };
+        let file_id = self.add_file_node(&relative, bytes, content_hash.as_deref(), &language)?;
         let FileFacts {
             symbols,
             references,
             imports,
             domains,
             diagnostics,
-        } = adapter.parse(crate::language::SourceFile {
-            path: relative,
-            text,
-        })?;
+            mounts: _,
+        } = facts;
         self.diagnostics.extend(diagnostics);
-        let local_symbols = self.add_symbols(relative, &file_id, adapter, symbols)?;
-        self.add_imports(relative, &file_id, adapter, imports);
-        self.add_domains(&file_id, adapter, domains, &local_symbols)?;
-        self.collect_references(&file_id, adapter, references, &local_symbols);
+        let local_symbols = self.add_symbols(&relative, &file_id, &language, extractor, symbols)?;
+        self.add_imports(&relative, &file_id, &language, extractor, imports);
+        self.add_domains(&file_id, extractor, domains, &local_symbols)?;
+        self.collect_references(&file_id, &language, extractor, references, &local_symbols);
         Ok(())
     }
 
@@ -154,7 +186,8 @@ impl AnalysisState {
         &mut self,
         relative: &str,
         file_id: &NodeId,
-        adapter: &dyn LanguageAdapter,
+        language: &Language,
+        extractor: &'static str,
         symbols: Vec<SymbolFact>,
     ) -> Result<BTreeMap<(NodeKind, String, u32, u32), NodeId>> {
         let mut local = BTreeMap::new();
@@ -164,12 +197,12 @@ impl AnalysisState {
                 symbol.name.clone(),
                 symbol.kind.clone(),
             )?
-            .with_language(adapter.language().as_str())
+            .with_language(language.as_str())
             .with_span(symbol.span.clone());
             let id = node.id.clone();
             local.insert(symbol_locator_key(&symbol), id.clone());
             self.symbol_index
-                .entry((adapter.language(), symbol.name.clone()))
+                .entry((language.clone(), symbol.name.clone()))
                 .or_default()
                 .push(id.clone());
             self.graph.add_node(node)?;
@@ -177,7 +210,7 @@ impl AnalysisState {
                 file_id.clone(),
                 id,
                 EdgeKind::Contains,
-                parsed_provenance(adapter.extractor(), Some(symbol.span))?,
+                parsed_provenance(extractor, Some(symbol.span))?,
             ))?;
         }
         Ok(local)
@@ -187,15 +220,16 @@ impl AnalysisState {
         &mut self,
         relative: &str,
         file_id: &NodeId,
-        adapter: &dyn LanguageAdapter,
+        language: &Language,
+        extractor: &'static str,
         imports: Vec<ImportFact>,
     ) {
         for import in imports {
             self.pending_imports.push(PendingImport {
                 source: file_id.clone(),
                 source_path: relative.to_owned(),
-                language: adapter.language(),
-                extractor: adapter.extractor(),
+                language: language.clone(),
+                extractor,
                 import,
             });
         }
@@ -204,7 +238,8 @@ impl AnalysisState {
     fn collect_references(
         &mut self,
         file_id: &NodeId,
-        adapter: &dyn LanguageAdapter,
+        language: &Language,
+        extractor: &'static str,
         references: Vec<ReferenceFact>,
         local_symbols: &BTreeMap<(NodeKind, String, u32, u32), NodeId>,
     ) {
@@ -216,8 +251,8 @@ impl AnalysisState {
                 .unwrap_or_else(|| file_id.clone());
             self.pending_references.push(PendingReference {
                 source,
-                language: adapter.language(),
-                extractor: adapter.extractor(),
+                language: language.clone(),
+                extractor,
                 reference,
             });
         }
@@ -226,7 +261,7 @@ impl AnalysisState {
     fn add_domains(
         &mut self,
         file_id: &NodeId,
-        adapter: &dyn LanguageAdapter,
+        extractor: &'static str,
         domains: Vec<DomainFact>,
         local_symbols: &BTreeMap<(NodeKind, String, u32, u32), NodeId>,
     ) -> Result<()> {
@@ -243,7 +278,7 @@ impl AnalysisState {
             ))?;
             self.graph
                 .add_node(Node::new(id.to_string(), fact.name, fact.kind)?)?;
-            let provenance = parsed_provenance(adapter.extractor(), Some(fact.span))?
+            let provenance = parsed_provenance(extractor, Some(fact.span))?
                 .with_detail("domain evidence extracted from source");
             self.graph
                 .add_edge(Edge::new(source, id, fact.relation, provenance))?;

@@ -92,6 +92,15 @@ pub struct ImportFact {
     pub span: SourceSpan,
 }
 
+/// One `use(prefix, target)`-style router mount observed in a source file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MountFact {
+    /// Path prefix the target is mounted under; empty for bare `use(x)`.
+    pub prefix: String,
+    /// Module specifier of the mounted router.
+    pub target: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DomainFact {
     pub name: String,
@@ -108,6 +117,7 @@ pub struct FileFacts {
     pub imports: Vec<ImportFact>,
     pub domains: Vec<DomainFact>,
     pub diagnostics: Vec<Diagnostic>,
+    pub mounts: Vec<MountFact>,
 }
 
 pub trait LanguageAdapter: Send + Sync {

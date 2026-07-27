@@ -1,16 +1,55 @@
 mod imports;
+mod mounts;
 mod references;
 mod state;
 mod support;
 
 use crate::Result;
+use crate::error::Error;
 use crate::language::LanguageRegistry;
 use crate::snapshot::Snapshot;
-use state::AnalysisState;
+use state::{AnalysisState, ParsedSource, parse_source};
 use std::collections::BTreeSet;
 use std::path::Path;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use support::{canonical_repository, capabilities};
 use weavatrix_scan::{ScanOptions, ScanReport, Scanner};
+
+/// Runs `fetch` for every index across all available cores and returns the
+/// results in index order, so downstream integration stays deterministic.
+fn parse_parallel<F>(count: usize, fetch: F) -> Result<Vec<ParsedSource>>
+where
+    F: Fn(usize) -> Result<ParsedSource> + Sync,
+{
+    let workers = std::thread::available_parallelism()
+        .map_or(1, usize::from)
+        .min(count)
+        .max(1);
+    if workers <= 1 {
+        return (0..count).map(fetch).collect();
+    }
+    let cursor = AtomicUsize::new(0);
+    let results = Mutex::new(Vec::with_capacity(count));
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    let index = cursor.fetch_add(1, Ordering::Relaxed);
+                    if index >= count {
+                        break;
+                    }
+                    let result = fetch(index);
+                    let mut guard = results.lock().expect("parser thread panicked");
+                    guard.push((index, result));
+                }
+            });
+        }
+    });
+    let mut items = results.into_inner().expect("parser thread panicked");
+    items.sort_unstable_by_key(|(index, _)| *index);
+    items.into_iter().map(|(_, result)| result).collect()
+}
 
 #[derive(Debug, Clone)]
 pub struct AnalyzerConfig {
@@ -103,8 +142,20 @@ impl Analyzer {
     pub(crate) fn analyze_report(&self, repository: &Path, scan: &ScanReport) -> Result<Snapshot> {
         let mut state = AnalysisState::new(repository)?;
         state.add_scan_warnings(scan.warnings.clone());
-        for file in &scan.files {
-            state.process_file(file, &self.languages)?;
+        let mut parsed = parse_parallel(scan.files.len(), |index| {
+            let file = &scan.files[index];
+            let bytes = std::fs::read(&file.absolute)
+                .map_err(|source| Error::io(&file.absolute, source))?;
+            parse_source(
+                &file.relative,
+                &bytes,
+                file.content_hash.as_deref(),
+                &self.languages,
+            )
+        })?;
+        mounts::apply(&mut parsed);
+        for item in parsed {
+            state.integrate(item)?;
         }
         state.resolve_references()?;
         state.into_snapshot(
@@ -142,16 +193,24 @@ impl Analyzer {
     ) -> Result<Snapshot> {
         let repository = canonical_repository(repository.as_ref())?;
         let mut state = AnalysisState::new(&repository)?;
-        for source in sources {
-            if u64::try_from(source.bytes.len()).unwrap_or(u64::MAX) > self.config.max_file_bytes {
-                continue;
-            }
-            state.process_source(
+        let sources = sources
+            .into_iter()
+            .filter(|source| {
+                u64::try_from(source.bytes.len()).unwrap_or(u64::MAX) <= self.config.max_file_bytes
+            })
+            .collect::<Vec<_>>();
+        let mut parsed = parse_parallel(sources.len(), |index| {
+            let source = &sources[index];
+            parse_source(
                 &source.path,
                 &source.bytes,
                 source.content_hash.as_deref(),
                 &self.languages,
-            )?;
+            )
+        })?;
+        mounts::apply(&mut parsed);
+        for item in parsed {
+            state.integrate(item)?;
         }
         state.resolve_references()?;
         state.into_snapshot(&repository, revision.into(), capabilities(&self.languages))

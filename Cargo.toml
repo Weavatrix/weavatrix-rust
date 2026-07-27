@@ -52,6 +52,10 @@ weavatrix-semantic = { version = "0.2.0", path = "../weavatrix-semantic", option
 
 [dev-dependencies]
 
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
 [lints.rust]
 unsafe_code = "forbid"
 

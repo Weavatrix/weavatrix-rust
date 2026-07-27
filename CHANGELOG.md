@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- parallelize source parsing across all cores with deterministic
+  integration order, and ship thin-LTO release binaries: cold builds are now
+  16-244x faster than JavaScript 0.3.14 (geometric mean ~45x, was ~20x);
+- resolve Express mount chains across files (middleware-separated
+  arguments, destructured requires, multi-line route declarations): endpoint
+  recall against the controller-rest-api swagger ground truth rises from
+  11.7% to 85.5%, exact parity with the JavaScript engine at its
+  static-analysis ceiling;
+
 - close measured accuracy gaps against JavaScript 0.3.14: Python class
   inheritance (430/430 parity on the corpus), Java/C# field symbols and
   call-chain false-positive removal, Go const/var group members and grouped

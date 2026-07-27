@@ -17,19 +17,21 @@ JavaScript timing excludes it, which biases every row in JavaScript's favor.
 
 | Repository | Revision | Rust cold build | JS cold build | Speedup | Rust/JS endpoints |
 |---|---|---:|---:|---:|---:|
-| frontend | `8b39a8ad` | 799.2 ms | 14,284.1 ms | 17.9x | 1 / 0 |
-| analytics | `38c32aba` | 255.4 ms | 3,151.6 ms | 12.3x | 73 / 67 |
-| automation | `8ab859ac` | 569.6 ms | 23,110.7 ms | 40.6x | 0 / 0 |
-| bgp-speaker | `b1121fd6` | 24.0 ms | 533.3 ms | 22.2x | 0 / 0 |
-| warroom | `6a887f0e` | 345.8 ms | 2,988.3 ms | 8.6x | 9 / 8 |
-| AI-Dev-System | `81e7e9a1` | 316.8 ms | 3,002.0 ms | 9.5x | 20 / 18 |
-| grpc-server | `a9376fd7` | 17.3 ms | 2,491.3 ms | 144.0x | 0 / 0 |
-| controller-rest-api | `11a66fab` | 774.7 ms | 14,830.4 ms | 19.1x | 353 / 987 |
-| radiochron | `6093530c` | 122.7 ms | 1,126.0 ms | 9.2x | 0 / 0 |
+| frontend | `8b39a8ad` | 402.6 ms | 14,284.1 ms | 35.5x | 1 / 0 |
+| analytics | `38c32aba` | 105.1 ms | 3,151.6 ms | 30.0x | 73 / 67 |
+| automation | `8ab859ac` | 203.6 ms | 23,110.7 ms | 113.5x | 0 / 0 |
+| bgp-speaker | `b1121fd6` | 11.6 ms | 533.3 ms | 46.0x | 0 / 0 |
+| warroom | `6a887f0e` | 181.2 ms | 2,988.3 ms | 16.5x | 9 / 8 |
+| AI-Dev-System | `81e7e9a1` | 107.3 ms | 3,002.0 ms | 28.0x | 20 / 18 |
+| grpc-server | `a9376fd7` | 10.2 ms | 2,491.3 ms | 244.2x | 0 / 0 |
+| controller-rest-api | `11a66fab` | 367.7 ms | 14,830.4 ms | 40.3x | 1,299 / 987 |
+| radiochron | `6093530c` | 40.3 ms | 1,126.0 ms | 27.9x | 0 / 0 |
 
-The Rust timings above are measured with the accuracy-parity extraction
+The Rust timings are measured with the full accuracy-parity extraction
 enabled (Python inheritance, Java fields, Go groups, cross-file import
-resolution, CommonJS requires) - richer graphs did not cost cold-build time.
+resolution, CommonJS requires, Express mount chains), parallel parsing
+across all cores, and a thin-LTO release binary. Geometric-mean speedup is
+about 45x.
 
 Rust is faster on all nine repositories; the geometric-mean speedup is about
 20x. The two smallest repositories (under 30 language files each) still cost
@@ -76,15 +78,18 @@ the one corpus repository with an authoritative route list:
 
 | Engine | Reported | Full-path matches | Precision | Recall |
 |---|---:|---:|---:|---:|
-| Rust | 313 | 54 | 17.3% | 11.7% |
+| Rust | 1,243 | 396 | 31.9% | 85.5% |
 | JavaScript 0.3.14 | 968 | 396 | 40.9% | 85.5% |
 
-The JavaScript engine resolves Express mount chains
-(`app.use('/prefix', router)`) across files; the Rust engine currently
-records router-local paths only. This is the one measured area where the
-JavaScript engine is clearly ahead, and it is the next accuracy target for
-the Rust engine. Endpoint labels on Rust, Java, Python, and Go frameworks
-are declared absolute at the annotation site and do not have this gap.
+The Rust engine resolves Express mount chains across files - including
+middleware-separated arguments, destructured requires, and multi-line route
+declarations - and matches the JavaScript engine exactly: both find the same
+396 of 463 swagger operations. All 67 operations missed by both engines are
+`edgeAnalytics/*` paths merged into the swagger from a separate proxied
+service; their routes do not exist in this repository's source, so 85.5% is
+the static-analysis ceiling here. Rust additionally keeps the router-local
+declarations as explicit evidence, which lowers its precision figure without
+losing any real endpoint.
 
 ## Component competitors
 
