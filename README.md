@@ -87,15 +87,15 @@ the Rust timing includes endpoint extraction, the JavaScript timing does not):
 
 | Repository | Rust | JavaScript 0.3.14 | Rust speedup | Endpoint evidence |
 |---|---:|---:|---:|---:|
-| frontend | 402.6 ms | 14,284.1 ms | 35.5x | 1 vs 0 |
-| analytics | 105.1 ms | 3,151.6 ms | 30.0x | 73 vs 67 |
-| automation | 203.6 ms | 23,110.7 ms | 113.5x | 0 vs 0 |
-| bgp-speaker | 11.6 ms | 533.3 ms | 46.0x | 0 vs 0 |
-| warroom | 181.2 ms | 2,988.3 ms | 16.5x | 9 vs 8 |
-| AI-Dev-System | 107.3 ms | 3,002.0 ms | 28.0x | 20 vs 18 |
-| grpc-server | 10.2 ms | 2,491.3 ms | 244.2x | 0 vs 0 |
-| controller-rest-api | 367.7 ms | 14,830.4 ms | 40.3x | 1,299 vs 987 |
-| radiochron | 40.3 ms | 1,126.0 ms | 27.9x | 0 vs 0 |
+| frontend | 371.4 ms | 14,284.1 ms | 38.5x | 1 vs 0 |
+| analytics | 141.9 ms | 3,151.6 ms | 22.2x | 73 vs 67 |
+| automation | 240.1 ms | 23,110.7 ms | 96.3x | 0 vs 0 |
+| bgp-speaker | 9.9 ms | 533.3 ms | 53.9x | 0 vs 0 |
+| warroom | 180.6 ms | 2,988.3 ms | 16.5x | 9 vs 8 |
+| AI-Dev-System | 101.8 ms | 3,002.0 ms | 29.5x | 20 vs 18 |
+| grpc-server | 11.3 ms | 2,491.3 ms | 220.5x | 0 vs 0 |
+| controller-rest-api | 319.3 ms | 14,830.4 ms | 46.4x | 1,299 vs 987 |
+| radiochron | 35.9 ms | 1,126.0 ms | 31.4x | 0 vs 0 |
 
 Parsing is parallel across cores and the release binary is thin-LTO
 optimized. Rust wins every repository; the geometric-mean speedup is about

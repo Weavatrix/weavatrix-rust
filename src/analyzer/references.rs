@@ -1,6 +1,6 @@
 use crate::Result;
 use crate::language::{Language, ReferenceFact};
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use weavatrix_graph::{Confidence, Edge, EvidenceKind, GraphBuilder, NodeId, Provenance};
 
 pub(super) struct PendingReference {
@@ -12,11 +12,14 @@ pub(super) struct PendingReference {
 
 pub(super) fn resolve(
     graph: &mut GraphBuilder,
-    symbols: &BTreeMap<(Language, String), Vec<NodeId>>,
+    symbols: &HashMap<Language, HashMap<String, Vec<NodeId>>>,
     references: Vec<PendingReference>,
 ) -> Result<()> {
     for item in references {
-        let Some(targets) = symbols.get(&(item.language, item.reference.name.clone())) else {
+        let Some(targets) = symbols
+            .get(&item.language)
+            .and_then(|names| names.get(item.reference.name.as_str()))
+        else {
             continue;
         };
         if targets.len() != 1 || targets[0] == item.source {

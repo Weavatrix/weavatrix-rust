@@ -17,15 +17,15 @@ JavaScript timing excludes it, which biases every row in JavaScript's favor.
 
 | Repository | Revision | Rust cold build | JS cold build | Speedup | Rust/JS endpoints |
 |---|---|---:|---:|---:|---:|
-| frontend | `8b39a8ad` | 402.6 ms | 14,284.1 ms | 35.5x | 1 / 0 |
-| analytics | `38c32aba` | 105.1 ms | 3,151.6 ms | 30.0x | 73 / 67 |
-| automation | `8ab859ac` | 203.6 ms | 23,110.7 ms | 113.5x | 0 / 0 |
-| bgp-speaker | `b1121fd6` | 11.6 ms | 533.3 ms | 46.0x | 0 / 0 |
-| warroom | `6a887f0e` | 181.2 ms | 2,988.3 ms | 16.5x | 9 / 8 |
-| AI-Dev-System | `81e7e9a1` | 107.3 ms | 3,002.0 ms | 28.0x | 20 / 18 |
-| grpc-server | `a9376fd7` | 10.2 ms | 2,491.3 ms | 244.2x | 0 / 0 |
-| controller-rest-api | `11a66fab` | 367.7 ms | 14,830.4 ms | 40.3x | 1,299 / 987 |
-| radiochron | `6093530c` | 40.3 ms | 1,126.0 ms | 27.9x | 0 / 0 |
+| frontend | `8b39a8ad` | 371.4 ms | 14,284.1 ms | 38.5x | 1 / 0 |
+| analytics | `38c32aba` | 141.9 ms | 3,151.6 ms | 22.2x | 73 / 67 |
+| automation | `8ab859ac` | 240.1 ms | 23,110.7 ms | 96.3x | 0 / 0 |
+| bgp-speaker | `b1121fd6` | 9.9 ms | 533.3 ms | 53.9x | 0 / 0 |
+| warroom | `6a887f0e` | 180.6 ms | 2,988.3 ms | 16.5x | 9 / 8 |
+| AI-Dev-System | `81e7e9a1` | 101.8 ms | 3,002.0 ms | 29.5x | 20 / 18 |
+| grpc-server | `a9376fd7` | 11.3 ms | 2,491.3 ms | 220.5x | 0 / 0 |
+| controller-rest-api | `11a66fab` | 319.3 ms | 14,830.4 ms | 46.4x | 1,299 / 987 |
+| radiochron | `6093530c` | 35.9 ms | 1,126.0 ms | 31.4x | 0 / 0 |
 
 The Rust timings are measured with the full accuracy-parity extraction
 enabled (Python inheritance, Java fields, Go groups, cross-file import
@@ -107,9 +107,10 @@ out of memory) after roughly 11.8 minutes. The abort is reported as
 measured, not extrapolated.
 
 Phase profile is exposed via `WEAVATRIX_PHASE_TIMING=1`; on frontend the
-cold build splits roughly evenly across parse/integrate/resolve/snapshot
-(89/86/105/82 ms), so the next speed lever is inside graph integration and
-snapshot serialization, not parsing.
+cold build splits across parse/integrate/resolve/snapshot at roughly
+71/82/66/46 ms after pre-sized graph capacity and hash-indexed symbol
+lookups. The remaining lever is node/edge validation and canonicalization
+inside the weavatrix-graph crate itself.
 
 ## Component competitors
 

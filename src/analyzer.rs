@@ -140,8 +140,6 @@ impl Analyzer {
     }
 
     pub(crate) fn analyze_report(&self, repository: &Path, scan: &ScanReport) -> Result<Snapshot> {
-        let mut state = AnalysisState::new(repository)?;
-        state.add_scan_warnings(scan.warnings.clone());
         let timing = std::env::var_os("WEAVATRIX_PHASE_TIMING").is_some();
         let started = std::time::Instant::now();
         let mut parsed = parse_parallel(scan.files.len(), |index| {
@@ -157,6 +155,9 @@ impl Analyzer {
         })?;
         mounts::apply(&mut parsed);
         let parsed_at = started.elapsed();
+        let (node_hint, edge_hint) = AnalysisState::expected(&parsed);
+        let mut state = AnalysisState::with_capacity(repository, node_hint, edge_hint)?;
+        state.add_scan_warnings(scan.warnings.clone());
         for item in parsed {
             state.integrate(item)?;
         }
@@ -207,7 +208,6 @@ impl Analyzer {
         sources: impl IntoIterator<Item = SourceInput>,
     ) -> Result<Snapshot> {
         let repository = canonical_repository(repository.as_ref())?;
-        let mut state = AnalysisState::new(&repository)?;
         let sources = sources
             .into_iter()
             .filter(|source| {
@@ -224,6 +224,8 @@ impl Analyzer {
             )
         })?;
         mounts::apply(&mut parsed);
+        let (node_hint, edge_hint) = AnalysisState::expected(&parsed);
+        let mut state = AnalysisState::with_capacity(&repository, node_hint, edge_hint)?;
         for item in parsed {
             state.integrate(item)?;
         }

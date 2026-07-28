@@ -8,7 +8,7 @@ use crate::language::{
     DomainFact, FileFacts, ImportFact, Language, LanguageRegistry, ReferenceFact, SymbolFact,
 };
 use crate::snapshot::{Capability, Diagnostic, SNAPSHOT_SCHEMA_VERSION, Snapshot};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use weavatrix_graph::{Edge, EdgeKind, GraphBuilder, Node, NodeId, NodeKind};
 use weavatrix_scan::ScanWarning;
@@ -75,13 +75,31 @@ pub(super) struct AnalysisState {
     repository_label: String,
     diagnostics: Vec<Diagnostic>,
     file_index: BTreeMap<String, NodeId>,
-    symbol_index: BTreeMap<(Language, String), Vec<NodeId>>,
+    symbol_index: HashMap<Language, HashMap<String, Vec<NodeId>>>,
     pending_imports: Vec<PendingImport>,
     pending_references: Vec<PendingReference>,
 }
 
 impl AnalysisState {
-    pub(super) fn new(repository: &Path) -> Result<Self> {
+    /// Sizes the graph for the parsed facts so integration never rehashes.
+    pub(super) fn expected(parsed: &[ParsedSource]) -> (usize, usize) {
+        let mut nodes = 1;
+        let mut edges = 0;
+        for item in parsed {
+            nodes += 1;
+            edges += 1;
+            if let ParseOutcome::Parsed { facts, .. } = &item.outcome {
+                nodes += facts.symbols.len() + facts.domains.len() + facts.imports.len();
+                edges += facts.symbols.len()
+                    + facts.domains.len()
+                    + facts.imports.len()
+                    + facts.references.len();
+            }
+        }
+        (nodes, edges)
+    }
+
+    pub(super) fn with_capacity(repository: &Path, nodes: usize, edges: usize) -> Result<Self> {
         let label = repository
             .file_name()
             .and_then(|name| name.to_str())
@@ -93,7 +111,7 @@ impl AnalysisState {
             NodeKind::Repository,
         )?;
         let repository_id = repository_node.id.clone();
-        let mut graph = GraphBuilder::new();
+        let mut graph = GraphBuilder::with_capacity(nodes, edges);
         graph.add_node(repository_node)?;
         Ok(Self {
             graph,
@@ -101,7 +119,7 @@ impl AnalysisState {
             repository_label: label,
             diagnostics: Vec::new(),
             file_index: BTreeMap::new(),
-            symbol_index: BTreeMap::new(),
+            symbol_index: HashMap::new(),
             pending_imports: Vec::new(),
             pending_references: Vec::new(),
         })
@@ -202,7 +220,9 @@ impl AnalysisState {
             let id = node.id.clone();
             local.insert(symbol_locator_key(&symbol), id.clone());
             self.symbol_index
-                .entry((language.clone(), symbol.name.clone()))
+                .entry(language.clone())
+                .or_default()
+                .entry(symbol.name.clone())
                 .or_default()
                 .push(id.clone());
             self.graph.add_node(node)?;
