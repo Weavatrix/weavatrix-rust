@@ -170,7 +170,7 @@ impl AnalysisState {
             diagnostics,
             mounts: _,
             reexports,
-        } = facts;
+        } = *facts;
         self.diagnostics.extend(diagnostics);
         let local_symbols = self.add_symbols(&relative, &file_id, &language, extractor, symbols)?;
         self.add_imports(&relative, &file_id, &language, extractor, imports);
