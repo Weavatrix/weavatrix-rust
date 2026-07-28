@@ -75,6 +75,9 @@ pub(super) struct AnalysisState {
     graph: GraphBuilder,
     repository_id: NodeId,
     repository_label: String,
+    /// Needed to read the resolver configuration a repository ships:
+    /// tsconfig paths, package exports, workspace members.
+    root: std::path::PathBuf,
     diagnostics: Vec<Diagnostic>,
     file_index: BTreeMap<String, NodeId>,
     symbol_index: HashMap<Language, HashMap<String, Vec<NodeId>>>,
@@ -123,6 +126,7 @@ impl AnalysisState {
             graph,
             repository_id,
             repository_label: label,
+            root: repository.to_path_buf(),
             diagnostics: Vec::new(),
             file_index: BTreeMap::new(),
             symbol_index: HashMap::new(),
@@ -340,13 +344,15 @@ impl AnalysisState {
     }
 
     pub(super) fn resolve_references(&mut self) -> Result<()> {
-        let scopes = resolve_imports(
+        let (scopes, unresolved) = resolve_imports(
             &mut self.graph,
             &self.file_index,
             &self.repository_label,
+            &self.root,
             std::mem::take(&mut self.pending_imports),
             std::mem::take(&mut self.pending_reexports),
         )?;
+        self.diagnostics.extend(unresolved);
         resolve_references(
             &mut self.graph,
             &self.symbol_index,

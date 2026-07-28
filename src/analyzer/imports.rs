@@ -1,6 +1,7 @@
 use super::support::{normalized_path, parsed_provenance, sanitize_id};
 use crate::Result;
 use crate::language::{ImportFact, Language};
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound;
 use std::path::{Component, Path, PathBuf};
@@ -23,10 +24,11 @@ pub(super) fn resolve(
     graph: &mut GraphBuilder,
     files: &BTreeMap<String, NodeId>,
     repository_label: &str,
+    root: &Path,
     imports: Vec<PendingImport>,
     reexports: Vec<PendingImport>,
-) -> Result<ImportScopes> {
-    let context = ResolutionContext::new(files, repository_label, &imports);
+) -> Result<(ImportScopes, Vec<crate::snapshot::Diagnostic>)> {
+    let context = ResolutionContext::new(files, repository_label, root, &imports);
     let forwards = resolve_reexports(graph, files, &context, reexports)?;
     resolve_imports(graph, files, &context, imports, &forwards)
 }
@@ -72,11 +74,26 @@ fn resolve_imports(
     context: &ResolutionContext<'_>,
     imports: Vec<PendingImport>,
     forwards: &BTreeMap<String, Vec<String>>,
-) -> Result<ImportScopes> {
+) -> Result<(ImportScopes, Vec<crate::snapshot::Diagnostic>)> {
     let mut scopes = ImportScopes::new();
+    let mut diagnostics = Vec::new();
     for item in imports {
         let locals = context.local_targets(&item);
         let is_local = !locals.is_empty();
+        // A specifier that points inside the repository but resolves to
+        // nothing is a resolver gap, not an external package. Calling it
+        // external would invent a dependency and hide the real miss.
+        if !is_local && !external_specifier(&item) {
+            diagnostics.push(crate::snapshot::Diagnostic {
+                code: "import.unresolved".into(),
+                message: format!(
+                    "{}: import specifier {} points inside the repository but no file matched",
+                    item.source_path, item.import.target
+                ),
+                span: Some(item.import.span.clone()),
+            });
+            continue;
+        }
         if is_local && let Some(path) = context.local_path(&item) {
             scopes
                 .entry(item.source_path.clone())
@@ -133,7 +150,17 @@ fn resolve_imports(
             }
         }
     }
-    Ok(scopes)
+    Ok((scopes, diagnostics))
+}
+
+/// Whether a specifier names something outside this repository. Relative,
+/// rooted, alias and subpath-import forms all address repository files.
+fn external_specifier(item: &PendingImport) -> bool {
+    if !matches!(item.language, Language::JavaScript | Language::TypeScript) {
+        return true;
+    }
+    let target = clean_specifier(&item.import.target);
+    !(target.starts_with('.') || target.starts_with('/') || target.starts_with('#'))
 }
 
 fn add_package(graph: &mut GraphBuilder, item: &PendingImport) -> Result<NodeId> {
@@ -156,14 +183,273 @@ struct ResolutionContext<'a> {
     rust_roots: BTreeMap<String, String>,
     /// Java classpath index: `com/x/Y.java` suffix -> repository path.
     java_index: BTreeMap<String, String>,
+    /// The module resolution a JavaScript or TypeScript project configures:
+    /// tsconfig paths and baseUrl, package subpath imports, and workspace
+    /// package roots. Without these, an aliased import resolves to nothing.
+    script: ScriptResolver,
+}
+
+/// Alias table a JavaScript or TypeScript project declares.
+#[derive(Debug, Default)]
+struct ScriptResolver {
+    /// `compilerOptions.baseUrl`, relative to the repository root.
+    base_url: Option<String>,
+    /// `compilerOptions.paths`: prefix before `*` -> replacement prefixes.
+    paths: Vec<(String, Vec<String>)>,
+    /// `package.json` `imports`: `#alias` -> replacement prefixes.
+    subpaths: Vec<(String, Vec<String>)>,
+    /// Workspace or dependency package name -> its directory.
+    packages: BTreeMap<String, String>,
+}
+
+impl ScriptResolver {
+    fn load(root: &Path, files: &BTreeMap<String, NodeId>) -> Self {
+        let mut resolver = Self::default();
+        for name in ["tsconfig.json", "jsconfig.json"] {
+            let Some(config) = read_json(&root.join(name)) else {
+                continue;
+            };
+            if let Some(base) = config
+                .pointer("/compilerOptions/baseUrl")
+                .and_then(Value::as_str)
+            {
+                resolver.base_url = Some(normalize_relative(base));
+            }
+            if let Some(paths) = config
+                .pointer("/compilerOptions/paths")
+                .and_then(Value::as_object)
+            {
+                for (pattern, replacements) in paths {
+                    let targets = replacements
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str)
+                        .map(|value| value.trim_end_matches('*').trim_end_matches('/').to_owned())
+                        .collect::<Vec<_>>();
+                    if !targets.is_empty() {
+                        resolver
+                            .paths
+                            .push((pattern.trim_end_matches('*').to_owned(), targets));
+                    }
+                }
+            }
+        }
+        if let Some(manifest) = read_json(&root.join("package.json")) {
+            resolver.load_package(&manifest, "");
+            for pattern in manifest
+                .get("workspaces")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                resolver.load_workspace_members(root, files, pattern);
+            }
+        }
+        // Longest alias first, so `@app/ui` wins over `@app`.
+        resolver
+            .paths
+            .sort_by_key(|(alias, _)| core::cmp::Reverse(alias.len()));
+        resolver
+            .subpaths
+            .sort_by_key(|(alias, _)| core::cmp::Reverse(alias.len()));
+        resolver
+    }
+
+    fn load_package(&mut self, manifest: &Value, directory: &str) {
+        for (alias, target) in manifest
+            .get("imports")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+        {
+            let targets = subpath_targets(target, directory);
+            if !targets.is_empty() {
+                self.subpaths
+                    .push((alias.trim_end_matches('*').to_owned(), targets));
+            }
+        }
+        if let Some(name) = manifest.get("name").and_then(Value::as_str)
+            && !directory.is_empty()
+        {
+            self.packages.insert(name.to_owned(), directory.to_owned());
+        }
+    }
+
+    /// Expands a workspace glob such as `packages/*` against directories the
+    /// scan already found, then reads each member manifest.
+    fn load_workspace_members(
+        &mut self,
+        root: &Path,
+        files: &BTreeMap<String, NodeId>,
+        pattern: &str,
+    ) {
+        let prefix = pattern.trim_end_matches('*').trim_end_matches('/');
+        if prefix.is_empty() {
+            return;
+        }
+        let mut directories = BTreeSet::new();
+        for path in files.keys() {
+            let Some(rest) = path.strip_prefix(&format!("{prefix}/")) else {
+                continue;
+            };
+            if let Some(member) = rest.split('/').next() {
+                directories.insert(format!("{prefix}/{member}"));
+            }
+        }
+        for directory in directories {
+            if let Some(manifest) = read_json(&root.join(&directory).join("package.json")) {
+                self.load_package(&manifest, &directory);
+            }
+        }
+    }
+
+    /// Repository-relative bases a specifier may resolve to.
+    fn bases(&self, specifier: &str) -> Vec<String> {
+        let mut bases = Vec::new();
+        for (alias, targets) in &self.subpaths {
+            if let Some(rest) = specifier.strip_prefix(alias.as_str()) {
+                for target in targets {
+                    bases.push(join_relative(target, rest));
+                }
+            }
+        }
+        for (alias, targets) in &self.paths {
+            if let Some(rest) = specifier.strip_prefix(alias.as_str()) {
+                for target in targets {
+                    bases.push(join_relative(target, rest));
+                }
+            }
+        }
+        for (name, directory) in &self.packages {
+            if specifier == name {
+                bases.push(directory.clone());
+            } else if let Some(rest) = specifier.strip_prefix(&format!("{name}/")) {
+                bases.push(join_relative(directory, rest));
+            }
+        }
+        if let Some(base) = &self.base_url
+            && !specifier.starts_with('.')
+        {
+            bases.push(join_relative(base, specifier));
+        }
+        bases
+    }
+}
+
+fn subpath_targets(target: &Value, directory: &str) -> Vec<String> {
+    match target {
+        Value::String(value) => vec![join_relative(directory, &normalize_relative(value))],
+        Value::Object(map) => map
+            .values()
+            .filter_map(Value::as_str)
+            .map(|value| join_relative(directory, &normalize_relative(value)))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Rewrites a configured path into a repository-relative prefix. The project
+/// root is written `.` or `./`, which must become an empty prefix so joining
+/// produces `src/x` rather than `./src/x`.
+fn normalize_relative(value: &str) -> String {
+    let value = value
+        .trim_start_matches("./")
+        .trim_end_matches('*')
+        .trim_end_matches('/');
+    if value == "." {
+        String::new()
+    } else {
+        value.to_owned()
+    }
+}
+
+fn join_relative(prefix: &str, rest: &str) -> String {
+    let rest = rest.trim_start_matches('/');
+    match (prefix.is_empty(), rest.is_empty()) {
+        (true, _) => rest.to_owned(),
+        (false, true) => prefix.to_owned(),
+        (false, false) => format!("{prefix}/{rest}"),
+    }
+}
+
+fn read_json(path: &Path) -> Option<Value> {
+    let text = std::fs::read_to_string(path).ok()?;
+    // Configuration files in this ecosystem routinely carry comments and
+    // trailing commas, which strict JSON rejects.
+    serde_json::from_str(&strip_json_comments(&text)).ok()
+}
+
+fn strip_json_comments(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut chars = text.chars().peekable();
+    while let Some(character) = chars.next() {
+        if in_string {
+            output.push(character);
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => {
+                in_string = true;
+                output.push(character);
+            }
+            '/' if chars.peek() == Some(&'/') => {
+                for skipped in chars.by_ref() {
+                    if skipped == '\n' {
+                        output.push('\n');
+                        break;
+                    }
+                }
+            }
+            '/' if chars.peek() == Some(&'*') => {
+                chars.next();
+                let mut previous = ' ';
+                for skipped in chars.by_ref() {
+                    if previous == '*' && skipped == '/' {
+                        break;
+                    }
+                    previous = skipped;
+                }
+            }
+            ',' => {
+                // A trailing comma is dropped when the next token closes.
+                let mut lookahead = chars.clone();
+                let next = lookahead.find(|value| !value.is_whitespace());
+                if !matches!(next, Some('}' | ']')) {
+                    output.push(character);
+                }
+            }
+            _ => output.push(character),
+        }
+    }
+    output
 }
 
 impl<'a> ResolutionContext<'a> {
     fn new(
         files: &'a BTreeMap<String, NodeId>,
         repository_label: &str,
+        root: &Path,
         imports: &[PendingImport],
     ) -> Self {
+        let script = if imports
+            .iter()
+            .any(|item| matches!(item.language, Language::JavaScript | Language::TypeScript))
+        {
+            ScriptResolver::load(root, files)
+        } else {
+            ScriptResolver::default()
+        };
         let mut rust_roots = BTreeMap::new();
         if imports.iter().any(|item| item.language == Language::Rust) {
             for path in files.keys() {
@@ -200,6 +486,7 @@ impl<'a> ResolutionContext<'a> {
             repository_label: repository_label.to_owned(),
             rust_roots,
             java_index,
+            script,
         }
     }
 
@@ -208,10 +495,28 @@ impl<'a> ResolutionContext<'a> {
             Language::Go => self.go_targets(item),
             Language::Java => self.java_targets(item),
             _ => self
-                .first_existing(candidates(item, &self.rust_roots))
+                .first_existing(self.candidate_paths(item))
                 .into_iter()
                 .collect(),
         }
+    }
+
+    /// Resolution candidates, most specific first: relative and language-native
+    /// forms, then whatever the project's own resolver configuration allows.
+    fn candidate_paths(&self, item: &PendingImport) -> Vec<String> {
+        let mut candidates = candidates(item, &self.rust_roots);
+        if matches!(item.language, Language::JavaScript | Language::TypeScript) {
+            let specifier = clean_specifier(&item.import.target);
+            let extensions = extensions(&item.language);
+            for base in self.script.bases(&specifier) {
+                for candidate in expand(vec![base], extensions) {
+                    if !candidates.contains(&candidate) {
+                        candidates.push(candidate);
+                    }
+                }
+            }
+        }
+        candidates
     }
 
     fn first_existing(&self, candidates: Vec<String>) -> Option<NodeId> {
@@ -222,7 +527,7 @@ impl<'a> ResolutionContext<'a> {
 
     /// The repository path a specifier resolves to, if any.
     fn local_path(&self, item: &PendingImport) -> Option<String> {
-        candidates(item, &self.rust_roots)
+        self.candidate_paths(item)
             .into_iter()
             .find(|candidate| self.files.contains_key(candidate))
     }
@@ -517,7 +822,11 @@ fn has_extension(path: &str, extension: &str) -> bool {
 fn clean_specifier(value: &str) -> String {
     let token = value.split_whitespace().next().unwrap_or(value);
     let token = token.trim_matches(|character| matches!(character, '"' | '\'' | '<' | '>'));
-    token.split(['?', '#']).next().unwrap_or(token).to_owned()
+    // A URL query or fragment is not part of the module path, but a leading
+    // `#` is: that is how a package declares a subpath import.
+    let (prefix, rest) = token.split_at(usize::from(token.starts_with('#')));
+    let rest = rest.split(['?', '#']).next().unwrap_or(rest);
+    format!("{prefix}{rest}")
 }
 
 fn package_name(language: &Language, value: &str) -> String {

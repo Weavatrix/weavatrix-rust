@@ -247,6 +247,78 @@ fn resolves_language_specific_repository_imports() {
 }
 
 #[test]
+fn resolves_the_module_aliases_a_project_declares() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "tsconfig.json",
+        r#"{
+  // Comments and trailing commas are normal in this file.
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/app/*"],
+      "@shared": ["src/shared/index.ts"],
+    },
+  },
+}"#,
+    );
+    fixture.write(
+        "package.json",
+        r##"{"name":"root","workspaces":["packages/*"],"imports":{"#config/*":"./src/config/*"}}"##,
+    );
+    fixture.write("src/app/service.ts", "export function serve() {}\n");
+    fixture.write("src/shared/index.ts", "export const shared = 1;\n");
+    fixture.write("src/config/db.ts", "export const url = '';\n");
+    fixture.write("src/base/root.ts", "export const root = 1;\n");
+    fixture.write("packages/ui/package.json", r#"{"name":"@acme/ui"}"#);
+    fixture.write("packages/ui/index.ts", "export const Button = 1;\n");
+    fixture.write(
+        "src/entry.ts",
+        "import { serve } from '@app/service';\nimport { shared } from '@shared';\nimport { url } from '#config/db';\nimport { Button } from '@acme/ui';\nimport { root } from 'src/base/root';\nimport { missing } from './nowhere';\nexport const use = [serve, shared, url, Button, root, missing];\n",
+    );
+
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    let imports = |target: &str| {
+        snapshot.edges.iter().any(|edge| {
+            edge.kind == EdgeKind::Imports
+                && edge.source.as_str() == "file:src/entry.ts"
+                && edge.target.as_str() == target
+        })
+    };
+    for (target, form) in [
+        ("file:src/app/service.ts", "tsconfig paths wildcard"),
+        ("file:src/shared/index.ts", "tsconfig paths exact mapping"),
+        ("file:src/config/db.ts", "package.json subpath import"),
+        ("file:packages/ui/index.ts", "workspace package name"),
+        ("file:src/base/root.ts", "tsconfig baseUrl"),
+    ] {
+        assert!(imports(target), "{form} must resolve to {target}");
+    }
+    assert!(
+        !snapshot
+            .nodes
+            .iter()
+            .any(|node| node.id.as_str().starts_with("package:") && node.label.starts_with('@')),
+        "an aliased local import must not be recorded as an external package"
+    );
+    let unresolved = snapshot
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "import.unresolved")
+        .collect::<Vec<_>>();
+    assert_eq!(
+        unresolved.len(),
+        1,
+        "the one genuinely missing target is reported, got {unresolved:?}"
+    );
+    assert!(
+        unresolved[0].message.contains("./nowhere"),
+        "the diagnostic names the specifier, got {:?}",
+        unresolved[0].message
+    );
+}
+
+#[test]
 fn resolves_imports_through_re_export_barrels() {
     let fixture = Fixture::new();
     fixture.write("src/shared/Button.tsx", "export function Button() {}\n");
