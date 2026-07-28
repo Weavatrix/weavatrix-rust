@@ -129,6 +129,47 @@ contract is called out explicitly.
 The manifest contract includes deterministic ordering, ignore semantics, skip
 evidence, hashes, and incremental inputs. Raw walking is measured separately.
 
+### Graph build path (2026-07-28)
+
+Edge canonicalization was rewritten to group edges with a counting sort and
+order each group by sorting a permutation of indices, so an edge is moved once
+instead of three times and no per-source bucket is allocated. `Topology`
+construction now reserves from the iterator size hint. The canonical order and
+every validation error are unchanged and pinned by a test that compares the
+canonicalizing path against the already-sorted path.
+
+Paired A/B, same binary and corpus, only the two crate files swapped, six runs
+each on the frontend repository (15.7k nodes, 39.2k edges), medians:
+
+| Phase | Before | After | Change |
+|---|---:|---:|---:|
+| snapshot (contains `GraphBuilder::build`) | 51.6 ms | 38.9 ms | -25% |
+| integrate | 67.5 ms | 56.5 ms | -16% |
+| parse (unaffected by this change) | 86.2 ms | 81.0 ms | -6% |
+
+The parse row is the noise floor of this machine: the change cannot affect
+parsing, so only differences comfortably above 6% are attributable. The
+crate's own builder bench agrees on the size of the win: median build of 10k
+nodes and 30k edges moved from 30.8 ms to 25.5 ms.
+
+A binary search over the sorted node list was tried in place of the hash
+position index and measured worse (40.9 ms), so the hash index stays and the
+measurement is recorded next to it.
+
+The improvement lives in `weavatrix-graph` 0.6.1 and reaches this engine when
+that version is published: `weavatrix-graph` is a released external crate by
+design, and a boundary test rejects a path dependency on it, so the A/B above
+was taken by swapping the two crate files in place rather than by wiring a
+local override into this manifest.
+
+Competitor rows below and the end-to-end table above were measured on a quiet
+machine. The corpus re-run after this change landed on a heavily contended
+machine (repeat medians moved by 3-5x on unrelated repositories, and the
+petgraph competitor itself swung from 19 ms to 52 ms between runs), so those
+numbers were discarded rather than published; the end-to-end table therefore
+still reflects the previous measurement round and predates the scope-aware
+reference resolution that adds real edges.
+
 ### Graph
 
 200k nodes and 1m edges:
