@@ -142,15 +142,8 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
                 span: span.clone(),
             });
         }
-        if script
-            && let Some(value) = line.strip_prefix("export ")
-            && value.contains(" from ")
-            && let Some(target) = quoted_segment(value)
-        {
-            facts.reexports.push(ImportFact {
-                target,
-                span: span.clone(),
-            });
+        if script {
+            collect_reexport(line, &span, &mut facts);
         }
         for name in call_names(line) {
             if declaration.as_ref().is_some_and(|item| item.0 == name) {
@@ -176,6 +169,20 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
     finalize_mounts(raw_mounts, &bindings, &mut facts);
     sort_facts(&mut facts);
     facts
+}
+
+/// `export { x } from './y'` and `export * from './y'` forward another
+/// module's surface to importers of this file.
+fn collect_reexport(line: &str, span: &weavatrix_graph::SourceSpan, facts: &mut FileFacts) {
+    if let Some(value) = line.strip_prefix("export ")
+        && value.contains(" from ")
+        && let Some(target) = quoted_segment(value)
+    {
+        facts.reexports.push(ImportFact {
+            target,
+            span: span.clone(),
+        });
+    }
 }
 
 fn finalize_mounts(

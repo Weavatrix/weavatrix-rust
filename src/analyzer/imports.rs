@@ -22,8 +22,19 @@ pub(super) fn resolve(
     reexports: Vec<PendingImport>,
 ) -> Result<()> {
     let context = ResolutionContext::new(files, repository_label, &imports);
-    // Barrel map: a file that forwards another module's surface, so importers
-    // of the barrel reach the defining module transitively.
+    let forwards = resolve_reexports(graph, files, &context, reexports)?;
+    resolve_imports(graph, files, &context, imports, &forwards)
+}
+
+/// Records re-export evidence and returns the barrel map: a file that
+/// forwards another module's surface, so importers of the barrel reach the
+/// defining module transitively.
+fn resolve_reexports(
+    graph: &mut GraphBuilder,
+    files: &BTreeMap<String, NodeId>,
+    context: &ResolutionContext<'_>,
+    reexports: Vec<PendingImport>,
+) -> Result<BTreeMap<String, Vec<String>>> {
     let mut forwards = BTreeMap::<String, Vec<String>>::new();
     for item in reexports {
         let Some(target) = context.local_path(&item) else {
@@ -47,6 +58,16 @@ pub(super) fn resolve(
             ))?;
         }
     }
+    Ok(forwards)
+}
+
+fn resolve_imports(
+    graph: &mut GraphBuilder,
+    files: &BTreeMap<String, NodeId>,
+    context: &ResolutionContext<'_>,
+    imports: Vec<PendingImport>,
+    forwards: &BTreeMap<String, Vec<String>>,
+) -> Result<()> {
     for item in imports {
         let locals = context.local_targets(&item);
         let is_local = !locals.is_empty();
@@ -71,7 +92,7 @@ pub(super) fn resolve(
             ))?;
         }
         if is_local && !forwards.is_empty() {
-            for defining in context.forwarded(&item, &forwards) {
+            for defining in context.forwarded(&item, forwards) {
                 let Some(target_id) = files.get(&defining) else {
                     continue;
                 };

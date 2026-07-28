@@ -25,10 +25,12 @@ pub(super) struct ParsedSource {
 pub(super) enum ParseOutcome {
     Skipped,
     NonUtf8,
+    /// Boxed so the enum stays small: parsed facts dominate its size and most
+    /// scanned entries carry no facts at all.
     Parsed {
         language: Language,
         extractor: &'static str,
-        facts: FileFacts,
+        facts: Box<FileFacts>,
     },
 }
 
@@ -65,7 +67,7 @@ pub(super) fn parse_source(
     Ok(sourced(ParseOutcome::Parsed {
         language: adapter.language(),
         extractor: adapter.extractor(),
-        facts,
+        facts: Box::new(facts),
     }))
 }
 
