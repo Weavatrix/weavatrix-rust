@@ -100,7 +100,11 @@ same checkouts:
 | Repository | Weavatrix Rust (full graph) | madge (imports only) | dependency-cruiser (imports only) |
 |---|---:|---:|---:|
 | analytics | 105.1 ms | 21,298 ms (203x) | 45,831 ms (436x) |
-| frontend | 402.6 ms | 18,960 ms (47x) | not measured |
+| frontend | 402.6 ms | 18,960 ms (47x) | aborted after 707,116 ms (>1,750x) |
+
+dependency-cruiser did not finish frontend: the process aborted (exit 134,
+out of memory) after roughly 11.8 minutes. The abort is reported as
+measured, not extrapolated.
 
 Phase profile is exposed via `WEAVATRIX_PHASE_TIMING=1`; on frontend the
 cold build splits roughly evenly across parse/integrate/resolve/snapshot
