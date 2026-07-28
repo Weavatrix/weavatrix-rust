@@ -39,6 +39,77 @@ pub(super) fn graph_diff(state: &RepositoryState, args: &Value) -> Result<Value,
     ))
 }
 
+/// Analyzes an immutable revision and returns both its graph and the source
+/// text it was built from, so source-level reviews can run on the baseline.
+pub(super) fn revision_evidence(
+    state: &RepositoryState,
+    base_ref: &str,
+) -> Result<(Graph, Vec<super::health_runtime::Source>), String> {
+    let repository = Repository::open(state.root()).map_err(|error| error.to_string())?;
+    let revision = super::history::resolve_revision(&repository, base_ref)?;
+    let analyzer = Analyzer::default();
+    let sources = revision_sources(&analyzer, &repository, revision)?;
+    let text = sources
+        .iter()
+        .filter_map(|source| {
+            let language = crate::language::LanguageRegistry::default()
+                .adapter_for_extension(
+                    &std::path::Path::new(&source.path)
+                        .extension()
+                        .and_then(|value| value.to_str())
+                        .map(str::to_ascii_lowercase)
+                        .unwrap_or_default(),
+                )
+                .map(|adapter| adapter.language().as_str().to_owned())?;
+            let body = String::from_utf8(source.bytes.clone()).ok()?;
+            Some((source.path.clone(), language, body))
+        })
+        .collect::<Vec<_>>();
+    let snapshot = analyzer
+        .analyze_sources(state.root(), revision.to_string(), sources)
+        .map_err(|error| error.to_string())?;
+    let graph = Graph::try_from_sorted_parts(snapshot.nodes, snapshot.edges)
+        .map_err(|error| error.to_string())?;
+    Ok((graph, text))
+}
+
+fn revision_sources(
+    analyzer: &Analyzer,
+    repository: &Repository,
+    revision: weavatrix_git::ObjectId,
+) -> Result<Vec<SourceInput>, String> {
+    let snapshot = repository
+        .snapshot(&revision.to_string())
+        .map_err(|error| error.to_string())?;
+    let mut sources = Vec::new();
+    for entry in snapshot.entries {
+        if entry.kind != EntryKind::Blob {
+            continue;
+        }
+        let path = std::str::from_utf8(&entry.path)
+            .map_err(|_| "Git revision contains a non-UTF-8 source path")?
+            .to_owned();
+        if !analyzer.supports_path(&path) {
+            continue;
+        }
+        let object = repository
+            .object(entry.id)
+            .map_err(|error| error.to_string())?;
+        if object.kind != ObjectKind::Blob {
+            return Err(format!("snapshot entry {path} is not a blob"));
+        }
+        if u64::try_from(object.data.len()).unwrap_or(u64::MAX) > analyzer.max_file_bytes() {
+            continue;
+        }
+        sources.push(SourceInput {
+            path,
+            bytes: object.data,
+            content_hash: Some(entry.id.to_string()),
+        });
+    }
+    Ok(sources)
+}
+
 fn revision_graph(
     analyzer: &Analyzer,
     repository: &Repository,

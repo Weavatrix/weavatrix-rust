@@ -99,31 +99,41 @@ const RULES: &[Rule] = &[
     },
 ];
 
-/// Bounded runtime-correctness and concurrency review over production source.
-pub(super) fn runtime(state: &RepositoryState, max: usize) -> Value {
+/// A finding identity that survives line shifts: rule, file, and a
+/// fingerprint of the offending code rather than its position.
+fn finding_id(rule: &str, path: &str, line: &str) -> String {
+    let normalized = line.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in normalized.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{rule}:{path}:{hash:016x}")
+}
+
+/// One reviewable source: repository path, language identifier, and body.
+pub(super) type Source = (String, String, String);
+
+/// Findings, files scanned, and whether the cap truncated the review.
+pub(super) type RuntimeReview = (Vec<Value>, usize, bool);
+
+/// Runs the runtime rule set over arbitrary source text, so the same review
+/// applies to the worktree and to an immutable Git baseline.
+pub(super) fn runtime_findings(
+    sources: impl IntoIterator<Item = Source>,
+    max: usize,
+) -> RuntimeReview {
     let mut findings = Vec::new();
     let mut scanned = 0_usize;
     let mut truncated = false;
-    for node in state.graph().nodes() {
-        if node.kind != NodeKind::File {
-            continue;
-        }
-        let Some(language) = node.language.as_deref() else {
-            continue;
-        };
-        if super::health::is_non_product(&node.label) {
-            continue;
-        }
-        let Ok(text) = fs::read_to_string(state.root().join(&node.label)) else {
-            continue;
-        };
+    for (path, language, text) in sources {
         scanned += 1;
         for (offset, line) in text.lines().enumerate() {
             if line.len() > 400 {
                 continue;
             }
             for rule in RULES {
-                if !rule.languages.is_empty() && !rule.languages.contains(&language) {
+                if !rule.languages.is_empty() && !rule.languages.contains(&language.as_str()) {
                     continue;
                 }
                 if (rule.matches)(line) {
@@ -132,11 +142,11 @@ pub(super) fn runtime(state: &RepositoryState, max: usize) -> Value {
                         break;
                     }
                     findings.push(json!({
-                        "id": format!("{}:{}:{}", rule.id, node.label, offset + 1),
+                        "id": finding_id(rule.id, &path, line),
                         "rule": rule.id,
                         "category": "runtime",
                         "severity": rule.severity,
-                        "file": node.label,
+                        "file": path,
                         "line": offset + 1,
                         "language": language,
                         "message": rule.message,
@@ -147,6 +157,30 @@ pub(super) fn runtime(state: &RepositoryState, max: usize) -> Value {
         }
     }
     findings.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
+    (findings, scanned, truncated)
+}
+
+/// Production source text of the analyzed worktree.
+pub(super) fn product_sources(state: &RepositoryState) -> Vec<Source> {
+    state
+        .graph()
+        .nodes()
+        .iter()
+        .filter(|node| node.kind == NodeKind::File)
+        .filter_map(|node| {
+            let language = node.language.clone()?;
+            if super::health::is_non_product(&node.label) {
+                return None;
+            }
+            let text = fs::read_to_string(state.root().join(&node.label)).ok()?;
+            Some((node.label.clone(), language, text))
+        })
+        .collect()
+}
+
+/// Bounded runtime-correctness and concurrency review over production source.
+pub(super) fn runtime(state: &RepositoryState, max: usize) -> Value {
+    let (findings, scanned, truncated) = runtime_findings(product_sources(state), max);
     json!({
         "status": if findings.is_empty() {"PASS"} else {"REVIEW"},
         "completeness": "PARTIAL_PATTERN_BASED",
@@ -422,5 +456,55 @@ fn scan_tree(
                 return;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{finding_id, runtime_findings};
+
+    #[test]
+    fn finding_identity_survives_line_shifts_and_reindentation() {
+        let original = "    for (const item of items) { await save(item); }";
+        let shifted = "        for (const item of items) {  await save(item); }";
+        assert_eq!(
+            finding_id("runtime.await_in_loop", "src/a.js", original),
+            finding_id("runtime.await_in_loop", "src/a.js", shifted),
+            "indentation and inner spacing must not change a finding identity"
+        );
+        assert_ne!(
+            finding_id("runtime.await_in_loop", "src/a.js", original),
+            finding_id("runtime.await_in_loop", "src/b.js", original),
+            "the same code in another file is another finding"
+        );
+    }
+
+    #[test]
+    fn runtime_rules_report_stable_findings_for_moved_code() {
+        let body = "const items = [];\nfor (const item of items) { await save(item); }\n";
+        let moved = format!("// header\n// header\n{body}");
+        let (first, scanned, truncated) = runtime_findings(
+            [(
+                "src/a.js".to_owned(),
+                "javascript".to_owned(),
+                body.to_owned(),
+            )],
+            10,
+        );
+        let (second, _, _) = runtime_findings(
+            [("src/a.js".to_owned(), "javascript".to_owned(), moved)],
+            10,
+        );
+        assert_eq!(scanned, 1);
+        assert!(!truncated);
+        assert_eq!(first.len(), 1, "await inside a loop is reported once");
+        assert_eq!(
+            first[0]["id"], second[0]["id"],
+            "moving code down the file keeps its identity so debt stays comparable"
+        );
+        assert_ne!(
+            first[0]["line"], second[0]["line"],
+            "the reported line still follows the code"
+        );
     }
 }

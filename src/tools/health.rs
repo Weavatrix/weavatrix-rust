@@ -353,8 +353,137 @@ pub fn audit(state: &RepositoryState, args: &Value) -> Value {
             "advisories": advisory_report["completeness"].clone(),
             "malware": malware_report["completeness"].clone(),
             "coverage": coverage_report["actualCoverage"].clone()
-        }
+        },
+        "debt": debt(state, args, max, &cycles, &runtime_report)
     })
+}
+
+/// Compares deterministic finding identities against an immutable Git
+/// baseline so a reviewer can separate new debt from inherited debt.
+fn debt(
+    state: &RepositoryState,
+    args: &Value,
+    max: usize,
+    cycles: &[Vec<&str>],
+    runtime_report: &Value,
+) -> Value {
+    // Both sides use the same generous cap: comparing a truncated current set
+    // against a fuller baseline would invent "fixed" findings.
+    const DEBT_CAP: usize = 5_000;
+
+    let Ok(base_ref) = super::arg_str(args, "base_ref") else {
+        return json!({
+            "status": "NOT_REQUESTED",
+            "message": "pass base_ref (for example HEAD~1 or origin/main) to separate new findings from inherited ones",
+        });
+    };
+    let view = super::arg_str(args, "debt").unwrap_or("new");
+    let (baseline_graph, baseline_sources) =
+        match super::history_diff::revision_evidence(state, base_ref) {
+            Ok(evidence) => evidence,
+            Err(reason) => {
+                return json!({
+                    "status": "UNAVAILABLE",
+                    "base_ref": base_ref,
+                    "reason": reason,
+                });
+            }
+        };
+    // The baseline must be filtered exactly like the worktree set, or
+    // suppressed test evidence would masquerade as fixed debt.
+    let baseline_sources = baseline_sources
+        .into_iter()
+        .filter(|(path, _, _)| !is_non_product(path));
+    let (baseline_runtime, _, _) =
+        super::health_runtime::runtime_findings(baseline_sources, DEBT_CAP);
+    let mut baseline_ids = baseline_runtime
+        .iter()
+        .filter_map(|finding| finding["id"].as_str().map(str::to_owned))
+        .collect::<std::collections::BTreeSet<_>>();
+    baseline_ids.extend(
+        strongly_connected_components(&baseline_graph)
+            .into_iter()
+            .filter(|component| component.len() > 1)
+            .map(|component| cycle_id(&baseline_graph, &component)),
+    );
+
+    let (mut current, _, truncated) = super::health_runtime::runtime_findings(
+        super::health_runtime::product_sources(state),
+        DEBT_CAP,
+    );
+    let _ = runtime_report;
+    for component in cycles {
+        current.push(json!({
+            "id": format!("structure.cycle:{}", fingerprint(component.iter().copied())),
+            "rule": "structure.dependency_cycle",
+            "category": "structure",
+            "severity": "medium",
+            "members": component,
+        }));
+    }
+    let (new, existing): (Vec<Value>, Vec<Value>) = current.into_iter().partition(|finding| {
+        !finding["id"]
+            .as_str()
+            .is_some_and(|id| baseline_ids.contains(id))
+    });
+    let current_ids = new
+        .iter()
+        .chain(existing.iter())
+        .filter_map(|finding| finding["id"].as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    let fixed = baseline_ids
+        .iter()
+        .filter(|id| !current_ids.contains(id.as_str()))
+        .take(max)
+        .collect::<Vec<_>>();
+    let selected = match view {
+        "existing" => &existing,
+        "all" => &Vec::new(),
+        _ => &new,
+    };
+    json!({
+        "status": "COMPARED",
+        "base_ref": base_ref,
+        "baseline_nodes": baseline_graph.nodes().len(),
+        "truncated": truncated,
+        "view": view,
+        "comparable_categories": ["runtime", "structure"],
+        "uncomparable_categories": {
+            "dependencies": "manifests and lockfiles are read from the worktree, not the baseline checkout",
+            "advisories": "supply-chain evidence is not comparable across a source-only baseline",
+            "malware": "installed package trees are not part of a Git revision",
+            "coverage": "measured coverage reports are not stored in Git revisions"
+        },
+        "counts": {"new": new.len(), "existing": existing.len(), "fixed": fixed.len()},
+        "findings": if view == "all" {
+            json!({"new": new, "existing": existing, "fixed": fixed})
+        } else {
+            json!(selected.iter().take(max).collect::<Vec<_>>())
+        },
+    })
+}
+
+fn cycle_id(graph: &weavatrix_graph::Graph, component: &[weavatrix_graph::NodeIndex]) -> String {
+    let members = component
+        .iter()
+        .filter_map(|index| graph.node_at(*index))
+        .map(|node| node.id.as_str())
+        .collect::<Vec<_>>();
+    format!("structure.cycle:{}", fingerprint(members.into_iter()))
+}
+
+/// Order-independent fingerprint of a member set.
+fn fingerprint<'a>(members: impl Iterator<Item = &'a str>) -> String {
+    let mut sorted = members.collect::<Vec<_>>();
+    sorted.sort_unstable();
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for member in sorted {
+        for byte in member.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    format!("{hash:016x}")
 }
 
 /// Whether a path's evidence is test or otherwise non-product.
