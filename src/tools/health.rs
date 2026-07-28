@@ -150,6 +150,7 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
 
 /// Conventional route-wiring files whose near-identical wrappers are
 /// intentional, not refactoring targets.
+#[cfg(feature = "clone")]
 fn is_boilerplate(path: &str) -> bool {
     let lower = path.to_ascii_lowercase();
     let file = lower.rsplit(['/', '\\']).next().unwrap_or(&lower);
@@ -160,6 +161,7 @@ fn is_boilerplate(path: &str) -> bool {
 
 /// Whether any line of the fragment carries executable control flow, as
 /// opposed to an immutable declarative catalog of data.
+#[cfg(feature = "clone")]
 fn has_control_flow(
     root: &std::path::Path,
     path: &str,
@@ -485,6 +487,7 @@ fn debt(
     })
 }
 
+#[cfg(feature = "git")]
 fn cycle_id(graph: &weavatrix_graph::Graph, component: &[weavatrix_graph::NodeIndex]) -> String {
     let members = component
         .iter()
@@ -495,6 +498,7 @@ fn cycle_id(graph: &weavatrix_graph::Graph, component: &[weavatrix_graph::NodeIn
 }
 
 /// Order-independent fingerprint of a member set.
+#[cfg(feature = "git")]
 fn fingerprint<'a>(members: impl Iterator<Item = &'a str>) -> String {
     let mut sorted = members.collect::<Vec<_>>();
     sorted.sort_unstable();
