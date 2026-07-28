@@ -14,13 +14,18 @@ pub(super) struct PendingImport {
     pub import: ImportFact,
 }
 
+/// Which repository files each file can name directly: its own imports plus
+/// everything reachable through re-export barrels. This is the scope a name
+/// reference is allowed to resolve in.
+pub(super) type ImportScopes = BTreeMap<String, BTreeSet<String>>;
+
 pub(super) fn resolve(
     graph: &mut GraphBuilder,
     files: &BTreeMap<String, NodeId>,
     repository_label: &str,
     imports: Vec<PendingImport>,
     reexports: Vec<PendingImport>,
-) -> Result<()> {
+) -> Result<ImportScopes> {
     let context = ResolutionContext::new(files, repository_label, &imports);
     let forwards = resolve_reexports(graph, files, &context, reexports)?;
     resolve_imports(graph, files, &context, imports, &forwards)
@@ -67,10 +72,17 @@ fn resolve_imports(
     context: &ResolutionContext<'_>,
     imports: Vec<PendingImport>,
     forwards: &BTreeMap<String, Vec<String>>,
-) -> Result<()> {
+) -> Result<ImportScopes> {
+    let mut scopes = ImportScopes::new();
     for item in imports {
         let locals = context.local_targets(&item);
         let is_local = !locals.is_empty();
+        if is_local && let Some(path) = context.local_path(&item) {
+            scopes
+                .entry(item.source_path.clone())
+                .or_default()
+                .insert(path);
+        }
         let targets = if is_local {
             locals
         } else {
@@ -93,6 +105,10 @@ fn resolve_imports(
         }
         if is_local && !forwards.is_empty() {
             for defining in context.forwarded(&item, forwards) {
+                scopes
+                    .entry(item.source_path.clone())
+                    .or_default()
+                    .insert(defining.clone());
                 let Some(target_id) = files.get(&defining) else {
                     continue;
                 };
@@ -110,7 +126,7 @@ fn resolve_imports(
             }
         }
     }
-    Ok(())
+    Ok(scopes)
 }
 
 fn add_package(graph: &mut GraphBuilder, item: &PendingImport) -> Result<NodeId> {

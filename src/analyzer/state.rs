@@ -78,6 +78,9 @@ pub(super) struct AnalysisState {
     diagnostics: Vec<Diagnostic>,
     file_index: BTreeMap<String, NodeId>,
     symbol_index: HashMap<Language, HashMap<String, Vec<NodeId>>>,
+    /// Per-file symbol tables, so a name can be resolved in the scope the
+    /// language actually gives it instead of across the whole repository.
+    scoped_symbols: HashMap<String, HashMap<String, Vec<NodeId>>>,
     pending_imports: Vec<PendingImport>,
     pending_reexports: Vec<PendingImport>,
     pending_references: Vec<PendingReference>,
@@ -123,6 +126,7 @@ impl AnalysisState {
             diagnostics: Vec::new(),
             file_index: BTreeMap::new(),
             symbol_index: HashMap::new(),
+            scoped_symbols: HashMap::new(),
             pending_imports: Vec::new(),
             pending_reexports: Vec::new(),
             pending_references: Vec::new(),
@@ -184,7 +188,14 @@ impl AnalysisState {
             });
         }
         self.add_domains(&file_id, extractor, domains, &local_symbols)?;
-        self.collect_references(&file_id, &language, extractor, references, &local_symbols);
+        self.collect_references(
+            &relative,
+            &file_id,
+            &language,
+            extractor,
+            references,
+            &local_symbols,
+        );
         Ok(())
     }
 
@@ -239,6 +250,12 @@ impl AnalysisState {
                 .entry(symbol.name.clone())
                 .or_default()
                 .push(id.clone());
+            self.scoped_symbols
+                .entry(relative.to_owned())
+                .or_default()
+                .entry(symbol.name.clone())
+                .or_default()
+                .push(id.clone());
             self.graph.add_node(node)?;
             self.graph.add_edge(Edge::new(
                 file_id.clone(),
@@ -271,6 +288,7 @@ impl AnalysisState {
 
     fn collect_references(
         &mut self,
+        relative: &str,
         file_id: &NodeId,
         language: &Language,
         extractor: &'static str,
@@ -285,6 +303,7 @@ impl AnalysisState {
                 .unwrap_or_else(|| file_id.clone());
             self.pending_references.push(PendingReference {
                 source,
+                source_path: relative.to_owned(),
                 language: language.clone(),
                 extractor,
                 reference,
@@ -321,7 +340,7 @@ impl AnalysisState {
     }
 
     pub(super) fn resolve_references(&mut self) -> Result<()> {
-        resolve_imports(
+        let scopes = resolve_imports(
             &mut self.graph,
             &self.file_index,
             &self.repository_label,
@@ -331,6 +350,8 @@ impl AnalysisState {
         resolve_references(
             &mut self.graph,
             &self.symbol_index,
+            &self.scoped_symbols,
+            &scopes,
             std::mem::take(&mut self.pending_references),
         )
     }

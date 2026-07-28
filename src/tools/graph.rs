@@ -98,7 +98,10 @@ pub fn query(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     );
     let nodes = visited
         .iter()
-        .filter_map(|index| state.graph().node_at(*index))
+        .filter_map(|(index, distance)| {
+            let node = state.graph().node_at(*index)?;
+            Some(json!({"node": node, "distance": distance}))
+        })
         .collect::<Vec<_>>();
     let edges = traversed
         .into_iter()
@@ -157,6 +160,22 @@ pub fn path(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     }))
 }
 
+/// Relations that mean "this code depends on that code". Containment is
+/// structural, not a dependency, so a reverse dependency walk excludes it.
+fn coupling_relations() -> std::collections::BTreeSet<String> {
+    [
+        "calls",
+        "imports",
+        "inherits",
+        "implements",
+        "re_exports",
+        "references",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
+}
+
 pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let seed = state.resolve_node(arg_str(args, "label")?)?;
     let depth = usize::try_from(arg_u64(args, "depth").unwrap_or(3)).unwrap_or(3);
@@ -168,16 +187,23 @@ pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String
         max + 1,
         Direction::Incoming,
         false,
-        None,
+        Some(&coupling_relations()),
     );
+    // Remove the seed by identity: the traversal order is not sorted, so
+    // dropping the first entry would silently discard a real dependent.
     let nodes = visited
         .into_iter()
-        .skip(1)
-        .filter_map(|index| state.graph().node_at(index))
+        .filter(|(index, _)| *index != seed)
+        .filter_map(|(index, distance)| {
+            let node = state.graph().node_at(index)?;
+            Some(json!({"node": node, "distance": distance}))
+        })
+        .take(max)
         .collect::<Vec<_>>();
     Ok(json!({
         "seed": state.node(seed)?,
         "dependents": nodes,
+        "relations": coupling_relations().iter().collect::<Vec<_>>(),
         "precision": "graph",
         "semantic_precision": "BOUNDED_STATIC"
     }))

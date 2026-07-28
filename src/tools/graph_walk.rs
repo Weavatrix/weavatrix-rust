@@ -36,6 +36,18 @@ pub(super) fn resolve_seeds(
     }
 }
 
+/// Structural hubs contain or are imported by half the repository, so walking
+/// through them turns any local question into "the whole repository". They
+/// stay reachable as endpoints but never conduct a traversal.
+fn is_hub(state: &RepositoryState, index: NodeIndex) -> bool {
+    state.graph().node_at(index).is_some_and(|node| {
+        matches!(
+            node.kind,
+            weavatrix_graph::NodeKind::Repository | weavatrix_graph::NodeKind::Package
+        )
+    })
+}
+
 pub(super) fn traverse(
     state: &RepositoryState,
     seeds: Vec<NodeIndex>,
@@ -44,12 +56,14 @@ pub(super) fn traverse(
     direction: Direction,
     dfs: bool,
     relations: Option<&BTreeSet<String>>,
-) -> (Vec<NodeIndex>, BTreeSet<EdgeIndex>) {
+) -> (Vec<(NodeIndex, usize)>, BTreeSet<EdgeIndex>) {
     let mut seen = BTreeSet::new();
+    let mut order = Vec::new();
     let mut edges = BTreeSet::new();
     let mut queue = VecDeque::new();
     for seed in seeds {
         if seen.insert(seed) {
+            order.push((seed, 0));
             queue.push_back((seed, 0));
         }
     }
@@ -58,7 +72,7 @@ pub(super) fn traverse(
     } else {
         queue.pop_front()
     } {
-        if depth >= max_depth || seen.len() >= max_nodes {
+        if depth >= max_depth || seen.len() >= max_nodes || (depth > 0 && is_hub(state, node)) {
             continue;
         }
         let adjacent = match direction {
@@ -89,9 +103,10 @@ pub(super) fn traverse(
                 endpoints.source()
             };
             if seen.len() < max_nodes && seen.insert(neighbor) {
+                order.push((neighbor, depth + 1));
                 queue.push_back((neighbor, depth + 1));
             }
         }
     }
-    (seen.into_iter().collect(), edges)
+    (order, edges)
 }

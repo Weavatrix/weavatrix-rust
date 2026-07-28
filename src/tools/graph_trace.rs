@@ -32,7 +32,7 @@ pub fn endpoint(state: &RepositoryState, args: &Value) -> Result<Value, String> 
     );
     let nodes = visited
         .iter()
-        .filter_map(|index| state.graph().node_at(*index))
+        .filter_map(|(index, _)| state.graph().node_at(*index))
         .collect::<Vec<_>>();
     let edges = traversed
         .into_iter()
