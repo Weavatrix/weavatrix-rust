@@ -8,6 +8,7 @@ mod lexical;
 mod rust;
 #[cfg(feature = "lang-rust")]
 mod rust_endpoint;
+pub mod tokenized;
 
 pub use lexical::LexicalAdapter;
 #[cfg(feature = "lang-rust")]
@@ -172,6 +173,20 @@ impl Default for LanguageRegistry {
         let mut adapters: Vec<Box<dyn LanguageAdapter>> = Vec::new();
         adapters.extend(
             LexicalAdapter::defaults().map(|adapter| Box::new(adapter) as Box<dyn LanguageAdapter>),
+        );
+        // The tokenizer comes second on purpose, and this order is temporary.
+        //
+        // `adapter_for_extension` takes the first adapter claiming an
+        // extension, so this serves exactly the languages the line scanner
+        // never had - Swift, Solidity, HTML, CSS, Terraform, XML, the document
+        // formats - and cannot regress the ones it did. It is not yet a
+        // superset: the line scanner also derives endpoints, topics, queues,
+        // collections and Express mount chains, and until those are derived
+        // from tokens too, putting the tokenizer first would trade correct
+        // spans for lost edges.
+        adapters.extend(
+            tokenized::TokenizedAdapter::defaults()
+                .map(|adapter| Box::new(adapter) as Box<dyn LanguageAdapter>),
         );
         Self { adapters }
     }

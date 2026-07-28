@@ -159,6 +159,8 @@ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 [[package]]
 name = "mcport"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "559d10cb2c7c5af48b033ae56f4bfee69f5ec7de20c6346427ce716c3e4c18ba"
 dependencies = [
  "blazingly-json",
  "serde",
@@ -308,6 +310,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "weavatrix-parse"
+version = "0.1.0"
+
+[[package]]
 name = "weavatrix-rust"
 version = "0.2.0"
 dependencies = [
@@ -320,6 +326,7 @@ dependencies = [
  "weavatrix-git",
  "weavatrix-graph",
  "weavatrix-memory",
+ "weavatrix-parse",
  "weavatrix-scan",
  "weavatrix-search",
  "weavatrix-search-vector",
