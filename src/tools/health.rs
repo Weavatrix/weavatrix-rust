@@ -167,15 +167,15 @@ fn has_control_flow(
     end_line: u32,
     sources: &mut std::collections::HashMap<String, Vec<String>>,
 ) -> bool {
+    const MARKERS: &[&str] = &[
+        "if ", "if(", "for ", "for(", "while ", "while(", "return", "=>", "function", "throw",
+        "await ", "switch", "yield", "match ", "loop ", "?.",
+    ];
     let lines = sources.entry(path.to_owned()).or_insert_with(|| {
         std::fs::read_to_string(root.join(path))
             .map(|text| text.lines().map(str::to_owned).collect())
             .unwrap_or_default()
     });
-    const MARKERS: &[&str] = &[
-        "if ", "if(", "for ", "for(", "while ", "while(", "return", "=>", "function", "throw",
-        "await ", "switch", "yield", "match ", "loop ", "?.",
-    ];
     let start = usize::try_from(start_line.saturating_sub(1)).unwrap_or(0);
     let end = usize::try_from(end_line).unwrap_or(0).min(lines.len());
     if start >= end {
