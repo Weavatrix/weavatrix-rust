@@ -12,8 +12,8 @@
 //! often the only place a service endpoint is written down.
 
 use super::{
-    FileFacts, ImportFact, Language, LanguageAdapter, ReferenceFact, SourceFile, SymbolFact,
-    SymbolLocator,
+    DomainFact, FileFacts, ImportFact, Language, LanguageAdapter, MountFact, ReferenceFact,
+    SourceFile, SymbolFact, SymbolLocator,
 };
 use crate::Result;
 use weavatrix_graph::{EdgeKind, NodeKind, SourcePosition, SourceSpan};
@@ -168,6 +168,7 @@ fn convert(facts: &Facts, path: &str) -> FileFacts {
     }
 
     for reference in &facts.references {
+        domain(reference, path, facts, &mut converted);
         converted.references.push(ReferenceFact {
             name: reference.name.clone(),
             kind: edge_kind(reference.kind),
@@ -191,6 +192,154 @@ fn convert(facts: &Facts, path: &str) -> FileFacts {
     }
 
     converted
+}
+
+/// Call names that register a route, and the method each exposes.
+///
+/// The lowercase ones are router methods and are only routes when called on
+/// something - a bare `get(key)` is a map lookup. The capitalised ones name a
+/// framework's own registration and stand alone.
+const ROUTES: &[(&str, &str, bool)] = &[
+    ("get", "GET", true),
+    ("post", "POST", true),
+    ("put", "PUT", true),
+    ("patch", "PATCH", true),
+    ("delete", "DELETE", true),
+    ("head", "HEAD", true),
+    ("options", "OPTIONS", true),
+    ("all", "ANY", true),
+    ("use", "ANY", true),
+    ("route", "ANY", true),
+    // A route table written as an object names its method in upper case.
+    ("GET", "GET", false),
+    ("POST", "POST", false),
+    ("PUT", "PUT", false),
+    ("PATCH", "PATCH", false),
+    ("DELETE", "DELETE", false),
+    ("HEAD", "HEAD", false),
+    ("OPTIONS", "OPTIONS", false),
+    ("ALL", "ANY", false),
+    ("HandleFunc", "ANY", false),
+    ("Handle", "ANY", false),
+    ("RequestMapping", "ANY", false),
+    ("GetMapping", "GET", false),
+    ("PostMapping", "POST", false),
+    ("PutMapping", "PUT", false),
+    ("PatchMapping", "PATCH", false),
+    ("DeleteMapping", "DELETE", false),
+    ("HttpGet", "GET", false),
+    ("HttpPost", "POST", false),
+    ("HttpPut", "PUT", false),
+    ("HttpPatch", "PATCH", false),
+    ("HttpDelete", "DELETE", false),
+];
+
+/// Derives the domain and mount facts a call site carries.
+///
+/// The line scanner found these by looking for a needle such as `topic(` in
+/// the raw text, which cannot tell a call from the same characters inside a
+/// string or a comment, and cannot say what the call was made on. A token
+/// stream gives the receiver, the name and the arguments separately, so the
+/// same facts come out of better evidence rather than out of a guess.
+fn domain(
+    reference: &weavatrix_parse::Reference,
+    path: &str,
+    facts: &Facts,
+    converted: &mut FileFacts,
+) {
+    // A SQL statement names the table it touches, and whether it reads or
+    // writes is the edge the graph carries.
+    if matches!(reference.kind, ReferenceKind::Reads | ReferenceKind::Writes) {
+        converted.domains.push(DomainFact {
+            name: reference.name.clone(),
+            kind: NodeKind::Table,
+            relation: if reference.kind == ReferenceKind::Writes {
+                EdgeKind::Writes
+            } else {
+                EdgeKind::Reads
+            },
+            span: span(&reference.span, path),
+            owner: None,
+        });
+        return;
+    }
+    if reference.kind != ReferenceKind::Call {
+        return;
+    }
+    let name = reference.name.as_str();
+    let first = reference.string_arguments.first();
+    let owner = |converted: &FileFacts| {
+        let _ = converted;
+        reference.owner.as_ref().and_then(|owner| {
+            facts
+                .declarations
+                .iter()
+                .find(|declaration| declaration.name == *owner)
+                .map(|declaration| SymbolLocator {
+                    name: declaration.name.clone(),
+                    kind: node_kind(declaration.kind),
+                    span: span(&declaration.span, path),
+                })
+        })
+    };
+
+    // `app.use("/api", router)` mounts a module under a prefix. Both halves
+    // matter: the prefix is a string and the router is a name, and the engine
+    // resolves that name against this file's imports.
+    if name == "use"
+        && reference.receiver.is_some()
+        && let Some(binding) = reference.name_arguments.first()
+    {
+        // The mount records a module specifier, not the local name: the graph
+        // has to reach the file the router came from, and only this file knows
+        // which import bound that name.
+        if let Some(target) = facts
+            .imports
+            .iter()
+            .find(|import| import.names.iter().any(|name| name == binding))
+        {
+            converted.mounts.push(MountFact {
+                prefix: first.cloned().unwrap_or_default(),
+                target: target.specifier.clone(),
+            });
+        }
+    }
+
+    let Some(argument) = first else {
+        return;
+    };
+
+    if let Some((_, method, _)) = ROUTES.iter().find(|(call, _, needs_receiver)| {
+        *call == name && (!needs_receiver || reference.receiver.is_some())
+    }) && argument.starts_with('/')
+    {
+        converted.domains.push(DomainFact {
+            name: format!("{method} {argument}"),
+            kind: NodeKind::Endpoint,
+            relation: EdgeKind::Exposes,
+            span: span(&reference.span, path),
+            owner: owner(converted),
+        });
+        return;
+    }
+
+    let (kind, relation) = match name {
+        "topic" | "publish" => (NodeKind::Topic, EdgeKind::Publishes),
+        "subscribe" | "consume" => (NodeKind::Topic, EdgeKind::Consumes),
+        "queue_declare" | "queueDeclare" | "assertQueue" => (NodeKind::Queue, EdgeKind::Configures),
+        "exchange_declare" | "exchangeDeclare" | "assertExchange" => {
+            (NodeKind::Exchange, EdgeKind::Configures)
+        }
+        "collection" | "getCollection" => (NodeKind::Collection, EdgeKind::Reads),
+        _ => return,
+    };
+    converted.domains.push(DomainFact {
+        name: argument.clone(),
+        kind,
+        relation,
+        span: span(&reference.span, path),
+        owner: owner(converted),
+    });
 }
 
 /// The graph's vocabulary for a declared name.
