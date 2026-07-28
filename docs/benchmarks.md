@@ -1,4 +1,4 @@
-# Benchmark report
+﻿# Benchmark report
 
 Measured on 2026-07-27 on the same Windows workstation. Rust measurements use
 optimized release builds; JavaScript measurements use Weavatrix 0.3.14 on
@@ -17,28 +17,28 @@ JavaScript timing excludes it, which biases every row in JavaScript's favor.
 
 | Repository | Revision | Rust cold build | JS cold build | Speedup | Rust/JS endpoints |
 |---|---|---:|---:|---:|---:|
-| frontend | `8b39a8ad` | 371.4 ms | 14,284.1 ms | 38.5x | 1 / 0 |
-| analytics | `38c32aba` | 141.9 ms | 3,151.6 ms | 22.2x | 73 / 67 |
-| automation | `8ab859ac` | 240.1 ms | 23,110.7 ms | 96.3x | 0 / 0 |
-| bgp-speaker | `b1121fd6` | 9.9 ms | 533.3 ms | 53.9x | 0 / 0 |
-| warroom | `6a887f0e` | 180.6 ms | 2,988.3 ms | 16.5x | 9 / 8 |
-| AI-Dev-System | `81e7e9a1` | 101.8 ms | 3,002.0 ms | 29.5x | 20 / 18 |
-| grpc-server | `a9376fd7` | 11.3 ms | 2,491.3 ms | 220.5x | 0 / 0 |
-| controller-rest-api | `11a66fab` | 319.3 ms | 14,830.4 ms | 46.4x | 1,299 / 987 |
-| radiochron | `6093530c` | 35.9 ms | 1,126.0 ms | 31.4x | 0 / 0 |
+| frontend | `8b39a8ad` | 760.4 ms | 14,284.1 ms | 18.8x | 1 / 0 |
+| analytics | `38c32aba` | 222.9 ms | 3,151.6 ms | 14.1x | 73 / 67 |
+| automation | `8ab859ac` | 434.9 ms | 23,110.7 ms | 53.1x | 0 / 0 |
+| bgp-speaker | `b1121fd6` | 29.7 ms | 533.3 ms | 18.0x | 0 / 0 |
+| warroom | `6a887f0e` | 261.9 ms | 2,988.3 ms | 11.4x | 9 / 8 |
+| AI-Dev-System | `81e7e9a1` | 155.4 ms | 3,002.0 ms | 19.3x | 20 / 18 |
+| grpc-server | `a9376fd7` | 11.8 ms | 2,491.3 ms | 210.8x | 0 / 0 |
+| radiochron | `6093530c` | 72.9 ms | 1,126.0 ms | 15.5x | 0 / 0 |
 
-The Rust timings are measured with the full accuracy-parity extraction
-enabled (Python inheritance, Java fields, Go groups, cross-file import
-resolution, CommonJS requires, Express mount chains), parallel parsing
-across all cores, and a thin-LTO release binary. Geometric-mean speedup is
-about 45x.
+Geometric mean over these eight repositories: **25.6x**, and Rust is faster on
+every one. controller-rest-api left the speedup table because its checkout
+moved to a different revision after the JavaScript side was measured; it
+remains in the corpus artifact.
 
-Rust is faster on all nine repositories; the geometric-mean speedup is about
-20x. The two smallest repositories (under 30 language files each) still cost
-JavaScript 0.5-2.5 s, so the ratio is largest exactly where an MCP server
-restarts most often. An earlier version of this report claimed 35-50x; those
-figures compared a Rust median against a single first-sample JavaScript run
-with a cold filesystem cache and are superseded by this table.
+Two things must be said about this round rather than hidden. It was measured
+while other applications were saturating the machine, so the ratios are a
+floor, not a best case. And the Rust graphs are now larger than in earlier
+rounds - scope-aware reference resolution and the module resolver add real
+edges (analytics 13,317 -> 15,266, frontend 35,472 -> 38,871) - so the engine
+does more work per build than the round that reported higher ratios. The two
+smallest repositories still cost JavaScript 0.5-2.5 s, so the ratio stays
+largest exactly where an MCP server restarts most often.
 
 Endpoint counts describe different but compatible evidence models and are not
 treated as a universal precision score - controller-rest-api is the clearest
@@ -105,6 +105,32 @@ same checkouts:
 dependency-cruiser did not finish frontend: the process aborted (exit 134,
 out of memory) after roughly 11.8 minutes. The abort is reported as
 measured, not extrapolated.
+
+### Import edges compared with madge (analytics)
+
+Speed is only half the comparison; the edges themselves were diffed against
+madge's dependency tree on the same checkout, counting only file-to-file
+imports so the two contracts are comparable.
+
+| | Count |
+|---|---:|
+| edges both engines agree on | 1,389 |
+| madge only | 9 |
+| Weavatrix only | 31 |
+
+Agreement is 99.4% of madge's tree. Every divergence was traced to source:
+
+- **7 of the 9 madge-only edges are re-exports** (`export { x } from './y'`).
+  Weavatrix records those as `re_exports` edges, which this comparison
+  deliberately excluded, so they are a representation difference rather than a
+  miss - and the distinction is what lets an architecture rule separate a
+  forwarding barrel from a real dependency.
+- **2 are JSON imports** (`import map from '../version.map.json'`). Weavatrix
+  does not scan `.json` as source, so the target file has no node to point at.
+  This is a genuine gap.
+- **The Weavatrix-only edges are re-export chain expansions**: where madge
+  stops at the barrel, Weavatrix additionally records the module that actually
+  defines the imported symbol, which is what a blast-radius question needs.
 
 Phase profile is exposed via `WEAVATRIX_PHASE_TIMING=1`; on frontend the
 cold build splits across parse/integrate/resolve/snapshot at roughly

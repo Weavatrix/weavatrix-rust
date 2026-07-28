@@ -3,105 +3,107 @@
   "repositories": [
     {
       "cold_build_ms": {
-        "max": 391.5321,
-        "median": 371.3598,
-        "min": 335.55899999999997
+        "max": 1293.2125,
+        "median": 760.4016,
+        "min": 520.6918000000001
       },
       "collections": null,
-      "edges": 35472,
+      "edges": 38871,
       "endpoints": 1,
       "evidence": {
-        "parsed": 24479,
-        "resolved": 10993
+        "parsed": 26492,
+        "resolved": 12379
       },
       "files": 1612,
-      "hot_graph_stats_us": 3865.1375999999996,
-      "literal_search_ms": 881.1368399999999,
+      "hot_graph_stats_us": 9234.345899999998,
+      "literal_search_ms": 134.04142,
       "node_kinds": {
         "endpoint": 1,
         "enum": 26,
         "file": 1612,
         "function": 3496,
         "kubernetes_resource": 4,
-        "package": 145,
+        "package": 141,
         "repository": 1,
         "struct": 4,
         "trait": 409,
         "type_alias": 421,
         "variable": 9615
       },
-      "nodes": 15734,
+      "nodes": 15730,
       "queues": null,
       "relations": {
-        "calls": 10801,
+        "calls": 12073,
         "contains": 15583,
         "deploys": 5,
         "exposes": 1,
-        "imports": 8890,
-        "inherits": 192
+        "imports": 10588,
+        "inherits": 306,
+        "re_exports": 315
       },
       "repository": "frontend",
       "revision": "8b39a8adfefec6fedb846db54905d16980ccc911",
       "tables": null,
       "topics": null,
-      "unchanged_refresh_ms": 41.23766666666667
+      "unchanged_refresh_ms": 64.85666666666667
     },
     {
       "cold_build_ms": {
-        "max": 2936.6481000000003,
-        "median": 141.8985,
-        "min": 125.20319999999998
+        "max": 305.0438,
+        "median": 222.8967,
+        "min": 211.043
       },
       "collections": null,
-      "edges": 13317,
+      "edges": 15266,
       "endpoints": 73,
       "evidence": {
-        "parsed": 8058,
-        "resolved": 5259
+        "parsed": 8086,
+        "resolved": 7180
       },
       "files": 354,
-      "hot_graph_stats_us": 1920.1127,
-      "literal_search_ms": 33.052,
+      "hot_graph_stats_us": 2944.7843000000003,
+      "literal_search_ms": 23.52004,
       "node_kinds": {
         "endpoint": 73,
         "file": 354,
         "function": 1782,
-        "package": 30,
+        "package": 28,
         "repository": 1,
         "struct": 8,
         "variable": 4272
       },
-      "nodes": 6520,
+      "nodes": 6518,
       "queues": null,
       "relations": {
-        "calls": 5233,
+        "calls": 7128,
         "contains": 6416,
         "exposes": 77,
-        "imports": 1565,
-        "inherits": 26
+        "imports": 1587,
+        "inherits": 52,
+        "re_exports": 6
       },
       "repository": "analytics",
       "revision": "38c32abaac840936e985e527ddf4af4a9b67a2b0",
       "tables": null,
       "topics": null,
-      "unchanged_refresh_ms": 10.133666666666667
+      "unchanged_refresh_ms": 13.359066666666665
     },
     {
       "cold_build_ms": {
-        "max": 3153.3169000000003,
-        "median": 240.0708,
-        "min": 238.5768
+        "max": 3839.7846,
+        "median": 434.9411,
+        "min": 427.904
       },
       "collections": null,
-      "edges": 15738,
+      "edges": 16863,
       "endpoints": null,
       "evidence": {
         "parsed": 12048,
-        "resolved": 3690
+        "resolved": 4815
       },
       "files": 1025,
-      "hot_graph_stats_us": 1767.2119,
-      "literal_search_ms": 440.91938,
+      "hot_graph_stats_us": 3525.104,
+      "literal_search_ms": 517.5574,
       "node_kinds": {
         "file": 1025,
         "function": 4558,
@@ -112,7 +114,7 @@
       "nodes": 6590,
       "queues": null,
       "relations": {
-        "calls": 3260,
+        "calls": 4385,
         "contains": 6521,
         "imports": 5527,
         "inherits": 430
@@ -121,24 +123,24 @@
       "revision": "8ab859acb1401dd708abc046604e1cea14988379",
       "tables": null,
       "topics": null,
-      "unchanged_refresh_ms": 9.4278
+      "unchanged_refresh_ms": 11.527033333333334
     },
     {
       "cold_build_ms": {
-        "max": 380.6145,
-        "median": 9.9266,
-        "min": 9.585099999999999
+        "max": 457.95279999999997,
+        "median": 29.6851,
+        "min": 27.927
       },
       "collections": null,
-      "edges": 1257,
+      "edges": 1280,
       "endpoints": null,
       "evidence": {
         "parsed": 931,
-        "resolved": 326
+        "resolved": 349
       },
       "files": 28,
-      "hot_graph_stats_us": 136.6387,
-      "literal_search_ms": 6.05486,
+      "hot_graph_stats_us": 259.1055,
+      "literal_search_ms": 7.30664,
       "node_kinds": {
         "constant": 73,
         "file": 28,
@@ -152,7 +154,7 @@
       "nodes": 743,
       "queues": null,
       "relations": {
-        "calls": 326,
+        "calls": 349,
         "contains": 682,
         "imports": 249
       },
@@ -160,24 +162,24 @@
       "revision": "b1121fd698c04208d6c4a2891d60dbe472541d8c",
       "tables": null,
       "topics": null,
-      "unchanged_refresh_ms": 1.9158666666666668
+      "unchanged_refresh_ms": 1.9663666666666666
     },
     {
       "cold_build_ms": {
-        "max": 1852.8139,
-        "median": 180.6224,
-        "min": 165.8813
+        "max": 1985.268,
+        "median": 261.9264,
+        "min": 259.07809999999995
       },
       "collections": 3,
-      "edges": 17685,
+      "edges": 18417,
       "endpoints": 9,
       "evidence": {
         "parsed": 11629,
-        "resolved": 6056
+        "resolved": 6788
       },
       "files": 391,
-      "hot_graph_stats_us": 1846.0228000000002,
-      "literal_search_ms": 251.87336,
+      "hot_graph_stats_us": 3134.3765000000003,
+      "literal_search_ms": 309.687,
       "node_kinds": {
         "collection": 3,
         "endpoint": 9,
@@ -194,36 +196,36 @@
       "nodes": 7349,
       "queues": null,
       "relations": {
-        "calls": 5960,
+        "calls": 6668,
         "contains": 7041,
         "exposes": 9,
         "implements": 25,
         "imports": 4576,
-        "inherits": 71,
+        "inherits": 95,
         "reads": 3
       },
       "repository": "warroom",
       "revision": "6a887f0e0a7cbe232312957b99b12d7b0ff05923",
       "tables": null,
       "topics": null,
-      "unchanged_refresh_ms": 29.333966666666665
+      "unchanged_refresh_ms": 42.29213333333333
     },
     {
       "cold_build_ms": {
-        "max": 1503.5249,
-        "median": 101.8177,
-        "min": 93.39550000000001
+        "max": 2113.5124,
+        "median": 155.3743,
+        "min": 141.731
       },
       "collections": null,
-      "edges": 7886,
+      "edges": 8460,
       "endpoints": 20,
       "evidence": {
-        "parsed": 5090,
-        "resolved": 2796
+        "parsed": 5134,
+        "resolved": 3326
       },
       "files": 297,
-      "hot_graph_stats_us": 874.257,
-      "literal_search_ms": 180.61928,
+      "hot_graph_stats_us": 1457.8712,
+      "literal_search_ms": 226.23766,
       "node_kinds": {
         "constant": 23,
         "endpoint": 20,
@@ -232,7 +234,7 @@
         "function": 1448,
         "method": 104,
         "module": 100,
-        "package": 96,
+        "package": 94,
         "repository": 1,
         "static": 9,
         "struct": 92,
@@ -241,39 +243,40 @@
         "type_alias": 77,
         "variable": 1830
       },
-      "nodes": 4270,
+      "nodes": 4268,
       "queues": null,
       "relations": {
-        "calls": 2713,
+        "calls": 3070,
         "configures": 11,
         "contains": 4142,
         "exposes": 21,
         "implements": 3,
-        "imports": 916,
-        "inherits": 80
+        "imports": 949,
+        "inherits": 253,
+        "re_exports": 11
       },
       "repository": "AI-Dev-System",
       "revision": "81e7e9a127cfc9362c8bc5322ec2e027b42620a8",
       "tables": 11,
       "topics": null,
-      "unchanged_refresh_ms": 10.636299999999999
+      "unchanged_refresh_ms": 15.6015
     },
     {
       "cold_build_ms": {
-        "max": 283.23749999999995,
-        "median": 11.3096,
-        "min": 9.2964
+        "max": 383.1512,
+        "median": 11.820300000000001,
+        "min": 11.4703
       },
       "collections": null,
-      "edges": 697,
+      "edges": 698,
       "endpoints": null,
       "evidence": {
         "parsed": 540,
-        "resolved": 157
+        "resolved": 158
       },
       "files": 29,
-      "hot_graph_stats_us": 89.3972,
-      "literal_search_ms": 7.29956,
+      "hot_graph_stats_us": 134.792,
+      "literal_search_ms": 9.27658,
       "node_kinds": {
         "constant": 11,
         "file": 29,
@@ -289,7 +292,7 @@
       "nodes": 416,
       "queues": null,
       "relations": {
-        "calls": 157,
+        "calls": 158,
         "contains": 365,
         "imports": 175
       },
@@ -297,64 +300,65 @@
       "revision": "a9376fd7264ea522ee237c869b26b80d26489b73",
       "tables": null,
       "topics": null,
-      "unchanged_refresh_ms": 2.9209333333333327
+      "unchanged_refresh_ms": 3.2397333333333336
     },
     {
       "cold_build_ms": {
-        "max": 3675.4946,
-        "median": 319.34770000000003,
-        "min": 294.3462
+        "max": 2333.6709,
+        "median": 619.4896,
+        "min": 536.2312999999999
       },
       "collections": null,
-      "edges": 33539,
+      "edges": 36148,
       "endpoints": 1299,
       "evidence": {
-        "parsed": 23254,
-        "resolved": 10285
+        "parsed": 22956,
+        "resolved": 13192
       },
-      "files": 943,
-      "hot_graph_stats_us": 3823.6857999999997,
-      "literal_search_ms": 227.74804,
+      "files": 942,
+      "hot_graph_stats_us": 7975.406,
+      "literal_search_ms": 206.30936000000003,
       "node_kinds": {
         "endpoint": 1299,
-        "file": 943,
-        "function": 5097,
-        "package": 48,
+        "file": 942,
+        "function": 5085,
+        "package": 45,
         "repository": 1,
         "struct": 6,
-        "variable": 12056
+        "variable": 12002
       },
-      "nodes": 19450,
+      "nodes": 19380,
       "queues": null,
       "relations": {
-        "calls": 10247,
-        "contains": 18102,
+        "calls": 13130,
+        "contains": 18035,
         "exposes": 1594,
-        "imports": 3558,
-        "inherits": 38
+        "imports": 3322,
+        "inherits": 62,
+        "re_exports": 5
       },
       "repository": "controller-rest-api",
-      "revision": "11a66fabbcb8d0168ca15b34b2ecc54d24b9363a",
+      "revision": "f8ef6003560d3cc933a0be4118b8d4695032ddb2",
       "tables": null,
       "topics": null,
-      "unchanged_refresh_ms": 31.698733333333337
+      "unchanged_refresh_ms": 68.76180000000001
     },
     {
       "cold_build_ms": {
-        "max": 1192.1905,
-        "median": 35.8995,
-        "min": 33.810399999999994
+        "max": 2033.4757,
+        "median": 72.8502,
+        "min": 69.59400000000001
       },
       "collections": null,
-      "edges": 2324,
+      "edges": 2525,
       "endpoints": null,
       "evidence": {
         "parsed": 1475,
-        "resolved": 849
+        "resolved": 1050
       },
       "files": 97,
-      "hot_graph_stats_us": 263.034,
-      "literal_search_ms": 20.31888,
+      "hot_graph_stats_us": 569.1239999999999,
+      "literal_search_ms": 39.936060000000005,
       "node_kinds": {
         "constant": 137,
         "enum": 15,
@@ -372,7 +376,7 @@
       "nodes": 1114,
       "queues": null,
       "relations": {
-        "calls": 849,
+        "calls": 1050,
         "contains": 1104,
         "imports": 371
       },
@@ -380,7 +384,7 @@
       "revision": "6093530cc7740e15088da2c60c396309e8f22e69",
       "tables": null,
       "topics": null,
-      "unchanged_refresh_ms": 3.1831
+      "unchanged_refresh_ms": 7.642366666666667
     }
   ],
   "samples": 3,
