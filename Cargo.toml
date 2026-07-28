@@ -45,8 +45,8 @@ weavatrix-git = { version = "0.2.0", optional = true }
 weavatrix-graph = "0.6.0"
 weavatrix-parse = { version = "0.1.0", path = "../weavatrix-parse" }
 mcport = "0.1.0"
-weavatrix-memory = { version = "0.3.0", optional = true }
-weavatrix-scan = "0.4.2"
+weavatrix-memory = { version = "0.3.1", optional = true }
+weavatrix-scan = "0.4.3"
 weavatrix-search = { version = "0.3.0", optional = true, default-features = false }
 weavatrix-search-vector = { version = "0.3.0", optional = true }
 weavatrix-semantic = { version = "0.2.0", path = "../weavatrix-semantic", optional = true, features = ["vector-search"] }
@@ -63,6 +63,7 @@ unsafe_code = "forbid"
 [lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+
 
 
 

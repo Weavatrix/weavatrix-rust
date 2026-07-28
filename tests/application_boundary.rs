@@ -35,10 +35,21 @@ fn default_weavatrix_has_no_process_network_or_source_write_path() {
 fn graph_is_an_external_package_boundary() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest = fs::read_to_string(root.join("Cargo.toml")).unwrap();
-    assert!(manifest.contains("weavatrix-graph = \"0.6.0\""));
-    assert!(manifest.contains("weavatrix-scan = \"0.4.2\""));
+    // What this guards is the boundary, not a version number: the graph and
+    // the scanner arrive from the registry rather than being vendored or
+    // reached through a sibling directory. Pinning the exact version made a
+    // routine upgrade fail a test about architecture, which taught nothing.
+    for crate_name in ["weavatrix-graph", "weavatrix-scan"] {
+        assert!(
+            manifest.contains(&format!("{crate_name} = \"")),
+            "{crate_name} must be declared as a registry dependency"
+        );
+        assert!(
+            !manifest.contains(&format!("path = \"../{crate_name}\"")),
+            "{crate_name} must not be reached through a sibling directory"
+        );
+    }
     assert!(manifest.contains("weavatrix-memory ="));
-    assert!(!manifest.contains("path = \"../weavatrix-graph\""));
     assert!(!root.join("src/graph.rs").exists());
     assert!(!root.join("src/scan.rs").exists());
 }
