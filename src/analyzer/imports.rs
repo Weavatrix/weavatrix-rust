@@ -1,7 +1,7 @@
 use super::support::{normalized_path, parsed_provenance, sanitize_id};
 use crate::Result;
 use crate::language::{ImportFact, Language};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound;
 use std::path::{Component, Path, PathBuf};
 use weavatrix_graph::{Edge, EdgeKind, GraphBuilder, Node, NodeId, NodeKind};
@@ -19,8 +19,34 @@ pub(super) fn resolve(
     files: &BTreeMap<String, NodeId>,
     repository_label: &str,
     imports: Vec<PendingImport>,
+    reexports: Vec<PendingImport>,
 ) -> Result<()> {
     let context = ResolutionContext::new(files, repository_label, &imports);
+    // Barrel map: a file that forwards another module's surface, so importers
+    // of the barrel reach the defining module transitively.
+    let mut forwards = BTreeMap::<String, Vec<String>>::new();
+    for item in reexports {
+        let Some(target) = context.local_path(&item) else {
+            continue;
+        };
+        if target == item.source_path {
+            continue;
+        }
+        forwards
+            .entry(item.source_path.clone())
+            .or_default()
+            .push(target.clone());
+        if let Some(target_id) = files.get(&target) {
+            let provenance = parsed_provenance(item.extractor, Some(item.import.span.clone()))?
+                .with_detail(format!("re-export; specifier: {}", item.import.target));
+            graph.add_edge(Edge::new(
+                item.source.clone(),
+                target_id.clone(),
+                EdgeKind::ReExports,
+                provenance,
+            ))?;
+        }
+    }
     for item in imports {
         let locals = context.local_targets(&item);
         let is_local = !locals.is_empty();
@@ -43,6 +69,24 @@ pub(super) fn resolve(
                 EdgeKind::Imports,
                 provenance,
             ))?;
+        }
+        if is_local && !forwards.is_empty() {
+            for defining in context.forwarded(&item, &forwards) {
+                let Some(target_id) = files.get(&defining) else {
+                    continue;
+                };
+                let provenance = parsed_provenance(item.extractor, Some(item.import.span.clone()))?
+                    .with_detail(format!(
+                        "import resolved through a re-export chain; specifier: {}",
+                        item.import.target
+                    ));
+                graph.add_edge(Edge::new(
+                    item.source.clone(),
+                    target_id.clone(),
+                    EdgeKind::Imports,
+                    provenance,
+                ))?;
+            }
         }
     }
     Ok(())
@@ -130,6 +174,47 @@ impl<'a> ResolutionContext<'a> {
         candidates
             .into_iter()
             .find_map(|candidate| self.files.get(&candidate).cloned())
+    }
+
+    /// The repository path a specifier resolves to, if any.
+    fn local_path(&self, item: &PendingImport) -> Option<String> {
+        candidates(item, &self.rust_roots)
+            .into_iter()
+            .find(|candidate| self.files.contains_key(candidate))
+    }
+
+    /// Files reached by following the barrel chain from this import, bounded
+    /// in depth and breadth and safe against cycles.
+    fn forwarded(
+        &self,
+        item: &PendingImport,
+        forwards: &BTreeMap<String, Vec<String>>,
+    ) -> Vec<String> {
+        const MAX_DEPTH: usize = 4;
+        const MAX_TARGETS: usize = 16;
+        let Some(entry) = self.local_path(item) else {
+            return Vec::new();
+        };
+        let mut seen = BTreeSet::from([entry.clone()]);
+        let mut frontier = vec![entry];
+        let mut result = Vec::new();
+        for _ in 0..MAX_DEPTH {
+            let mut next = Vec::new();
+            for current in frontier.drain(..) {
+                for target in forwards.get(&current).into_iter().flatten() {
+                    if seen.insert(target.clone()) {
+                        result.push(target.clone());
+                        next.push(target.clone());
+                    }
+                }
+            }
+            if next.is_empty() || result.len() >= MAX_TARGETS {
+                break;
+            }
+            frontier = next;
+        }
+        result.truncate(MAX_TARGETS);
+        result
     }
 
     /// Resolves a Go import to every direct source file of the named package

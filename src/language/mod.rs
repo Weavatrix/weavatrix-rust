@@ -118,6 +118,9 @@ pub struct FileFacts {
     pub domains: Vec<DomainFact>,
     pub diagnostics: Vec<Diagnostic>,
     pub mounts: Vec<MountFact>,
+    /// `export ... from 'x'` specifiers: this file forwards another module's
+    /// surface, so importers of this file reach that module transitively.
+    pub reexports: Vec<ImportFact>,
 }
 
 pub trait LanguageAdapter: Send + Sync {

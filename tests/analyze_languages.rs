@@ -247,6 +247,57 @@ fn resolves_language_specific_repository_imports() {
 }
 
 #[test]
+fn resolves_imports_through_re_export_barrels() {
+    let fixture = Fixture::new();
+    fixture.write("src/shared/Button.tsx", "export function Button() {}\n");
+    fixture.write("src/shared/Input.tsx", "export function Input() {}\n");
+    fixture.write(
+        "src/shared/index.ts",
+        "export { Button } from './Button';\nexport * from './Input';\n",
+    );
+    fixture.write(
+        "src/app/App.tsx",
+        "import { Button, Input } from '../shared';\nexport function App() { return Button(); }\n",
+    );
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    let edge = |kind: EdgeKind, source: &str, target: &str| {
+        snapshot.edges.iter().any(|item| {
+            item.kind == kind && item.source.as_str() == source && item.target.as_str() == target
+        })
+    };
+    assert!(
+        edge(
+            EdgeKind::ReExports,
+            "file:src/shared/index.ts",
+            "file:src/shared/Button.tsx"
+        ),
+        "named re-export is recorded as re-export evidence"
+    );
+    assert!(
+        edge(
+            EdgeKind::ReExports,
+            "file:src/shared/index.ts",
+            "file:src/shared/Input.tsx"
+        ),
+        "star re-export is recorded as re-export evidence"
+    );
+    assert!(
+        edge(
+            EdgeKind::Imports,
+            "file:src/app/App.tsx",
+            "file:src/shared/index.ts"
+        ),
+        "the barrel itself stays an import target"
+    );
+    for defining in ["file:src/shared/Button.tsx", "file:src/shared/Input.tsx"] {
+        assert!(
+            edge(EdgeKind::Imports, "file:src/app/App.tsx", defining),
+            "barrel import must reach {defining} through the re-export chain"
+        );
+    }
+}
+
+#[test]
 fn resolves_express_mount_chains_to_full_paths() {
     let fixture = Fixture::new();
     fixture.write(

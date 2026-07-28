@@ -142,6 +142,16 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
                 span: span.clone(),
             });
         }
+        if script
+            && let Some(value) = line.strip_prefix("export ")
+            && value.contains(" from ")
+            && let Some(target) = quoted_segment(value)
+        {
+            facts.reexports.push(ImportFact {
+                target,
+                span: span.clone(),
+            });
+        }
         for name in call_names(line) {
             if declaration.as_ref().is_some_and(|item| item.0 == name) {
                 continue;
@@ -494,11 +504,6 @@ fn import_targets(line: &str, language: &Language) -> Vec<String> {
                 targets.push(target);
             }
         } else if let Some(value) = line.strip_prefix("import ")
-            && let Some(target) = quoted_segment(value)
-        {
-            targets.push(target);
-        } else if let Some(value) = line.strip_prefix("export ")
-            && value.contains(" from ")
             && let Some(target) = quoted_segment(value)
         {
             targets.push(target);

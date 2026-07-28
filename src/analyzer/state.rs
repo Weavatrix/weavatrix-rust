@@ -77,6 +77,7 @@ pub(super) struct AnalysisState {
     file_index: BTreeMap<String, NodeId>,
     symbol_index: HashMap<Language, HashMap<String, Vec<NodeId>>>,
     pending_imports: Vec<PendingImport>,
+    pending_reexports: Vec<PendingImport>,
     pending_references: Vec<PendingReference>,
 }
 
@@ -121,6 +122,7 @@ impl AnalysisState {
             file_index: BTreeMap::new(),
             symbol_index: HashMap::new(),
             pending_imports: Vec::new(),
+            pending_reexports: Vec::new(),
             pending_references: Vec::new(),
         })
     }
@@ -165,10 +167,20 @@ impl AnalysisState {
             domains,
             diagnostics,
             mounts: _,
+            reexports,
         } = facts;
         self.diagnostics.extend(diagnostics);
         let local_symbols = self.add_symbols(&relative, &file_id, &language, extractor, symbols)?;
         self.add_imports(&relative, &file_id, &language, extractor, imports);
+        for reexport in reexports {
+            self.pending_reexports.push(PendingImport {
+                source: file_id.clone(),
+                source_path: relative.clone(),
+                language: language.clone(),
+                extractor,
+                import: reexport,
+            });
+        }
         self.add_domains(&file_id, extractor, domains, &local_symbols)?;
         self.collect_references(&file_id, &language, extractor, references, &local_symbols);
         Ok(())
@@ -312,6 +324,7 @@ impl AnalysisState {
             &self.file_index,
             &self.repository_label,
             std::mem::take(&mut self.pending_imports),
+            std::mem::take(&mut self.pending_reexports),
         )?;
         resolve_references(
             &mut self.graph,
