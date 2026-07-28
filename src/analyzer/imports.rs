@@ -1,7 +1,7 @@
 use super::support::{normalized_path, parsed_provenance, sanitize_id};
 use crate::Result;
 use crate::language::{ImportFact, Language};
-use serde_json::Value;
+use blazingly_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound;
 use std::path::{Component, Path, PathBuf};
@@ -378,7 +378,7 @@ fn read_json(path: &Path) -> Option<Value> {
     let text = std::fs::read_to_string(path).ok()?;
     // Configuration files in this ecosystem routinely carry comments and
     // trailing commas, which strict JSON rejects.
-    serde_json::from_str(&strip_json_comments(&text)).ok()
+    blazingly_json::from_str(&strip_json_comments(&text)).ok()
 }
 
 fn strip_json_comments(text: &str) -> String {

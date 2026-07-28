@@ -43,7 +43,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         Some("list-tools") => {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&tools::catalog())
+                blazingly_json::to_string_pretty(&tools::catalog())
                     .map_err(|error| error.to_string())?
             );
             return Ok(());
@@ -56,15 +56,15 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
             let input = arguments
                 .get(3)
                 .map_or_else(
-                    || Ok(serde_json::json!({})),
-                    |value| serde_json::from_str(value),
+                    || Ok(blazingly_json::json!({})),
+                    |value| blazingly_json::from_str(value),
                 )
                 .map_err(|error| format!("invalid tool JSON: {error}"))?;
             let mut engine = Weavatrix::open(repository).map_err(|error| error.to_string())?;
             let output = tools::call(&mut engine, name, input)?;
             println!(
                 "{}",
-                serde_json::to_string_pretty(&output).map_err(|error| error.to_string())?
+                blazingly_json::to_string_pretty(&output).map_err(|error| error.to_string())?
             );
             return Ok(());
         }

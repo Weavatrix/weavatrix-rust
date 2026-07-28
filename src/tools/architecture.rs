@@ -1,6 +1,6 @@
 use crate::RepositoryState;
 use crate::tools::arg_str;
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 
@@ -138,7 +138,7 @@ fn load(state: &RepositoryState) -> Result<Value, String> {
     let path = state.root().join(".weavatrix/architecture.json");
     let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
     let value: Value =
-        serde_json::from_slice(&bytes).map_err(|error| format!("invalid contract: {error}"))?;
+        blazingly_json::from_slice(&bytes).map_err(|error| format!("invalid contract: {error}"))?;
     if value.get("components").and_then(Value::as_array).is_none() {
         return Err("architecture contract has no components".to_owned());
     }

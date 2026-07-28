@@ -1,8 +1,8 @@
 #[cfg(feature = "vector")]
 use crate::tools::{arg_bool, arg_u64};
-use serde_json::Value;
+use blazingly_json::Value;
 #[cfg(feature = "vector")]
-use serde_json::json;
+use blazingly_json::json;
 
 #[cfg(feature = "vector")]
 pub fn search(args: &Value) -> Result<Value, String> {

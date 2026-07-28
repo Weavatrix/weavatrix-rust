@@ -1,6 +1,6 @@
 #![cfg(feature = "lang-rust")]
 
-use serde_json::Value;
+use blazingly_json::Value;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -67,7 +67,7 @@ pub fn run() { helper(); }
     let json = Analyzer::default()
         .analyze_legacy_json(&fixture.root, false)
         .unwrap();
-    let graph: Value = serde_json::from_str(&json).unwrap();
+    let graph: Value = blazingly_json::from_str(&json).unwrap();
 
     assert_eq!(graph["schemaVersion"], "weavatrix.rust.legacy.v1");
     assert_eq!(graph["edgeTypesV"], 2);

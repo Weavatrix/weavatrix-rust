@@ -1,6 +1,6 @@
 use crate::tools::{arg_bool, arg_str, arg_u64};
 use crate::{RepositoryState, Weavatrix};
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::collections::BTreeSet;
 use weavatrix_graph::NodeKind;
 

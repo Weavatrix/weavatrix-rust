@@ -1,6 +1,6 @@
 #![cfg(feature = "git")]
 
-use serde_json::json;
+use blazingly_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;

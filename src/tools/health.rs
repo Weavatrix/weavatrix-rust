@@ -2,7 +2,7 @@ use crate::RepositoryState;
 #[cfg(feature = "clone")]
 use crate::tools::arg_str;
 use crate::tools::arg_u64;
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use weavatrix_graph::{EdgeKind, GraphView, NodeKind, strongly_connected_components};
 
@@ -363,7 +363,7 @@ fn entry_points(state: &RepositoryState) -> Vec<weavatrix_graph::NodeIndex> {
                 .ok()
         };
         if let Some(text) = at("package.json")
-            && let Ok(value) = serde_json::from_str::<Value>(&text)
+            && let Ok(value) = blazingly_json::from_str::<Value>(&text)
         {
             for key in ["main", "module", "browser"] {
                 if let Some(path) = value.get(key).and_then(Value::as_str) {

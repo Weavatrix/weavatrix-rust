@@ -1,4 +1,4 @@
-use serde_json::json;
+use blazingly_json::json;
 #[cfg(all(
     feature = "clone",
     feature = "git",

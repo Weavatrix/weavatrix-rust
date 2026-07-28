@@ -1,9 +1,9 @@
 use crate::RepositoryState;
 #[cfg(feature = "semantic")]
 use crate::tools::{arg_bool, arg_f64, arg_str, arg_u64};
-use serde_json::Value;
+use blazingly_json::Value;
 #[cfg(feature = "semantic")]
-use serde_json::json;
+use blazingly_json::json;
 
 #[cfg(feature = "semantic")]
 use weavatrix_semantic::{

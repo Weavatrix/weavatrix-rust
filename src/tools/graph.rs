@@ -1,7 +1,7 @@
-﻿use crate::RepositoryState;
+use crate::RepositoryState;
 use crate::tools::graph_walk::{resolve_seeds, traverse};
 use crate::tools::{arg_bool, arg_str, arg_u64};
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::collections::BTreeMap;
 use weavatrix_graph::{Direction, NodeIndex, NodeKind, shortest_path, weakly_connected_components};
 

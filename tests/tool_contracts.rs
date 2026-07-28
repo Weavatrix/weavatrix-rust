@@ -10,7 +10,7 @@
 
 mod support;
 
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use support::GitFixture;
 use weavatrix_memory::{
     AgentId, ContextRequest, EntityId, EventId, EventStore, ExpectedVersion, InMemoryStore,

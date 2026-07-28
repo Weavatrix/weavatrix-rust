@@ -1,5 +1,5 @@
+use blazingly_json::{Map, Value};
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
 use weavatrix_graph::{AttributeValue, Edge, Node, NodeKind, SourceSpan};
 
 pub const SNAPSHOT_SCHEMA_VERSION: u32 = 1;
@@ -71,11 +71,11 @@ impl Snapshot {
     /// # Errors
     ///
     /// Returns any JSON serialization error.
-    pub fn legacy_json(&self, pretty: bool) -> serde_json::Result<String> {
+    pub fn legacy_json(&self, pretty: bool) -> blazingly_json::Result<String> {
         if pretty {
-            serde_json::to_string_pretty(&self.legacy_value())
+            blazingly_json::to_string_pretty(&self.legacy_value())
         } else {
-            serde_json::to_string(&self.legacy_value())
+            blazingly_json::to_string(&self.legacy_value())
         }
     }
 }
@@ -175,7 +175,7 @@ fn insert_attributes(
         if !out.contains_key(key) {
             out.insert(
                 key.clone(),
-                serde_json::to_value(value).unwrap_or(Value::Null),
+                blazingly_json::to_value(value).unwrap_or(Value::Null),
             );
         }
     }

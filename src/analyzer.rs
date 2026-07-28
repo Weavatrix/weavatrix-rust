@@ -241,9 +241,9 @@ impl Analyzer {
     pub fn analyze_json(&self, repository: impl AsRef<Path>, pretty: bool) -> Result<String> {
         let snapshot = self.analyze(repository)?;
         if pretty {
-            Ok(serde_json::to_string_pretty(&snapshot)?)
+            Ok(blazingly_json::to_string_pretty(&snapshot)?)
         } else {
-            Ok(serde_json::to_string(&snapshot)?)
+            Ok(blazingly_json::to_string(&snapshot)?)
         }
     }
 

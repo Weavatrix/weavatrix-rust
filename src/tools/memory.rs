@@ -1,7 +1,7 @@
 use crate::RepositoryState;
-use serde_json::Value;
+use blazingly_json::Value;
 #[cfg(feature = "memory")]
-use serde_json::json;
+use blazingly_json::json;
 
 #[cfg(feature = "memory")]
 pub fn context(_state: &RepositoryState, args: &Value) -> Result<Value, String> {
@@ -10,14 +10,14 @@ pub fn context(_state: &RepositoryState, args: &Value) -> Result<Value, String> 
         StoredEvent, replay_owned,
     };
 
-    let events = serde_json::from_value::<Vec<StoredEvent<MemoryEvent>>>(
+    let events = blazingly_json::from_value::<Vec<StoredEvent<MemoryEvent>>>(
         args.get("events")
             .cloned()
             .ok_or_else(|| "events must be an array".to_owned())?,
     )
     .map_err(|error| format!("invalid memory events: {error}"))?;
     let projection: MemoryProjection = replay_owned(events).map_err(|error| error.to_string())?;
-    let request = serde_json::from_value::<ContextRequest>(
+    let request = blazingly_json::from_value::<ContextRequest>(
         args.get("request")
             .cloned()
             .ok_or_else(|| "request must contain a ContextRequest object".to_owned())?,

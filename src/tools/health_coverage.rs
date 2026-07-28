@@ -1,5 +1,5 @@
 use crate::RepositoryState;
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::fs;
 use std::path::Path;
 use weavatrix_graph::NodeKind;
@@ -80,8 +80,9 @@ fn parse_lcov(path: &Path) -> Result<Vec<Value>, String> {
 }
 
 fn parse_json_coverage(path: &Path) -> Result<Vec<Value>, String> {
-    let value: Value = serde_json::from_slice(&fs::read(path).map_err(|error| error.to_string())?)
-        .map_err(|error| error.to_string())?;
+    let value: Value =
+        blazingly_json::from_slice(&fs::read(path).map_err(|error| error.to_string())?)
+            .map_err(|error| error.to_string())?;
     if let Some(files) = tarpaulin_files(&value) {
         return Ok(files);
     }

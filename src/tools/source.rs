@@ -2,7 +2,7 @@ use crate::RepositoryState;
 #[cfg(feature = "search")]
 use crate::tools::arg_bool;
 use crate::tools::{arg_str, arg_u64};
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
 

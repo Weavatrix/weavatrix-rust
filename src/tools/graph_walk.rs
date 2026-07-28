@@ -1,6 +1,6 @@
 use crate::RepositoryState;
 use crate::tools::arg_str;
-use serde_json::Value;
+use blazingly_json::Value;
 use std::collections::{BTreeSet, VecDeque};
 use weavatrix_graph::{Direction, EdgeIndex, GraphView, NodeIndex};
 

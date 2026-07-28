@@ -1,4 +1,4 @@
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::env;
 use std::hint::black_box;
 use std::path::{Path, PathBuf};
@@ -15,7 +15,7 @@ fn main() {
         .iter()
         .map(|path| benchmark(path))
         .collect::<Vec<_>>();
-    let output = serde_json::to_string_pretty(&json!({
+    let output = blazingly_json::to_string_pretty(&json!({
         "schema": "weavatrix.repository-benchmark.v1",
         "profile": "release",
         "samples": 3,

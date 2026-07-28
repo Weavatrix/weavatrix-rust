@@ -1,5 +1,5 @@
 use crate::{Analyzer, RepositoryState, SourceInput};
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use weavatrix_git::{EntryKind, ObjectKind, Repository};
 use weavatrix_graph::{Edge, Graph, Node};

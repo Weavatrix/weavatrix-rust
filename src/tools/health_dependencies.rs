@@ -1,6 +1,6 @@
 use super::health_manifests::{Declaration, duplicates, normalize, parse};
 use crate::RepositoryState;
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};

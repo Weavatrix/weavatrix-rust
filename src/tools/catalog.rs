@@ -1,5 +1,5 @@
+use blazingly_json::{Map, Value, json};
 use serde::Serialize;
-use serde_json::{Map, Value, json};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

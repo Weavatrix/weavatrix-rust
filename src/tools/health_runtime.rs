@@ -5,7 +5,7 @@
 //! a caller can never mistake "nothing configured" for "nothing wrong".
 
 use crate::RepositoryState;
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;

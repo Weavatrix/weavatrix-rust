@@ -1,4 +1,4 @@
-use serde_json::Value;
+use blazingly_json::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -22,7 +22,7 @@ pub(super) fn parse(path: &Path, relative: &str, text: &str) -> Vec<Declaration>
 }
 
 fn package_json(relative: &str, text: &str) -> Vec<Declaration> {
-    let Ok(document) = serde_json::from_str::<Value>(text) else {
+    let Ok(document) = blazingly_json::from_str::<Value>(text) else {
         return Vec::new();
     };
     let mut result = Vec::new();

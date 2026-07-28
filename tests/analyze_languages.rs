@@ -250,7 +250,7 @@ fn resolves_language_specific_repository_imports() {
 /// imports it": the latter flags a package's own executables and its CI.
 #[test]
 fn dead_code_starts_from_declared_entry_points() {
-    use serde_json::json;
+    use blazingly_json::json;
     use weavatrix_rust::{Weavatrix, tools};
 
     let fixture = Fixture::new();
@@ -313,7 +313,7 @@ fn dead_code_starts_from_declared_entry_points() {
 /// that lies about the answer.
 #[test]
 fn production_first_filters_are_applied_by_the_tools_that_advertise_them() {
-    use serde_json::json;
+    use blazingly_json::json;
     use weavatrix_rust::{Weavatrix, tools};
 
     let fixture = Fixture::new();
@@ -327,7 +327,7 @@ fn production_first_filters_are_applied_by_the_tools_that_advertise_them() {
     );
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
 
-    let labels = |value: &serde_json::Value, pointer: &str| {
+    let labels = |value: &blazingly_json::Value, pointer: &str| {
         value
             .pointer(pointer)
             .and_then(|items| items.as_array())

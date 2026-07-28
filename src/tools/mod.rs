@@ -23,7 +23,7 @@ mod workflow;
 pub use catalog::{ToolDefinition, catalog, catalog_for_profile};
 
 use crate::Weavatrix;
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 
 /// Executes one bounded read-only repository tool.
 ///

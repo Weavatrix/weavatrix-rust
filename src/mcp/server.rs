@@ -1,6 +1,5 @@
 use crate::{Weavatrix, tools};
-use mcport::{ServerIdentity, ToolReply, ToolServer};
-use serde_json::{Value, json};
+use mcport::{ServerIdentity, ToolReply, ToolServer, Value};
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -67,7 +66,8 @@ impl ToolServer for WeavatrixServer {
     }
 
     fn catalog(&mut self) -> Value {
-        serde_json::to_value(tools::catalog_for_profile(self.profile)).unwrap_or_else(|_| json!([]))
+        blazingly_json::to_value(tools::catalog_for_profile(self.profile))
+            .unwrap_or_else(|_| blazingly_json::json!([]))
     }
 
     fn call(&mut self, name: &str, arguments: Value) -> ToolReply {
@@ -140,8 +140,9 @@ pub fn serve_with_profile(
 #[cfg(test)]
 mod tests {
     use super::WeavatrixServer;
-    use mcport::dispatch;
-    use serde_json::json;
+    // The request the runtime dispatches is built with the runtime's own JSON
+    // type, so the test exercises the boundary rather than bypassing it.
+    use mcport::{dispatch, json};
     use std::path::PathBuf;
 
     fn server(profile: crate::mcp::McpProfile) -> WeavatrixServer {

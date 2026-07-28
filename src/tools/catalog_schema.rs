@@ -1,4 +1,4 @@
-use serde_json::{Value, json};
+use blazingly_json::{Value, json};
 
 #[allow(clippy::too_many_lines)]
 pub(super) fn optional_fields(tool: &str) -> &'static [&'static str] {

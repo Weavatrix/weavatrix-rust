@@ -1,9 +1,9 @@
 use crate::RepositoryState;
 #[cfg(feature = "git")]
 use crate::tools::{arg_str, arg_u64};
-use serde_json::Value;
+use blazingly_json::Value;
 #[cfg(feature = "git")]
-use serde_json::json;
+use blazingly_json::json;
 #[cfg(feature = "git")]
 use std::time::{SystemTime, UNIX_EPOCH};
 

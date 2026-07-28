@@ -14,7 +14,7 @@ pub enum Error {
         message: String,
     },
     Graph(weavatrix_graph::GraphError),
-    Json(serde_json::Error),
+    Json(blazingly_json::Error),
     Scan(weavatrix_scan::Error),
 }
 
@@ -64,8 +64,8 @@ impl std::error::Error for Error {
     }
 }
 
-impl From<serde_json::Error> for Error {
-    fn from(value: serde_json::Error) -> Self {
+impl From<blazingly_json::Error> for Error {
+    fn from(value: blazingly_json::Error) -> Self {
         Self::Json(value)
     }
 }
