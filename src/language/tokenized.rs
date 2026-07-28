@@ -151,6 +151,7 @@ fn convert(facts: &Facts, path: &str) -> FileFacts {
             name: declaration.name.clone(),
             kind: node_kind(declaration.kind),
             span: span(&declaration.span, path),
+            owner: declaration.owner.clone(),
         });
     }
 

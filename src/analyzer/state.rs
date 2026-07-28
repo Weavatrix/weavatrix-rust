@@ -237,6 +237,7 @@ impl AnalysisState {
         extractor: &'static str,
         symbols: Vec<SymbolFact>,
     ) -> Result<BTreeMap<(NodeKind, String, u32, u32), NodeId>> {
+        let mut owners: BTreeMap<String, NodeId> = BTreeMap::new();
         let mut local = BTreeMap::new();
         for symbol in symbols {
             let node = Node::new(
@@ -261,6 +262,23 @@ impl AnalysisState {
                 .or_default()
                 .push(id.clone());
             self.graph.add_node(node)?;
+            // A member is joined to the type that declares it as well as to
+            // the file, because "what does this type do" and "what is in this
+            // file" are different questions and only one of them is answered
+            // by containment.
+            // A type is declared before its members are, so by the time a
+            // member arrives its owner is already a node.
+            if let Some(owner) = symbol.owner.as_ref().and_then(|name| owners.get(name))
+                && *owner != id
+            {
+                self.graph.add_edge(Edge::new(
+                    owner.clone(),
+                    id.clone(),
+                    EdgeKind::Method,
+                    parsed_provenance(extractor, Some(symbol.span.clone()))?,
+                ))?;
+            }
+            owners.entry(symbol.name.clone()).or_insert(id.clone());
             self.graph.add_edge(Edge::new(
                 file_id.clone(),
                 id,

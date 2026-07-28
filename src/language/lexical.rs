@@ -106,6 +106,7 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
                 name: name.clone(),
                 kind: kind.clone(),
                 span: span.clone(),
+                owner: None,
             });
             if owns_scope(kind, line, language) {
                 owners.push(OwnerScope {
@@ -404,6 +405,7 @@ fn go_group(
                             NodeKind::Custom("variable".to_owned())
                         },
                         span: span.clone(),
+                        owner: None,
                     });
                 }
             }

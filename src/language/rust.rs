@@ -82,6 +82,7 @@ impl Collector<'_> {
             name: locator.name.clone(),
             kind: locator.kind.clone(),
             span: locator.span.clone(),
+            owner: None,
         });
         locator
     }

@@ -70,6 +70,12 @@ pub struct SymbolFact {
     pub name: String,
     pub kind: NodeKind,
     pub span: SourceSpan,
+    /// The type this symbol was declared inside, when it was.
+    ///
+    /// A class and its methods are joined by their own edge rather than by
+    /// containment alone, because "what does this type do" is a different
+    /// question from "what is in this file".
+    pub owner: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
