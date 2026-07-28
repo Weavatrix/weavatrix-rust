@@ -318,21 +318,48 @@ pub fn audit(state: &RepositoryState, args: &Value) -> Value {
             *language_counts.entry(language.clone()).or_default() += 1;
         }
     }
+    let dependency_report = super::health_dependencies::report(state, max);
+    let runtime_report = super::health_runtime::runtime(state, max);
+    let advisory_report = super::health_runtime::advisories(state, max);
+    let malware_requested = args
+        .get("include_malware_scan")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let malware_report = super::health_runtime::malware(state, max, malware_requested);
+    let coverage_report = super::health_coverage::coverage(state);
+    let reviewing = [
+        &runtime_report,
+        &advisory_report,
+        &malware_report,
+        &dependency_report,
+    ]
+    .iter()
+    .any(|report| report["status"] == "REVIEW");
     json!({
-        "status": if state.snapshot().diagnostics.is_empty() {"PASS"} else {"REVIEW"},
+        "status": if state.snapshot().diagnostics.is_empty() && !reviewing {"PASS"} else {"REVIEW"},
         "findings": state.snapshot().diagnostics.iter().take(max).collect::<Vec<_>>(),
         "cycles": cycles,
         "languages": language_counts,
         "capability_matrix": state.snapshot().capabilities,
-        "dependency_report": super::health_dependencies::report(state, max),
+        "dependency_report": dependency_report,
+        "runtime_report": runtime_report,
+        "advisory_report": advisory_report,
+        "malware_report": malware_report,
+        "coverage_report": coverage_report,
         "completeness": {
             "structure": "PARTIAL_LANGUAGE_AWARE",
             "dependencies": "PARTIAL_MANIFEST_AWARE",
-            "runtime": "NOT_AVAILABLE",
-            "advisories": "NOT_AVAILABLE",
-            "malware": "NOT_AVAILABLE"
+            "runtime": runtime_report["completeness"].clone(),
+            "advisories": advisory_report["completeness"].clone(),
+            "malware": malware_report["completeness"].clone(),
+            "coverage": coverage_report["actualCoverage"].clone()
         }
     })
+}
+
+/// Whether a path's evidence is test or otherwise non-product.
+pub(super) fn is_non_product(path: &str) -> bool {
+    path_class(path) != PathClass::Product
 }
 
 pub fn hot_paths(state: &RepositoryState, args: &Value) -> Value {

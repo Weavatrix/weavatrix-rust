@@ -8,6 +8,7 @@ mod health;
 mod health_coverage;
 mod health_dependencies;
 mod health_manifests;
+mod health_runtime;
 mod history;
 #[cfg(feature = "git")]
 mod history_analytics;
