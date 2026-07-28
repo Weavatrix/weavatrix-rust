@@ -90,6 +90,30 @@ pub struct ReferenceFact {
 pub struct ImportFact {
     pub target: String,
     pub span: SourceSpan,
+    /// A type-position import (`import type { X } from ...`). It disappears at
+    /// compile time, so it couples declarations without coupling runtime
+    /// behaviour, and architecture rules distinguish the two.
+    pub type_only: bool,
+}
+
+impl ImportFact {
+    #[must_use]
+    pub fn new(target: String, span: SourceSpan) -> Self {
+        Self {
+            target,
+            span,
+            type_only: false,
+        }
+    }
+
+    #[must_use]
+    pub fn type_only(target: String, span: SourceSpan) -> Self {
+        Self {
+            target,
+            span,
+            type_only: true,
+        }
+    }
 }
 
 /// One `use(prefix, target)`-style router mount observed in a source file.

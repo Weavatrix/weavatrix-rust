@@ -136,10 +136,12 @@ fn parse_code(source: &SourceFile<'_>, language: &Language) -> FileFacts {
                 owner: owner.clone(),
             });
         }
+        let type_position = is_type_only_import(line, language);
         for target in import_targets(line, language) {
-            facts.imports.push(ImportFact {
-                target,
-                span: span.clone(),
+            facts.imports.push(if type_position {
+                ImportFact::type_only(target, span.clone())
+            } else {
+                ImportFact::new(target, span.clone())
             });
         }
         if script {
@@ -178,11 +180,33 @@ fn collect_reexport(line: &str, span: &weavatrix_graph::SourceSpan, facts: &mut 
         && value.contains(" from ")
         && let Some(target) = quoted_segment(value)
     {
-        facts.reexports.push(ImportFact {
-            target,
-            span: span.clone(),
-        });
+        facts
+            .reexports
+            .push(if value.trim_start().starts_with("type ") {
+                ImportFact::type_only(target, span.clone())
+            } else {
+                ImportFact::new(target, span.clone())
+            });
     }
+}
+
+/// TypeScript type-position imports: `import type { X } from 'y'` and
+/// `import { type X } from 'y'` vanish when the code is compiled.
+fn is_type_only_import(line: &str, language: &Language) -> bool {
+    if !matches!(language, Language::TypeScript | Language::JavaScript) {
+        return false;
+    }
+    let Some(value) = line.strip_prefix("import ") else {
+        return false;
+    };
+    let value = value.trim_start();
+    value.starts_with("type ")
+        || value.split_once('{').is_some_and(|(_, rest)| {
+            rest.split(',').all(|item| {
+                let item = item.trim_end_matches('}').trim();
+                item.is_empty() || item.starts_with("type ")
+            })
+        })
 }
 
 fn finalize_mounts(
@@ -366,10 +390,7 @@ fn go_group(
         match active {
             GoBlock::Imports => {
                 if let Some(target) = quoted_segment(line) {
-                    facts.imports.push(ImportFact {
-                        target,
-                        span: span.clone(),
-                    });
+                    facts.imports.push(ImportFact::new(target, span.clone()));
                 }
             }
             GoBlock::Constants | GoBlock::Variables => {

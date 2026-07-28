@@ -96,12 +96,19 @@ fn resolve_imports(
         for target in targets {
             let provenance = parsed_provenance(item.extractor, Some(item.import.span.clone()))?
                 .with_detail(format!("{evidence}; specifier: {}", item.import.target));
-            graph.add_edge(Edge::new(
-                item.source.clone(),
-                target,
-                EdgeKind::Imports,
-                provenance,
-            ))?;
+            let mut edge = Edge::new(item.source.clone(), target, EdgeKind::Imports, provenance);
+            // Architecture rules separate runtime coupling from coupling that
+            // only exists for the type checker, so the distinction has to
+            // travel with the edge.
+            edge = edge.with_attribute(
+                "coupling",
+                if item.import.type_only {
+                    "type-only"
+                } else {
+                    "runtime"
+                },
+            );
+            graph.add_edge(edge)?;
         }
         if is_local && !forwards.is_empty() {
             for defining in context.forwarded(&item, forwards) {

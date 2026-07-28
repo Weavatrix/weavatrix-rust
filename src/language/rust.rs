@@ -178,10 +178,10 @@ impl<'ast> Visit<'ast> for Collector<'_> {
     }
 
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
-        self.facts.imports.push(ImportFact {
-            target: use_tree_text(&node.tree),
-            span: source_span(self.path, node.span()),
-        });
+        self.facts.imports.push(ImportFact::new(
+            use_tree_text(&node.tree),
+            source_span(self.path, node.span()),
+        ));
         syn::visit::visit_item_use(self, node);
     }
 

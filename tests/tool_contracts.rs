@@ -261,6 +261,79 @@ fn coverage_formats(engine: &mut Weavatrix, fixture: &GitFixture) {
     assert_eq!(report["actualCoverage"], "AVAILABLE");
 }
 
+/// A contract written for the JavaScript engine names coupling kinds rather
+/// than relation names. Matching nothing would report a passing verification,
+/// so the vocabulary must either be evaluated or rejected out loud.
+#[test]
+fn coupling_kinds_are_evaluated_and_unknown_kinds_are_rejected() {
+    let fixture = GitFixture::new();
+    fixture.write("lib/util.ts", "export type Helper = { id: string };\n");
+    fixture.write(
+        "app/main.ts",
+        "import type { Helper } from '../lib/util.ts';\nexport const use = (value: Helper) => value.id;\n",
+    );
+    fixture.write(
+        "app/runtime.ts",
+        "import { helper } from '../lib/impl.ts';\nexport const run = () => helper();\n",
+    );
+    fixture.write("lib/impl.ts", "export function helper(){ return 1; }\n");
+    let contract = |kinds: &str| {
+        format!(
+            r#"{{"components":[{{"id":"app","paths":["app"]}},{{"id":"lib","paths":["lib"]}}],"dependencyRules":[{{"id":"no-app-lib","action":"forbid","from":["app"],"to":["lib"],"kinds":[{kinds}]}}],"ratchet":{{"baseline":{{"fingerprints":[]}}}}}}"#
+        )
+    };
+
+    fixture.write(".weavatrix/architecture.json", &contract("\"runtime\""));
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let runtime_only = tools::call(&mut engine, "verify_architecture", json!({})).unwrap();
+    let flagged = runtime_only["new"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item["source"]["label"].as_str().map(str::to_owned))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    assert!(
+        flagged.iter().any(|label| label.contains("runtime.ts")),
+        "a runtime import must violate a runtime rule, got {flagged:?}"
+    );
+    assert!(
+        !flagged.iter().any(|label| label.contains("main.ts")),
+        "an import type edge must not violate a runtime rule, got {flagged:?}"
+    );
+
+    fixture.write(".weavatrix/architecture.json", &contract("\"type-only\""));
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let type_only = tools::call(&mut engine, "verify_architecture", json!({})).unwrap();
+    let flagged = type_only["new"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item["source"]["label"].as_str().map(str::to_owned))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    assert!(
+        flagged.iter().any(|label| label.contains("main.ts")),
+        "a type-only rule must catch the import type edge, got {flagged:?}"
+    );
+
+    fixture.write(
+        ".weavatrix/architecture.json",
+        &contract("\"compile-only\""),
+    );
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let error = tools::call(&mut engine, "verify_architecture", json!({}))
+        .expect_err("an unevaluable kind must fail instead of passing");
+    assert!(
+        error.contains("compile-only"),
+        "the rejection must name the unsupported kind, got {error}"
+    );
+}
+
 fn repository() -> GitFixture {
     let fixture = GitFixture::new();
     fixture.write("lib/util.js", "export function helper(){ return 1; }\n");

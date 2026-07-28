@@ -51,6 +51,7 @@ pub fn prepare(state: &RepositoryState, args: &Value) -> Result<Value, String> {
 
 pub fn verify(state: &RepositoryState) -> Result<Value, String> {
     let contract = load(state)?;
+    validate_kinds(&contract)?;
     let baseline = contract
         .pointer("/ratchet/baseline/fingerprints")
         .and_then(Value::as_array)
@@ -58,17 +59,49 @@ pub fn verify(state: &RepositoryState) -> Result<Value, String> {
         .flatten()
         .filter_map(Value::as_str)
         .collect::<BTreeSet<_>>();
+    let accepted = accepted_exceptions(&contract);
     let violations = violations(state, &contract);
-    let (existing, new): (Vec<_>, Vec<_>) = violations
+    let present = violations
+        .iter()
+        .filter_map(|item| item["fingerprint"].as_str().map(str::to_owned))
+        .collect::<BTreeSet<_>>();
+    // An exception a human already accepted must not block; it stays visible
+    // so the acceptance is auditable rather than invisible.
+    let (excepted, active): (Vec<_>, Vec<_>) = violations
+        .into_iter()
+        .partition(|item| accepted.contains(item["fingerprint"].as_str().unwrap_or_default()));
+    let (existing, new): (Vec<_>, Vec<_>) = active
         .into_iter()
         .partition(|item| baseline.contains(item["fingerprint"].as_str().unwrap_or_default()));
+    // Baselined violations that no longer occur: the ratchet can be tightened.
+    let fixed = baseline
+        .iter()
+        .filter(|fingerprint| !present.contains(**fingerprint))
+        .collect::<Vec<_>>();
     Ok(json!({
         "state": if new.is_empty() {"PASS"} else {"BLOCKED"},
         "new": new,
         "existing": existing,
-        "fixed": [],
+        "excepted": excepted,
+        "fixed": fixed,
         "contract": ".weavatrix/architecture.json"
     }))
+}
+
+/// Fingerprints an accepted, unexpired contract exception covers.
+fn accepted_exceptions(contract: &Value) -> BTreeSet<String> {
+    contract
+        .get("exceptions")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|exception| {
+            // Without a clock an expiry cannot be evaluated, so a dated
+            // exception is honoured only when explicitly marked active.
+            exception.get("expires").is_none() || exception["active"] == Value::Bool(true)
+        })
+        .filter_map(|exception| exception.get("fingerprint")?.as_str().map(str::to_owned))
+        .collect()
 }
 
 pub fn explain(state: &RepositoryState, args: &Value) -> Result<Value, String> {
@@ -161,7 +194,7 @@ fn violations(state: &RepositoryState, contract: &Value) -> Vec<Value> {
         if from == to {
             continue;
         }
-        for rule in matching_rules(contract, from, to, edge.kind.as_str()) {
+        for rule in matching_rules(contract, from, to, edge) {
             let plain = format!(
                 "{}|{}|{}|{}",
                 rule["id"].as_str().unwrap_or("rule"),
@@ -184,11 +217,89 @@ fn violations(state: &RepositoryState, contract: &Value) -> Vec<Value> {
     output.into_values().collect()
 }
 
+/// Coupling vocabulary a rule may name, beside the raw relation names.
+const COUPLING_KINDS: &[&str] = &["any", "runtime", "type-only"];
+
+/// Relation names a rule may name. `EdgeKind` accepts any string as a custom
+/// kind, so the vocabulary is listed explicitly: otherwise a typo would be
+/// taken as a kind that matches nothing and the verification would pass.
+const RELATION_KINDS: &[&str] = &[
+    "contains",
+    "imports",
+    "calls",
+    "references",
+    "method",
+    "implements",
+    "re_exports",
+    "depends_on",
+    "inherits",
+    "publishes",
+    "consumes",
+    "binds",
+    "reads",
+    "writes",
+    "deploys",
+    "exposes",
+    "mounts",
+    "configures",
+];
+
+/// Rejects a contract whose `kinds` vocabulary this engine cannot evaluate.
+///
+/// Silently matching nothing would turn an unsupported rule into a passing
+/// verification, which is the one failure mode a guard must never have.
+fn validate_kinds(contract: &Value) -> Result<(), String> {
+    let mut unsupported = BTreeSet::new();
+    for rule in contract
+        .get("dependencyRules")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        for kind in rule
+            .get("kinds")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+        {
+            if !COUPLING_KINDS.contains(&kind) && !RELATION_KINDS.contains(&kind) {
+                unsupported.insert(kind.to_owned());
+            }
+        }
+    }
+    if unsupported.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "architecture contract uses dependency kinds this engine cannot evaluate: {}. \
+         Supported values are {} plus relation names such as imports, calls, inherits. \
+         Rules are rejected rather than skipped, because a rule that matches nothing \
+         would report a passing verification.",
+        unsupported.into_iter().collect::<Vec<_>>().join(", "),
+        COUPLING_KINDS.join(", ")
+    ))
+}
+
+/// Whether a rule's `kinds` list selects this edge. `runtime` and `type-only`
+/// describe how the dependency survives compilation; relation names select the
+/// graph relation directly.
+fn rule_selects_edge(rule: &Value, edge: &weavatrix_graph::Edge) -> bool {
+    let coupling = match edge.attributes.get("coupling") {
+        Some(weavatrix_graph::AttributeValue::String(value)) => value.as_str(),
+        // Relations other than imports have no compile-time-only form.
+        _ => "runtime",
+    };
+    list_contains(rule.get("kinds"), "any")
+        || list_contains(rule.get("kinds"), coupling)
+        || list_contains(rule.get("kinds"), edge.kind.as_str())
+}
+
 fn matching_rules<'contract>(
     contract: &'contract Value,
     from: &str,
     to: &str,
-    kind: &str,
+    edge: &weavatrix_graph::Edge,
 ) -> Vec<&'contract Value> {
     contract
         .get("dependencyRules")
@@ -198,9 +309,7 @@ fn matching_rules<'contract>(
         .filter(|rule| rule["action"] == "forbid")
         .filter(|rule| list_contains(rule.get("from"), from))
         .filter(|rule| list_contains(rule.get("to"), to))
-        .filter(|rule| {
-            list_contains(rule.get("kinds"), "any") || list_contains(rule.get("kinds"), kind)
-        })
+        .filter(|rule| rule_selects_edge(rule, edge))
         .collect()
 }
 
