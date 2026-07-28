@@ -142,6 +142,8 @@ impl Analyzer {
     pub(crate) fn analyze_report(&self, repository: &Path, scan: &ScanReport) -> Result<Snapshot> {
         let mut state = AnalysisState::new(repository)?;
         state.add_scan_warnings(scan.warnings.clone());
+        let timing = std::env::var_os("WEAVATRIX_PHASE_TIMING").is_some();
+        let started = std::time::Instant::now();
         let mut parsed = parse_parallel(scan.files.len(), |index| {
             let file = &scan.files[index];
             let bytes = std::fs::read(&file.absolute)
@@ -154,15 +156,28 @@ impl Analyzer {
             )
         })?;
         mounts::apply(&mut parsed);
+        let parsed_at = started.elapsed();
         for item in parsed {
             state.integrate(item)?;
         }
+        let integrated_at = started.elapsed();
         state.resolve_references()?;
-        state.into_snapshot(
+        let resolved_at = started.elapsed();
+        let snapshot = state.into_snapshot(
             repository,
             scan.revision.clone(),
             capabilities(&self.languages),
-        )
+        );
+        if timing {
+            eprintln!(
+                "phase-timing parse={:.1}ms integrate={:.1}ms resolve={:.1}ms snapshot={:.1}ms",
+                parsed_at.as_secs_f64() * 1e3,
+                (integrated_at - parsed_at).as_secs_f64() * 1e3,
+                (resolved_at - integrated_at).as_secs_f64() * 1e3,
+                (started.elapsed() - resolved_at).as_secs_f64() * 1e3,
+            );
+        }
+        snapshot
     }
 
     fn scan_options(&self) -> ScanOptions {

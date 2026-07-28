@@ -91,6 +91,22 @@ the static-analysis ceiling here. Rust additionally keeps the router-local
 declarations as explicit evidence, which lowers its precision figure without
 losing any real endpoint.
 
+## End-to-end graph competitors
+
+madge 8.x and dependency-cruiser 17.x (no-config, JSON output) build import
+graphs only - no symbols, calls, endpoints, or domain evidence - yet on the
+same checkouts:
+
+| Repository | Weavatrix Rust (full graph) | madge (imports only) | dependency-cruiser (imports only) |
+|---|---:|---:|---:|
+| analytics | 105.1 ms | 21,298 ms (203x) | 45,831 ms (436x) |
+| frontend | 402.6 ms | 18,960 ms (47x) | not measured |
+
+Phase profile is exposed via `WEAVATRIX_PHASE_TIMING=1`; on frontend the
+cold build splits roughly evenly across parse/integrate/resolve/snapshot
+(89/86/105/82 ms), so the next speed lever is inside graph integration and
+snapshot serialization, not parsing.
+
 ## Component competitors
 
 Each row keeps an equivalent contract where possible. A narrower competitor
