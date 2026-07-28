@@ -87,6 +87,17 @@ pub(super) struct AnalysisState {
     pending_imports: Vec<PendingImport>,
     pending_reexports: Vec<PendingImport>,
     pending_references: Vec<PendingReference>,
+    /// Members whose declaring type was not found in their own file.
+    ///
+    /// Rust writes `impl Engine` in one file and `struct Engine` in another,
+    /// so the owner is only resolvable once every file has been read.
+    pending_methods: Vec<(
+        Language,
+        String,
+        NodeId,
+        weavatrix_graph::SourceSpan,
+        &'static str,
+    )>,
 }
 
 impl AnalysisState {
@@ -134,6 +145,7 @@ impl AnalysisState {
             pending_imports: Vec::new(),
             pending_reexports: Vec::new(),
             pending_references: Vec::new(),
+            pending_methods: Vec::new(),
         })
     }
 
@@ -268,15 +280,27 @@ impl AnalysisState {
             // by containment.
             // A type is declared before its members are, so by the time a
             // member arrives its owner is already a node.
-            if let Some(owner) = symbol.owner.as_ref().and_then(|name| owners.get(name))
-                && *owner != id
-            {
-                self.graph.add_edge(Edge::new(
-                    owner.clone(),
-                    id.clone(),
-                    EdgeKind::Method,
-                    parsed_provenance(extractor, Some(symbol.span.clone()))?,
-                ))?;
+            if let Some(name) = symbol.owner.as_ref() {
+                match owners.get(name) {
+                    Some(owner) if *owner != id => {
+                        self.graph.add_edge(Edge::new(
+                            owner.clone(),
+                            id.clone(),
+                            EdgeKind::Method,
+                            parsed_provenance(extractor, Some(symbol.span.clone()))?,
+                        ))?;
+                    }
+                    // The declaring type lives in another file, which may not
+                    // have been read yet.
+                    None => self.pending_methods.push((
+                        language.clone(),
+                        name.clone(),
+                        id.clone(),
+                        symbol.span.clone(),
+                        extractor,
+                    )),
+                    Some(_) => {}
+                }
             }
             owners.entry(symbol.name.clone()).or_insert(id.clone());
             self.graph.add_edge(Edge::new(
@@ -371,6 +395,29 @@ impl AnalysisState {
             std::mem::take(&mut self.pending_reexports),
         )?;
         self.diagnostics.extend(unresolved);
+        // Every file has been read, so a type declared in one of them can now
+        // claim the members another file wrote for it. An ambiguous name is
+        // left alone rather than attached to a guess.
+        for (language, owner, member, span, extractor) in std::mem::take(&mut self.pending_methods)
+        {
+            let Some(candidates) = self
+                .symbol_index
+                .get(&language)
+                .and_then(|names| names.get(&owner))
+            else {
+                continue;
+            };
+            if let [only] = candidates.as_slice()
+                && *only != member
+            {
+                self.graph.add_edge(Edge::new(
+                    only.clone(),
+                    member,
+                    EdgeKind::Method,
+                    parsed_provenance(extractor, Some(span))?,
+                ))?;
+            }
+        }
         resolve_references(
             &mut self.graph,
             &self.symbol_index,
