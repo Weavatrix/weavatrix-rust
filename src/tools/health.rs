@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use weavatrix_graph::{EdgeKind, NodeKind, strongly_connected_components};
 
 #[cfg(feature = "clone")]
+#[allow(clippy::too_many_lines)]
 pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     use weavatrix_clone::{
         CloneConfig, CloneDetector, DetectionMode, RepositoryCloneDetector, Similarity,
@@ -171,16 +172,16 @@ fn has_control_flow(
             .map(|text| text.lines().map(str::to_owned).collect())
             .unwrap_or_default()
     });
+    const MARKERS: &[&str] = &[
+        "if ", "if(", "for ", "for(", "while ", "while(", "return", "=>", "function", "throw",
+        "await ", "switch", "yield", "match ", "loop ", "?.",
+    ];
     let start = usize::try_from(start_line.saturating_sub(1)).unwrap_or(0);
     let end = usize::try_from(end_line).unwrap_or(0).min(lines.len());
     if start >= end {
         // Unreadable fragments stay visible rather than silently vanishing.
         return true;
     }
-    const MARKERS: &[&str] = &[
-        "if ", "if(", "for ", "for(", "while ", "while(", "return", "=>", "function", "throw",
-        "await ", "switch", "yield", "match ", "loop ", "?.",
-    ];
     lines[start..end]
         .iter()
         .any(|line| MARKERS.iter().any(|marker| line.contains(marker)))
