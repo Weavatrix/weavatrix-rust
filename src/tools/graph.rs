@@ -1,4 +1,4 @@
-use crate::RepositoryState;
+﻿use crate::RepositoryState;
 use crate::tools::graph_walk::{resolve_seeds, traverse};
 use crate::tools::{arg_bool, arg_str, arg_u64};
 use serde_json::{Value, json};
@@ -100,7 +100,8 @@ pub fn query(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         .iter()
         .filter_map(|(index, distance)| {
             let node = state.graph().node_at(*index)?;
-            Some(json!({"node": node, "distance": distance}))
+            crate::tools::node_is_visible(state, index.index(), args)
+                .then(|| json!({"node": node, "distance": distance}))
         })
         .collect::<Vec<_>>();
     let edges = traversed
@@ -118,6 +119,7 @@ pub fn hubs(state: &RepositoryState, args: &Value) -> Value {
         .iter()
         .enumerate()
         .filter(|(_, node)| !matches!(node.kind, NodeKind::Repository | NodeKind::Package))
+        .filter(|(slot, _)| crate::tools::node_is_visible(state, *slot, args))
         .map(|(slot, node)| {
             let index = NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX));
             let incoming = state.graph().in_degree(index).unwrap_or(0);
@@ -267,9 +269,15 @@ pub fn endpoints(state: &RepositoryState, args: &Value) -> Result<Value, String>
         .graph()
         .nodes()
         .iter()
-        .filter(|node| node.kind == NodeKind::Endpoint)
-        .filter(|node| method.is_none_or(|value| node.label.starts_with(value)))
-        .filter(|node| path.is_none_or(|value| node.label.ends_with(value)))
+        .enumerate()
+        .filter(|(_, node)| node.kind == NodeKind::Endpoint)
+        .filter(|(_, node)| method.is_none_or(|value| node.label.starts_with(value)))
+        .filter(|(_, node)| path.is_none_or(|value| node.label.ends_with(value)))
+        // An endpoint node carries no span of its own; it is classified by the
+        // file that declares it, so a route declared in a test does not appear
+        // in a production-first listing.
+        .filter(|(slot, _)| crate::tools::node_is_visible(state, *slot, args))
+        .map(|(_, node)| node)
         .collect::<Vec<_>>();
     endpoints.sort_unstable_by(|left, right| left.label.cmp(&right.label));
     if let Some(path) = path

@@ -1,4 +1,4 @@
-use crate::RepositoryState;
+﻿use crate::RepositoryState;
 #[cfg(feature = "clone")]
 use crate::tools::arg_str;
 use crate::tools::arg_u64;
@@ -278,6 +278,7 @@ pub fn dead_code(state: &RepositoryState, args: &Value) -> Value {
                     | NodeKind::Trait
             )
         })
+        .filter(|(slot, _)| crate::tools::node_is_visible(state, *slot, args))
         .filter_map(|(slot, node)| {
             let index =
                 weavatrix_graph::NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX));
@@ -517,6 +518,16 @@ pub(super) fn is_non_product(path: &str) -> bool {
     path_class(path) != PathClass::Product
 }
 
+/// Applies the `include_tests` and `include_classified` opt-ins to one path.
+pub(super) fn path_is_visible(path: &str, args: &Value) -> bool {
+    let opted_in = |key: &str| args.get(key).and_then(Value::as_bool) == Some(true);
+    match path_class(path) {
+        PathClass::Product => true,
+        PathClass::Test => opted_in("include_tests"),
+        PathClass::Classified => opted_in("include_classified"),
+    }
+}
+
 pub fn hot_paths(state: &RepositoryState, args: &Value) -> Value {
     let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(20)).unwrap_or(20);
     let mut ranked = state
@@ -524,6 +535,7 @@ pub fn hot_paths(state: &RepositoryState, args: &Value) -> Value {
         .nodes()
         .iter()
         .enumerate()
+        .filter(|(slot, _)| crate::tools::node_is_visible(state, *slot, args))
         .filter_map(|(slot, node)| {
             let span = node.span.as_ref()?;
             let lines = span

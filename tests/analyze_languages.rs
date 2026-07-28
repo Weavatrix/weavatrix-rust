@@ -246,6 +246,90 @@ fn resolves_language_specific_repository_imports() {
     );
 }
 
+/// Tools whose schema offers `include_tests` / `include_classified` must
+/// actually apply them: an advertised parameter that is ignored is a schema
+/// that lies about the answer.
+#[test]
+fn production_first_filters_are_applied_by_the_tools_that_advertise_them() {
+    use serde_json::json;
+    use weavatrix_rust::{Weavatrix, tools};
+
+    let fixture = Fixture::new();
+    fixture.write(
+        "src/service.js",
+        "export function serve(){ return 1; }\nrouter.get('/live', serve);\n",
+    );
+    fixture.write(
+        "src/__test__/service.test.js",
+        "import { serve } from '../service.js';\nrouter.get('/only-in-tests', serve);\nexport function check(){ return serve(); }\n",
+    );
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    let labels = |value: &serde_json::Value, pointer: &str| {
+        value
+            .pointer(pointer)
+            .and_then(|items| items.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        item.get("node")
+                            .unwrap_or(item)
+                            .get("label")
+                            .and_then(|label| label.as_str())
+                            .map(str::to_owned)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    };
+
+    for (tool, pointer) in [("god_nodes", "/hubs"), ("hot_path_review", "/candidates")] {
+        let production = tools::call(&mut engine, tool, json!({"top_n": 50})).unwrap();
+        let with_tests = tools::call(
+            &mut engine,
+            tool,
+            json!({"top_n": 50, "include_tests": true}),
+        )
+        .unwrap();
+        let production = labels(&production, pointer);
+        let with_tests = labels(&with_tests, pointer);
+        assert!(
+            !production.iter().any(|label| label.contains("test")),
+            "{tool} must not rank test evidence by default, got {production:?}"
+        );
+        assert!(
+            with_tests.len() >= production.len(),
+            "{tool} include_tests must widen the answer, got {with_tests:?}"
+        );
+    }
+
+    let production = tools::call(&mut engine, "list_endpoints", json!({})).unwrap();
+    let production = labels(&production, "/endpoints");
+    assert!(
+        production.iter().any(|label| label.contains("/live")),
+        "a production route stays listed, got {production:?}"
+    );
+    assert!(
+        !production
+            .iter()
+            .any(|label| label.contains("/only-in-tests")),
+        "a route declared only in a test is not a production endpoint, got {production:?}"
+    );
+    let with_tests = tools::call(
+        &mut engine,
+        "list_endpoints",
+        json!({"include_tests": true}),
+    )
+    .unwrap();
+    assert!(
+        labels(&with_tests, "/endpoints")
+            .iter()
+            .any(|label| label.contains("/only-in-tests")),
+        "include_tests reveals the test-only route"
+    );
+}
+
 #[test]
 fn resolves_the_module_aliases_a_project_declares() {
     let fixture = Fixture::new();

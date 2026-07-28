@@ -113,3 +113,46 @@ pub(crate) fn arg_bool(args: &Value, key: &str) -> Result<bool, String> {
         .and_then(Value::as_bool)
         .ok_or_else(|| format!("{key} must be a boolean"))
 }
+
+/// The repository path a node's evidence comes from, if any.
+pub(crate) fn node_path(node: &weavatrix_graph::Node) -> Option<&str> {
+    node.span
+        .as_ref()
+        .map(|span| span.file.as_str())
+        .or_else(|| (node.kind == weavatrix_graph::NodeKind::File).then_some(node.label.as_str()))
+}
+
+/// Whether a node belongs in a production-first answer.
+///
+/// Every tool whose schema offers `include_classified` or `include_tests` must
+/// route through this, otherwise the parameter is advertised and ignored and
+/// the answer silently mixes test and generated evidence into production
+/// review.
+pub(crate) fn node_is_visible(state: &crate::RepositoryState, slot: usize, args: &Value) -> bool {
+    let index = weavatrix_graph::NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX));
+    let Some(node) = state.graph().node_at(index) else {
+        return true;
+    };
+    if let Some(path) = node_path(node) {
+        return health::path_is_visible(path, args);
+    }
+    // Domain nodes such as endpoints, tables and topics carry no span: they are
+    // classified by the files that declare them, so a route declared only in a
+    // test is not part of a production-first answer.
+    let mut declared = false;
+    for edge in state.graph().incoming_at(index) {
+        let Some(source) = state.graph().node(edge.source.as_str()) else {
+            continue;
+        };
+        let Some(path) = node_path(source) else {
+            continue;
+        };
+        declared = true;
+        if health::path_is_visible(path, args) {
+            return true;
+        }
+    }
+    // Repository and package nodes have no declaring file; keep them rather
+    // than hide evidence.
+    !declared
+}
