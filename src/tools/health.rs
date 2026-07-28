@@ -358,8 +358,30 @@ pub fn audit(state: &RepositoryState, args: &Value) -> Value {
     })
 }
 
+/// Baseline comparison needs Git object reads, which the minimal build omits.
+#[cfg(not(feature = "git"))]
+fn debt(
+    _state: &RepositoryState,
+    args: &Value,
+    _max: usize,
+    _cycles: &[Vec<&str>],
+    _runtime_report: &Value,
+) -> Value {
+    if super::arg_str(args, "base_ref").is_err() {
+        return json!({
+            "status": "NOT_REQUESTED",
+            "message": "pass base_ref (for example HEAD~1 or origin/main) to separate new findings from inherited ones",
+        });
+    }
+    json!({
+        "status": "UNAVAILABLE",
+        "reason": "baseline comparison reads Git objects; this build was compiled without the git feature",
+    })
+}
+
 /// Compares deterministic finding identities against an immutable Git
 /// baseline so a reviewer can separate new debt from inherited debt.
+#[cfg(feature = "git")]
 fn debt(
     state: &RepositoryState,
     args: &Value,
