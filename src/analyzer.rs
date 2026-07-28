@@ -172,9 +172,9 @@ impl Analyzer {
             eprintln!(
                 "phase-timing parse={:.1}ms integrate={:.1}ms resolve={:.1}ms snapshot={:.1}ms",
                 parsed_at.as_secs_f64() * 1e3,
-                (integrated_at - parsed_at).as_secs_f64() * 1e3,
-                (resolved_at - integrated_at).as_secs_f64() * 1e3,
-                (started.elapsed() - resolved_at).as_secs_f64() * 1e3,
+                integrated_at.saturating_sub(parsed_at).as_secs_f64() * 1e3,
+                resolved_at.saturating_sub(integrated_at).as_secs_f64() * 1e3,
+                started.elapsed().saturating_sub(resolved_at).as_secs_f64() * 1e3,
             );
         }
         snapshot
