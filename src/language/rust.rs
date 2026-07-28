@@ -174,6 +174,15 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
         self.add_symbol(&node.ident, NodeKind::Module, node.span());
+        if node.content.is_none() {
+            // `mod x;` without a body pulls in x.rs or x/mod.rs. It is the
+            // only thing that makes those files part of the crate, so without
+            // this edge they look unreachable.
+            self.facts.imports.push(ImportFact::new(
+                format!("self::{}", node.ident),
+                source_span(self.path, node.span()),
+            ));
+        }
         syn::visit::visit_item_mod(self, node);
     }
 

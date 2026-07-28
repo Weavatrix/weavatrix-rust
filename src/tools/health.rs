@@ -1,10 +1,10 @@
-﻿use crate::RepositoryState;
+use crate::RepositoryState;
 #[cfg(feature = "clone")]
 use crate::tools::arg_str;
 use crate::tools::arg_u64;
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
-use weavatrix_graph::{EdgeKind, NodeKind, strongly_connected_components};
+use std::collections::{BTreeMap, BTreeSet};
+use weavatrix_graph::{EdgeKind, GraphView, NodeKind, strongly_connected_components};
 
 #[cfg(feature = "clone")]
 #[allow(clippy::too_many_lines)]
@@ -222,6 +222,14 @@ fn path_class(path: &str) -> PathClass {
     {
         return PathClass::Test;
     }
+    // Continuous-integration and packaging descriptors are executed by a
+    // platform, never imported, so they can never be "dead code".
+    if segments.first() == Some(&".github")
+        || segments.first() == Some(&".gitlab")
+        || has(&["ci", "workflows", ".circleci", "deploy", "k8s", "helm"])
+    {
+        return PathClass::Classified;
+    }
     if has(&[
         "generated",
         "vendor",
@@ -262,6 +270,8 @@ pub fn duplicates(_state: &RepositoryState, _args: &Value) -> Result<Value, Stri
 
 pub fn dead_code(state: &RepositoryState, args: &Value) -> Value {
     let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(30)).unwrap_or(30);
+    let entries = entry_points(state);
+    let reachable = reachable_from(state, &entries);
     let candidates = state
         .graph()
         .nodes()
@@ -280,8 +290,10 @@ pub fn dead_code(state: &RepositoryState, args: &Value) -> Value {
         })
         .filter(|(slot, _)| crate::tools::node_is_visible(state, *slot, args))
         .filter_map(|(slot, node)| {
-            let index =
-                weavatrix_graph::NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX));
+            let index = weavatrix_graph::NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX));
+            if reachable.contains(&index) {
+                return None;
+            }
             let references = state
                 .graph()
                 .incoming_at(index)
@@ -291,14 +303,200 @@ pub fn dead_code(state: &RepositoryState, args: &Value) -> Value {
                 json!({
                     "node": node,
                     "confidence": if node.kind == NodeKind::File {"low"} else {"medium"},
-                    "reason": "no incoming static call/import/reference evidence",
+                    "reason": "unreachable from any declared entry point and no incoming call/import/reference evidence",
                     "caveat": "framework, reflection, public API, runtime and generated use may be invisible"
                 })
             })
         })
         .take(top)
         .collect::<Vec<_>>();
-    json!({"candidates": candidates, "verdict": "REVIEW_ONLY"})
+    json!({
+        "candidates": candidates,
+        "entry_points": entries.iter().filter_map(|index| {
+            state.graph().node_at(*index).map(|node| node.id.as_str())
+        }).collect::<Vec<_>>(),
+        "reachable_nodes": reachable.len(),
+        "verdict": "REVIEW_ONLY"
+    })
+}
+
+/// Files a project declares as the way in: manifest entry points plus the
+/// conventional roots a toolchain runs without being told to.
+///
+/// Without this set, "nothing imports it" reads as "dead", which flags the
+/// package's own binaries and every CI or config file as removable.
+#[allow(clippy::too_many_lines)]
+fn entry_points(state: &RepositoryState) -> Vec<weavatrix_graph::NodeIndex> {
+    let mut declared = BTreeSet::<String>::new();
+    // Manifests anywhere in the tree, not just at the root: a repository that
+    // ships a package under npm/ or a workspace member declares its entry
+    // points there.
+    let mut directories = BTreeSet::from([String::new()]);
+    for node in state.graph().nodes() {
+        if node.kind != NodeKind::File {
+            continue;
+        }
+        let mut directory = std::path::Path::new(&node.label).parent();
+        while let Some(value) = directory {
+            directories.insert(value.to_string_lossy().replace('\\', "/"));
+            directory = value.parent();
+        }
+    }
+    for directory in &directories {
+        let prefix = |path: &str| {
+            if directory.is_empty() {
+                normalized_entry(path)
+            } else {
+                format!("{directory}/{}", normalized_entry(path))
+            }
+        };
+        let at = |name: &str| {
+            let relative = if directory.is_empty() {
+                name.to_owned()
+            } else {
+                format!("{directory}/{name}")
+            };
+            std::fs::read_to_string(state.root().join(&relative))
+                // Editors and shells routinely leave a byte-order mark on
+                // these files; strict JSON rejects it.
+                .map(|text| text.trim_start_matches('\u{feff}').to_owned())
+                .ok()
+        };
+        if let Some(text) = at("package.json")
+            && let Ok(value) = serde_json::from_str::<Value>(&text)
+        {
+            for key in ["main", "module", "browser"] {
+                if let Some(path) = value.get(key).and_then(Value::as_str) {
+                    declared.insert(prefix(path));
+                }
+            }
+            let mut local = BTreeSet::new();
+            collect_json_paths(value.get("bin"), &mut local);
+            collect_json_paths(value.get("exports"), &mut local);
+            // Package scripts are how a repository runs its own tooling, so a
+            // file a script invokes is reachable by definition.
+            for command in value
+                .get("scripts")
+                .and_then(Value::as_object)
+                .into_iter()
+                .flatten()
+                .filter_map(|(_, value)| value.as_str())
+            {
+                for token in command.split_whitespace() {
+                    if matches!(
+                        std::path::Path::new(token)
+                            .extension()
+                            .and_then(|value| value.to_str()),
+                        Some("js" | "mjs" | "cjs" | "ts")
+                    ) {
+                        local.insert(normalized_entry(token));
+                    }
+                }
+            }
+            declared.extend(local.iter().map(|path| prefix(path)));
+        }
+        if let Some(text) = at("Cargo.toml") {
+            // Explicit target paths plus the directories Cargo compiles
+            // without being told: binaries, benches, tests and examples.
+            for line in text.lines() {
+                if let Some((key, rest)) = line.split_once('=')
+                    && key.trim() == "path"
+                {
+                    declared.insert(prefix(rest.trim().trim_matches('"')));
+                }
+            }
+            for root in ["benches", "tests", "examples", "src/bin"] {
+                let scoped = if directory.is_empty() {
+                    format!("{root}/")
+                } else {
+                    format!("{directory}/{root}/")
+                };
+                for node in state.graph().nodes() {
+                    let is_rust = std::path::Path::new(&node.label)
+                        .extension()
+                        .is_some_and(|value| value.eq_ignore_ascii_case("rs"));
+                    if node.kind == NodeKind::File && node.label.starts_with(&scoped) && is_rust {
+                        declared.insert(node.label.clone());
+                    }
+                }
+            }
+        }
+    }
+    for conventional in [
+        "src/main.rs",
+        "src/lib.rs",
+        "index.js",
+        "index.mjs",
+        "index.ts",
+        "src/index.js",
+        "src/index.ts",
+        "src/main.ts",
+        "main.py",
+        "__main__.py",
+        "main.go",
+        "cmd/main.go",
+    ] {
+        declared.insert(conventional.to_owned());
+    }
+    state
+        .graph()
+        .nodes()
+        .iter()
+        .enumerate()
+        .filter(|(_, node)| node.kind == NodeKind::File && declared.contains(&node.label))
+        .map(|(slot, _)| weavatrix_graph::NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX)))
+        .collect()
+}
+
+fn collect_json_paths(value: Option<&Value>, output: &mut BTreeSet<String>) {
+    match value {
+        Some(Value::String(path)) => {
+            output.insert(normalized_entry(path));
+        }
+        Some(Value::Object(map)) => {
+            for nested in map.values() {
+                collect_json_paths(Some(nested), output);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn normalized_entry(path: &str) -> String {
+    path.trim_start_matches("./").replace('\\', "/")
+}
+
+/// Everything a declared entry point can reach by following the graph the way
+/// a runtime would: containment, imports, re-exports and calls.
+fn reachable_from(
+    state: &RepositoryState,
+    entries: &[weavatrix_graph::NodeIndex],
+) -> BTreeSet<weavatrix_graph::NodeIndex> {
+    let mut seen = entries.iter().copied().collect::<BTreeSet<_>>();
+    let mut queue = entries
+        .iter()
+        .copied()
+        .collect::<std::collections::VecDeque<_>>();
+    while let Some(index) = queue.pop_front() {
+        for edge in state.graph().outgoing_edges(index) {
+            let Some(kind) = state.graph().edge_at(edge).map(|edge| edge.kind.clone()) else {
+                continue;
+            };
+            if !matches!(
+                kind,
+                EdgeKind::Contains | EdgeKind::Imports | EdgeKind::ReExports | EdgeKind::Calls
+            ) {
+                continue;
+            }
+            let Some(endpoints) = state.graph().edge_endpoints(edge) else {
+                continue;
+            };
+            if seen.insert(endpoints.target()) {
+                queue.push_back(endpoints.target());
+            }
+        }
+    }
+    seen
 }
 
 pub fn audit(state: &RepositoryState, args: &Value) -> Value {

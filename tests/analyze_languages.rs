@@ -246,6 +246,68 @@ fn resolves_language_specific_repository_imports() {
     );
 }
 
+/// Dead-code review must answer "unreachable from any way in", not "nothing
+/// imports it": the latter flags a package's own executables and its CI.
+#[test]
+fn dead_code_starts_from_declared_entry_points() {
+    use serde_json::json;
+    use weavatrix_rust::{Weavatrix, tools};
+
+    let fixture = Fixture::new();
+    fixture.write(
+        "package.json",
+        r#"{"name":"app","main":"src/index.js","bin":{"app":"bin/cli.js"}}"#,
+    );
+    fixture.write(
+        "src/index.js",
+        "import { serve } from './server.js';\nexport const boot = () => serve();\n",
+    );
+    fixture.write("src/server.js", "export function serve(){ return 1; }\n");
+    fixture.write("bin/cli.js", "import '../src/index.js';\n");
+    fixture.write(
+        ".github/workflows/ci.yml",
+        "name: CI\njobs:\n  build:\n    runs-on: ubuntu-latest\n",
+    );
+    fixture.write(
+        "src/orphan.js",
+        "export function forgotten(){ return 2; }\n",
+    );
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(&mut engine, "find_dead_code", json!({"top_n": 50})).unwrap();
+    let candidates = report["candidates"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item["node"]["id"].as_str().map(str::to_owned))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    for reachable in [
+        "file:bin/cli.js",
+        "file:src/index.js",
+        "file:src/server.js",
+        "file:.github/workflows/ci.yml",
+    ] {
+        assert!(
+            !candidates.iter().any(|id| id == reachable),
+            "{reachable} must not be reported as dead, got {candidates:?}"
+        );
+    }
+    assert!(
+        candidates.iter().any(|id| id == "file:src/orphan.js"),
+        "a genuinely unreachable module is still reported, got {candidates:?}"
+    );
+    assert!(
+        report["entry_points"]
+            .as_array()
+            .is_some_and(|entries| entries.len() >= 2),
+        "the entry points used are reported so the claim is auditable"
+    );
+}
+
 /// Tools whose schema offers `include_tests` / `include_classified` must
 /// actually apply them: an advertised parameter that is ignored is a schema
 /// that lies about the answer.
