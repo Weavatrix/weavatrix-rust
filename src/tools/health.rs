@@ -17,7 +17,7 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
         "renamed" => DetectionMode::Renamed,
         _ => DetectionMode::NearMiss,
     };
-    let min_tokens = usize::try_from(arg_u64(args, "min_tokens").unwrap_or(24))
+    let min_tokens = usize::try_from(arg_u64(args, "min_tokens").unwrap_or(50))
         .map_err(|_| "min_tokens is too large")?;
     let percent = arg_u64(args, "min_similarity").unwrap_or(80).min(100);
     let detector = CloneDetector::new(CloneConfig {
@@ -31,14 +31,94 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
         .detect(state.root())
         .map_err(|error| error.to_string())?;
     let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(15)).unwrap_or(15);
+    let include_tests = args.get("include_tests").and_then(Value::as_bool) == Some(true);
+    let include_classified = args.get("include_classified").and_then(Value::as_bool) == Some(true);
+    let visible = |path: &str| {
+        let class = path_class(path);
+        match class {
+            PathClass::Product => true,
+            PathClass::Test => include_tests,
+            PathClass::Classified => include_classified,
+        }
+    };
+    let mut suppressed_families = 0_usize;
+    let mut families = report
+        .families
+        .into_iter()
+        .filter(|family| {
+            let keep = family.members.iter().any(|member| visible(&member.path));
+            suppressed_families += usize::from(!keep);
+            keep
+        })
+        .collect::<Vec<_>>();
+    families.sort_by_key(|family| {
+        core::cmp::Reverse(
+            family
+                .members
+                .iter()
+                .map(|member| {
+                    usize::try_from(member.span.end_line.saturating_sub(member.span.start_line))
+                        .unwrap_or(0)
+                        + 1
+                })
+                .sum::<usize>(),
+        )
+    });
+    let mut suppressed_pairs = 0_usize;
+    let mut pairs = report
+        .pairs
+        .into_iter()
+        .filter(|pair| {
+            let keep = visible(&pair.left.path) || visible(&pair.right.path);
+            suppressed_pairs += usize::from(!keep);
+            keep
+        })
+        .collect::<Vec<_>>();
+    pairs.sort_by_key(|pair| core::cmp::Reverse(pair.evidence.compared_tokens));
+    let include_boilerplate =
+        args.get("include_boilerplate").and_then(Value::as_bool) == Some(true);
+    let include_declarative =
+        args.get("include_declarative").and_then(Value::as_bool) == Some(true);
+    let mut sources = std::collections::HashMap::<String, Vec<String>>::new();
+    let mut suppressed_boilerplate = 0_usize;
+    let mut suppressed_declarative = 0_usize;
+    let families = families
+        .into_iter()
+        .filter(|family| {
+            if !include_boilerplate
+                && family
+                    .members
+                    .iter()
+                    .all(|member| is_boilerplate(&member.path))
+            {
+                suppressed_boilerplate += 1;
+                return false;
+            }
+            if !include_declarative
+                && family.members.iter().all(|member| {
+                    !has_control_flow(
+                        state.root(),
+                        &member.path,
+                        member.span.start_line,
+                        member.span.end_line,
+                        &mut sources,
+                    )
+                })
+            {
+                suppressed_declarative += 1;
+                return false;
+            }
+            true
+        })
+        .collect::<Vec<_>>();
     Ok(json!({
-        "families": report.families.into_iter().take(top).map(|family| json!({
+        "families": families.iter().take(top).map(|family| json!({
             "id": family.id,
-            "members": family.members.into_iter()
-                .map(|location| location_json(&location)).collect::<Vec<_>>(),
+            "members": family.members.iter()
+                .map(location_json).collect::<Vec<_>>(),
             "pairs": family.pair_ids
         })).collect::<Vec<_>>(),
-        "pairs": report.pairs.into_iter().take(top).map(|pair| json!({
+        "pairs": pairs.iter().take(top).map(|pair| json!({
             "id": pair.id,
             "kind": format!("{:?}", pair.kind).to_ascii_lowercase(),
             "similarity_percent": pair.similarity.percent(),
@@ -51,6 +131,13 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
                 "compared_tokens": pair.evidence.compared_tokens
             }
         })).collect::<Vec<_>>(),
+        "suppressed": {
+            "families": suppressed_families,
+            "pairs": suppressed_pairs,
+            "boilerplate_families": suppressed_boilerplate,
+            "declarative_families": suppressed_declarative,
+            "detail": "test/classified evidence, router/handler boilerplate and immutable declarative catalogs are suppressed by default; pass include_tests, include_classified, include_boilerplate or include_declarative to inspect them"
+        },
         "statistics": {
             "source_files": report.statistics.source_files,
             "source_tokens": report.statistics.source_tokens,
@@ -58,6 +145,101 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
             "verified_pairs": report.statistics.verified_pairs
         }
     }))
+}
+
+/// Conventional route-wiring files whose near-identical wrappers are
+/// intentional, not refactoring targets.
+fn is_boilerplate(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    let file = lower.rsplit(['/', '\\']).next().unwrap_or(&lower);
+    [".router.", ".routes.", ".handlers."]
+        .iter()
+        .any(|marker| file.contains(marker))
+}
+
+/// Whether any line of the fragment carries executable control flow, as
+/// opposed to an immutable declarative catalog of data.
+fn has_control_flow(
+    root: &std::path::Path,
+    path: &str,
+    start_line: u32,
+    end_line: u32,
+    sources: &mut std::collections::HashMap<String, Vec<String>>,
+) -> bool {
+    let lines = sources.entry(path.to_owned()).or_insert_with(|| {
+        std::fs::read_to_string(root.join(path))
+            .map(|text| text.lines().map(str::to_owned).collect())
+            .unwrap_or_default()
+    });
+    let start = usize::try_from(start_line.saturating_sub(1)).unwrap_or(0);
+    let end = usize::try_from(end_line).unwrap_or(0).min(lines.len());
+    if start >= end {
+        // Unreadable fragments stay visible rather than silently vanishing.
+        return true;
+    }
+    const MARKERS: &[&str] = &[
+        "if ", "if(", "for ", "for(", "while ", "while(", "return", "=>", "function", "throw",
+        "await ", "switch", "yield", "match ", "loop ", "?.",
+    ];
+    lines[start..end]
+        .iter()
+        .any(|line| MARKERS.iter().any(|marker| line.contains(marker)))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PathClass {
+    Product,
+    Test,
+    Classified,
+}
+
+/// Classifies a repository path the way review tools should treat its
+/// evidence: production, test, or otherwise non-product.
+fn path_class(path: &str) -> PathClass {
+    let lower = path.to_ascii_lowercase();
+    let segments = lower.split(['/', '\\']).collect::<Vec<_>>();
+    let has = |names: &[&str]| segments.iter().any(|segment| names.contains(segment));
+    if has(&[
+        "__test__",
+        "__tests__",
+        "test",
+        "tests",
+        "e2e",
+        "spec",
+        "specs",
+    ]) {
+        return PathClass::Test;
+    }
+    let file = segments.last().copied().unwrap_or_default();
+    if [
+        ".test.", ".tests.", ".spec.", ".itest.", ".e2e.", "_test.", "_spec.",
+    ]
+    .iter()
+    .any(|marker| file.contains(marker))
+    {
+        return PathClass::Test;
+    }
+    if has(&[
+        "generated",
+        "vendor",
+        "vendored",
+        "mock",
+        "mocks",
+        "fixture",
+        "fixtures",
+        "stories",
+        "docs",
+        "benchmark",
+        "benchmarks",
+        "temp",
+        "dist",
+        "build",
+    ]) || file.contains(".min.")
+        || file.contains(".openapi.")
+    {
+        return PathClass::Classified;
+    }
+    PathClass::Product
 }
 
 #[cfg(feature = "clone")]
