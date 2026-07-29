@@ -1,8 +1,8 @@
 ﻿{
   "name": "weavatrix",
   "version": "1.0.0",
-  "weavatrixEngineVersion": "1.0.1",
-  "description": "Local repository intelligence MCP for AI coding agents. Native Rust engine: always-fresh architecture graph, blast radius, dead code, endpoints, clones, Git history, search, and SEO-aware semantic linking - read-only, offline, zero runtime dependencies.",
+  "weavatrixEngineVersion": "1.0.2",
+  "description": "Native Rust repository intelligence for coding agents: 39 read-only MCP tools for graphs, impact, APIs, architecture, health, search, semantics, and memory.",
   "author": "Sergii Ziborov <sergii.ziborov@gmail.com>",
   "license": "MIT",
   "homepage": "https://weavatrix.com",

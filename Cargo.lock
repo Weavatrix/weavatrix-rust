@@ -444,7 +444,7 @@ checksum = "e7f002397c99bf1e6f06728931befa2f2afaf46a22e935b82e6560c863062583"
 
 [[package]]
 name = "weavatrix-rust"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "blazingly-json",
  "mcport",

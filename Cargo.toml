@@ -1,16 +1,20 @@
 ﻿[package]
 name = "weavatrix-rust"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 rust-version = "1.89"
-description = "Read-only Rust repository intelligence and MCP server"
+description = "Native repository intelligence for coding agents: 39 read-only MCP tools, evidence graph, cross-repository analysis, and lossless parsing"
 license = "MIT"
 authors = ["Sergii Ziborov <sergii.ziborov@gmail.com>"]
 homepage = "https://weavatrix.com"
 repository = "https://github.com/sergii-ziborov/weavatrix-rust"
+documentation = "https://docs.rs/weavatrix-rust"
 readme = "README.md"
 keywords = ["code-graph", "static-analysis", "repository", "architecture", "impact"]
 categories = ["development-tools", "parser-implementations"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [lib]
 name = "weavatrix_rust"

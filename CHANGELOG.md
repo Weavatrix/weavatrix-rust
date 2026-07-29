@@ -1,5 +1,16 @@
 ﻿# Changelog
 
+## 1.0.2 - 2026-07-30
+
+- replace the minimal package copy with a product-first README covering all 39
+  MCP tools, supported languages, evidence semantics, safety boundaries, client
+  setup, library usage, and the verified native-versus-JavaScript benchmark;
+- add dedicated getting-started, tool-reference, evidence-model,
+  language-support, and MCP/standalone documentation;
+- publish the full README as the docs.rs crate landing page and add explicit
+  docs.rs package metadata;
+- keep the native engine and npm wrapper release identities synchronized.
+
 ## 1.0.1 - 2026-07-30
 
 - expose 39 read-only tools spanning graph, source, Git, cross-repository
