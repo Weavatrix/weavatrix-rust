@@ -142,10 +142,6 @@ jobs:
         run: |
           VERSION="$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[0].version')"
           TAG="v$VERSION"
-          gh api \
-            -H 'X-GitHub-Api-Version: 2026-03-10' \
-            "repos/$GITHUB_REPOSITORY/immutable-releases" |
-            jq -e '.enabled == true' >/dev/null
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "GitHub release $TAG already exists; verifying it"
           elif git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
