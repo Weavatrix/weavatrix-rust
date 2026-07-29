@@ -176,7 +176,7 @@ The engine extracts evidence from:
 
 - Rust, JavaScript, TypeScript, Python, Go, Java, C#, C, C++, Bash, SQL,
   Solidity, Swift, HTML, CSS-family sources, Terraform, XML, Markdown, MDX,
-  reStructuredText, and AsciiDoc;
+  `reStructuredText`, and `AsciiDoc`;
 - HTTP routes, GraphQL operations, Protobuf/gRPC services and streaming modes;
 - Kafka, RabbitMQ/AMQP, JMS, NATS, SQS, SNS, and `MongoDB` usage;
 - JSON/JSONC, YAML, Kubernetes, package manifests, lockfiles, architecture
