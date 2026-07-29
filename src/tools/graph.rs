@@ -3,7 +3,7 @@ use crate::tools::graph_walk::{resolve_seeds, traverse};
 use crate::tools::{arg_bool, arg_str, arg_u64};
 use blazingly_json::{Value, json};
 use std::collections::BTreeMap;
-use weavatrix_graph::{Direction, NodeIndex, NodeKind, shortest_path, weakly_connected_components};
+use weavatrix_graph::{Direction, NodeIndex, NodeKind, shortest_path};
 
 pub fn stats(state: &RepositoryState) -> Value {
     let mut kinds = BTreeMap::<String, u64>::new();
@@ -50,7 +50,14 @@ pub fn get_node(state: &RepositoryState, args: &Value) -> Result<Value, String> 
 pub fn neighbors(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let index = state.resolve_node(arg_str(args, "label")?)?;
     let filter = arg_str(args, "relation_filter").ok();
-    let mut items = Vec::new();
+    let offset = page_offset(args)?;
+    let max_results = usize::try_from(arg_u64(args, "max_results").unwrap_or(50)).unwrap_or(50);
+    if max_results == 0 || max_results > 500 {
+        return Err("max_results must be between 1 and 500".to_owned());
+    }
+    let full = arg_str(args, "response_detail").unwrap_or("compact") == "full";
+    let mut items = Vec::with_capacity(max_results);
+    let mut total = 0_usize;
     for (direction, edges) in [
         (
             "outgoing",
@@ -65,15 +72,44 @@ pub fn neighbors(state: &RepositoryState, args: &Value) -> Result<Value, String>
             if filter.is_some_and(|value| edge.kind.as_str() != value) {
                 continue;
             }
-            let other = if direction == "outgoing" {
-                state.graph().node(edge.target.as_str())
-            } else {
-                state.graph().node(edge.source.as_str())
-            };
-            items.push(json!({"direction": direction, "edge": edge, "node": other}));
+            if total >= offset && items.len() < max_results {
+                let other = if direction == "outgoing" {
+                    state.graph().node(edge.target.as_str())
+                } else {
+                    state.graph().node(edge.source.as_str())
+                };
+                items.push(if full {
+                    json!({"direction": direction, "edge": edge, "node": other})
+                } else {
+                    json!({
+                        "direction": direction,
+                        "relation": edge.kind,
+                        "provenance": edge.provenance,
+                        "node": other.map(|node| json!({
+                            "id": node.id,
+                            "label": node.label,
+                            "kind": node.kind,
+                            "span": node.span
+                        }))
+                    })
+                });
+            }
+            total = total.saturating_add(1);
         }
     }
-    Ok(json!({"node": state.node(index)?, "neighbors": items}))
+    let returned = items.len();
+    let end = offset.saturating_add(returned);
+    Ok(json!({
+        "node": state.node(index)?,
+        "neighbors": items,
+        "page": {
+            "offset": offset,
+            "returned": returned,
+            "total": total,
+            "has_more": end < total,
+            "next_cursor": (end < total).then(|| format!("v1:{end}"))
+        }
+    }))
 }
 
 pub fn query(state: &RepositoryState, args: &Value) -> Result<Value, String> {
@@ -212,15 +248,37 @@ pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String
 }
 
 pub fn communities(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    let mut components = weakly_connected_components(state.graph());
-    components.sort_unstable_by_key(|right| std::cmp::Reverse(right.len()));
+    let components = state.weak_components();
     if let Ok(id) = arg_u64(args, "community_id") {
         let id = usize::try_from(id).map_err(|_| "community_id is too large")?;
         let component = components
             .get(id)
             .ok_or_else(|| format!("community not found: {id}"))?;
-        return Ok(json!({"community_id": id, "nodes": component.iter()
-            .filter_map(|index| state.graph().node_at(*index)).collect::<Vec<_>>() }));
+        let offset = page_offset(args)?;
+        if offset > component.len() {
+            return Err("cursor offset is outside the selected community".to_owned());
+        }
+        let max_nodes = usize::try_from(arg_u64(args, "max_nodes").unwrap_or(50)).unwrap_or(50);
+        if max_nodes == 0 || max_nodes > 500 {
+            return Err("max_nodes must be between 1 and 500".to_owned());
+        }
+        let end = offset.saturating_add(max_nodes).min(component.len());
+        let nodes = component[offset..end]
+            .iter()
+            .filter_map(|index| state.graph().node_at(*index))
+            .collect::<Vec<_>>();
+        let returned = nodes.len();
+        return Ok(json!({
+            "community_id": id,
+            "nodes": nodes,
+            "page": {
+                "offset": offset,
+                "returned": returned,
+                "total": component.len(),
+                "has_more": end < component.len(),
+                "next_cursor": (end < component.len()).then(|| format!("v1:{end}"))
+            }
+        }));
     }
     let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(20)).unwrap_or(20);
     Ok(
@@ -229,6 +287,18 @@ pub fn communities(state: &RepositoryState, args: &Value) -> Result<Value, Strin
             .filter_map(|index| state.graph().node_at(*index).map(|node| &node.label)).collect::<Vec<_>>()})
     }).collect::<Vec<_>>()}),
     )
+}
+
+fn page_offset(args: &Value) -> Result<usize, String> {
+    let Some(cursor) = args.get("cursor").and_then(Value::as_str) else {
+        return Ok(0);
+    };
+    let Some(offset) = cursor.strip_prefix("v1:") else {
+        return Err("cursor format is invalid; expected v1:<offset>".to_owned());
+    };
+    offset
+        .parse::<usize>()
+        .map_err(|_| "cursor offset is invalid".to_owned())
 }
 
 pub fn module_map(state: &RepositoryState, args: &Value) -> Value {

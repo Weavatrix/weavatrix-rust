@@ -1,16 +1,17 @@
 ﻿{
   "name": "weavatrix",
   "version": "1.0.0",
+  "weavatrixEngineVersion": "1.0.1",
   "description": "Local repository intelligence MCP for AI coding agents. Native Rust engine: always-fresh architecture graph, blast radius, dead code, endpoints, clones, Git history, search, and SEO-aware semantic linking - read-only, offline, zero runtime dependencies.",
   "author": "Sergii Ziborov <sergii.ziborov@gmail.com>",
   "license": "MIT",
   "homepage": "https://weavatrix.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sergii-ziborov/weavatrix-rust.git"
+    "url": "git+https://github.com/sergii-ziborov/weavatrix.git"
   },
   "bugs": {
-    "url": "https://github.com/sergii-ziborov/weavatrix-rust/issues"
+    "url": "https://github.com/sergii-ziborov/weavatrix/issues"
   },
   "mcpName": "io.github.sergii-ziborov/weavatrix",
   "type": "module",
@@ -23,6 +24,7 @@
   },
   "files": [
     "bin",
+    "skill",
     "README.md",
     "LICENSE"
   ],
@@ -35,13 +37,5 @@
     "claude",
     "codex",
     "rust"
-  ],
-  "optionalDependencies": {
-    "@weavatrix/cli-win32-x64": "1.0.0",
-    "@weavatrix/cli-win32-arm64": "1.0.0",
-    "@weavatrix/cli-darwin-x64": "1.0.0",
-    "@weavatrix/cli-darwin-arm64": "1.0.0",
-    "@weavatrix/cli-linux-x64": "1.0.0",
-    "@weavatrix/cli-linux-arm64": "1.0.0"
-  }
+  ]
 }

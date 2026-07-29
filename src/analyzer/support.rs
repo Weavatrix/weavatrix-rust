@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
-use crate::language::{LanguageRegistry, SymbolFact, SymbolLocator};
+use crate::language::{Language, LanguageRegistry, SymbolFact};
 use crate::snapshot::{Capability, CapabilityState};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use weavatrix_graph::{Confidence, EvidenceKind, NodeKind, Provenance, SourceSpan};
 
 pub(super) fn capabilities(registry: &LanguageRegistry) -> Vec<Capability> {
@@ -17,10 +17,26 @@ pub(super) fn capabilities(registry: &LanguageRegistry) -> Vec<Capability> {
             detail: "typed deterministic graph with evidence provenance".into(),
         },
     ];
-    capabilities.extend(registry.languages().map(|language| Capability {
-        id: format!("lang:{}", language.as_str()),
-        state: CapabilityState::Partial,
-        detail: "structural parser; semantic resolution is deliberately bounded".into(),
+    capabilities.extend(registry.languages().map(|language| {
+        let detail = match language {
+            Language::Graphql => {
+                "lossless GraphQL SDL types/root fields and query, mutation, subscription operation calls; custom directive source is retained exactly"
+            }
+            Language::Protobuf => {
+                "lossless Protocol Buffers proto2, proto3 and numeric Editions package, import, message, enum, service and RPC contracts with request/response and unary/client/server/bidi streaming"
+            }
+            Language::Json => {
+                "strict JSON syntax and complete configuration/lockfile inventory with exact diagnostics"
+            }
+            _ => {
+                "complete lossless structural fact extraction and deterministic cross-file resolution for the registered language contract"
+            }
+        };
+        Capability {
+            id: format!("lang:{}", language.as_str()),
+            state: CapabilityState::Complete,
+            detail: detail.into(),
+        }
     }));
     capabilities.sort_by(|left, right| left.id.cmp(&right.id));
     capabilities
@@ -47,21 +63,16 @@ pub(super) fn symbol_id(file: &str, symbol: &SymbolFact) -> String {
     )
 }
 
-pub(super) fn symbol_locator_key(symbol: &SymbolFact) -> (NodeKind, String, u32, u32) {
+pub(super) fn locator_key(
+    kind: &NodeKind,
+    name: &str,
+    span: &SourceSpan,
+) -> (NodeKind, String, u32, u32) {
     (
-        symbol.kind.clone(),
-        symbol.name.clone(),
-        symbol.span.start.line,
-        symbol.span.start.column,
-    )
-}
-
-pub(super) fn locator_key(locator: &SymbolLocator) -> (NodeKind, String, u32, u32) {
-    (
-        locator.kind.clone(),
-        locator.name.clone(),
-        locator.span.start.line,
-        locator.span.start.column,
+        kind.clone(),
+        name.to_owned(),
+        span.start.line,
+        span.start.column,
     )
 }
 
@@ -88,4 +99,19 @@ pub(super) fn sanitize_id(value: &str) -> String {
 
 pub(super) fn normalized_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
+}
+
+pub(super) fn normalize_join(parent: &Path, value: &str) -> String {
+    let joined = parent.join(value.replace('\\', "/"));
+    let mut normalized = PathBuf::new();
+    for component in joined.components() {
+        match component {
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::CurDir | Component::Prefix(_) | Component::RootDir => {}
+            Component::Normal(value) => normalized.push(value),
+        }
+    }
+    normalized_path(&normalized)
 }

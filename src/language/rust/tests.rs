@@ -32,6 +32,37 @@ fn helper() {}
 }
 
 #[test]
+fn declaration_locations_start_at_the_identifier() {
+    let source = r"
+#[derive(Debug)]
+struct Job;
+impl Job {
+    #[must_use]
+    fn execute(&self) {}
+}
+";
+    let facts = RustAdapter
+        .parse(SourceFile {
+            path: "src/lib.rs",
+            text: source,
+        })
+        .unwrap();
+
+    let job = facts
+        .symbols
+        .iter()
+        .find(|item| item.name == "Job")
+        .unwrap();
+    let execute = facts
+        .symbols
+        .iter()
+        .find(|item| item.name == "execute")
+        .unwrap();
+    assert_eq!((job.span.start.line, job.span.start.column), (3, 8));
+    assert_eq!((execute.span.start.line, execute.span.start.column), (6, 8));
+}
+
+#[test]
 fn syntax_errors_are_diagnostics_not_repository_failures() {
     let facts = RustAdapter
         .parse(SourceFile {

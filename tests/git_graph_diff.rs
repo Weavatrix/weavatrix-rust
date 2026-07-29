@@ -46,7 +46,103 @@ fn compares_analyzed_worktree_with_immutable_git_objects() {
     assert_eq!(result["source_mutation"], "NONE");
     assert_eq!(result["git_process"], "NONE");
     assert!(result["counts"]["nodes_added"].as_u64().unwrap() >= 1);
-    assert!(result["counts"]["nodes_changed"].as_u64().unwrap() >= 1);
+    assert_eq!(
+        result["counts"]["nodes_changed"], 1,
+        "only the file whose byte length changed is structurally different; hash formats must not mark every file"
+    );
+    assert_eq!(
+        result["nodes"]["changed"][0]["after"]["id"],
+        "file:src/lib.rs"
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn change_impact_uses_the_active_worktree_by_default() {
+    let root = fixture();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn existing() {}\n").unwrap();
+    fs::write(root.join("src/removed.rs"), "pub fn removed() {}\n").unwrap();
+    git(&root, &["add", "-A"]);
+    git(
+        &root,
+        &[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "baseline",
+        ],
+    );
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn existing() { changed(); }\npub fn changed() {}\n",
+    )
+    .unwrap();
+    fs::remove_file(root.join("src/removed.rs")).unwrap();
+    fs::write(root.join("src/added.rs"), "pub fn added() {}\n").unwrap();
+
+    let mut engine = Weavatrix::open(&root).unwrap();
+    let result = tools::call(&mut engine, "change_impact", json!({})).unwrap();
+    let files = result["changed_files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(blazingly_json::Value::as_str)
+        .collect::<Vec<_>>();
+
+    assert_eq!(result["git"]["head"], "WORKTREE");
+    assert_eq!(
+        files,
+        ["src/added.rs", "src/lib.rs", "src/removed.rs"],
+        "tracked, deleted and untracked supported sources are all included"
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn verified_change_passes_an_unchanged_worktree_without_running_processes() {
+    let root = fixture();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn stable() {}\n").unwrap();
+    git(&root, &["add", "-A"]);
+    git(
+        &root,
+        &[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "baseline",
+        ],
+    );
+
+    let mut engine = Weavatrix::open(&root).unwrap();
+    let result = tools::call(
+        &mut engine,
+        "verified_change",
+        json!({"task": "verify stable tree", "phase": "verify", "base_ref": "HEAD"}),
+    )
+    .unwrap();
+
+    assert_eq!(result["verdict"], "PASS");
+    assert_eq!(
+        result["changeImpact"]["changed_files"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(result["source_mutation"], "NONE");
+    assert_eq!(result["test_execution"]["present"], false);
+    assert_eq!(
+        result["test_execution"]["reason"],
+        "no test command was requested"
+    );
     fs::remove_dir_all(root).ok();
 }
 

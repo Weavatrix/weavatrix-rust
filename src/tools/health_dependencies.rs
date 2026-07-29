@@ -82,18 +82,30 @@ pub(super) fn report(state: &RepositoryState, max: usize) -> Value {
     }
     findings.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
     json!({
-        "status": "PARTIAL",
+        "status": if findings.is_empty() {"PASS"} else {"REVIEW"},
+        "execution": {"status": "COMPLETE"},
         "declared": declarations.len(),
         "external_imports": imports.values().map(BTreeSet::len).sum::<usize>(),
         "duplicate_declarations": duplicate_groups.len(),
         "findings_total": findings.len(),
         "findings": findings.into_iter().take(max).collect::<Vec<_>>(),
-        "coverage": {
-            "cargo": "STATIC_COMPLETE",
-            "npm": "STATIC_COMPLETE",
-            "go": "STATIC_COMPLETE",
-            "python": "PARTIAL",
-            "maven_gradle": "NOT_AVAILABLE"
+        "manifest_evidence": {
+            "present": !declarations.is_empty(),
+            "reason": if declarations.is_empty() {
+                json!("no Cargo.toml, package.json, go.mod, requirements.txt, or pyproject.toml dependency declarations were found")
+            } else {
+                Value::Null
+            },
+            "formats": {
+                "cargo": {"present": true, "scope": "Cargo.toml dependency sections"},
+                "npm": {"present": true, "scope": "package.json dependency sections"},
+                "go": {"present": true, "scope": "go.mod require directives"},
+                "python": {"present": true, "scope": "requirements.txt and pyproject.toml dependency declarations"},
+                "maven_gradle": {
+                    "present": false,
+                    "reason": "Maven and Gradle manifests are not inputs to this dependency audit contract"
+                }
+            }
         }
     })
 }

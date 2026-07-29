@@ -1,7 +1,9 @@
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use weavatrix_rust::{Analyzer, Weavatrix, mcp, tools};
+#[cfg(feature = "mcp")]
+use weavatrix_rust::mcp;
+use weavatrix_rust::{Analyzer, Weavatrix, tools};
 
 fn main() -> ExitCode {
     match run(env::args().skip(1).collect()) {
@@ -27,18 +29,26 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
     }
     match arguments.first().map(String::as_str) {
         Some("mcp") => {
-            let mut repository = ".";
-            let mut profile = mcp::McpProfile::All;
-            for argument in arguments.iter().skip(1) {
-                if let Some(value) = argument.strip_prefix("--profile=") {
-                    profile = value.parse()?;
-                } else if argument.starts_with('-') {
-                    return Err(format!("unknown MCP option: {argument}"));
-                } else {
-                    repository = argument;
+            #[cfg(not(feature = "mcp"))]
+            return Err(
+                "this build excludes the MCP transport; rebuild with --features mcp".into(),
+            );
+            #[cfg(feature = "mcp")]
+            {
+                let mut repository = ".";
+                let mut profile = mcp::McpProfile::All;
+                for argument in arguments.iter().skip(1) {
+                    if let Some(value) = argument.strip_prefix("--profile=") {
+                        profile = value.parse()?;
+                    } else if argument.starts_with('-') {
+                        return Err(format!("unknown MCP option: {argument}"));
+                    } else {
+                        repository = argument;
+                    }
                 }
+                return mcp::serve_with_profile(repository, profile)
+                    .map_err(|error| error.to_string());
             }
-            return mcp::serve_with_profile(repository, profile).map_err(|error| error.to_string());
         }
         Some("list-tools") => {
             println!(

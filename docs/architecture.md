@@ -66,12 +66,19 @@ become deterministic code edges merely because they share a server.
 
 Every relationship records extractor identity, evidence kind, confidence, and
 an optional source span. Consumers must distinguish parsed/resolved evidence,
-measured coverage, and inferred semantic links. Dynamic behavior not proven by
-static evidence remains unknown.
+measured coverage, and inferred semantic links. Every tool either completes its
+declared evaluation or returns an error. Optional external evidence that is not
+present is represented as `{ "present": false, "reason": "..." }`; it is not
+reported as an incomplete capability and it never invents a clean measured
+result.
 
 ## Refresh model
 
-The active repository stores its last scan report. Before a tool call, an
-incremental scan compares source identity and hashes. An unchanged repository
-reuses the graph; a changed repository gets a fresh immutable snapshot. Git
-history and cross-repository reads stay independent of worktree mutation.
+The active repository stores its last scan report. The first MCP call performs
+an incremental catch-up after the handshake, then starts a native recursive
+filesystem watcher in the background. Later unchanged calls are constant-time
+at the freshness boundary. After a real filesystem event, an incremental scan
+compares source identity and hashes; a changed repository gets a fresh
+immutable snapshot. The standalone library exposes explicit
+`refresh_if_stale` and `rebuild` calls and has no watcher or MCP dependency.
+Git history and cross-repository reads stay independent of worktree mutation.

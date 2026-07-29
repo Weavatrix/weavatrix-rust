@@ -1,0 +1,238 @@
+{
+  "schema": "weavatrix.corpus.v1",
+  "roots": {
+    "projects": "..",
+    "github": "../.."
+  },
+  "repositories": [
+    {
+      "id": "analytics",
+      "root": "github",
+      "path": "analytics",
+      "languages": ["javascript", "python", "shell"],
+      "anchors": ["src/http/app.js", "README.md", "package.json"],
+      "symbol": "buildRoutes",
+      "search": "require"
+    },
+    {
+      "id": "controller-rest-api",
+      "root": "github",
+      "path": "controller-rest-api",
+      "languages": ["javascript", "json"],
+      "anchors": ["services/utils-requests.js", "README.md", "package.json"],
+      "symbol": "getTenantIdFromReq",
+      "search": "router"
+    },
+    {
+      "id": "frontend",
+      "root": "github",
+      "path": "frontend",
+      "languages": ["typescript", "tsx", "scss"],
+      "anchors": ["src/dashboard/components/Dashboard.tsx", "README.md", "package.json"],
+      "symbol": "Dashboard",
+      "search": "useQuery"
+    },
+    {
+      "id": "automation",
+      "root": "github",
+      "path": "automation",
+      "languages": ["python", "shell", "yaml"],
+      "anchors": ["codegen/fix-swagger-output.py", "README.md"],
+      "symbol": "empty",
+      "search": "def "
+    },
+    {
+      "id": "bgp-speaker",
+      "root": "github",
+      "path": "bgp-speaker",
+      "languages": ["go"],
+      "anchors": ["main.go", "README.md"],
+      "symbol": "main",
+      "search": "func "
+    },
+    {
+      "id": "grpc-server",
+      "root": "github",
+      "path": "grpc-server",
+      "languages": ["go", "protobuf"],
+      "anchors": ["main.go", "README.md"],
+      "symbol": "main",
+      "search": "grpc"
+    },
+    {
+      "id": "warroom",
+      "root": "github",
+      "path": "warroom",
+      "languages": ["java", "xml"],
+      "anchors": ["application/src/main/java/com/edgehawk/warroom/application/services/UserTaskService.java", "README.md"],
+      "symbol": "UserTaskService",
+      "search": "public "
+    },
+    {
+      "id": "ivrit-inbox",
+      "root": "projects",
+      "path": "ivrit-inbox",
+      "languages": ["typescript", "tsx", "cpp", "sql"],
+      "anchors": ["src/main/ai/pipeline.ts", "native/src/main.cpp", "README.md", "package.json"],
+      "symbol": "runPipeline",
+      "search": "translate"
+    },
+    {
+      "id": "tellwick-hosted",
+      "root": "projects",
+      "path": "tellwick-hosted",
+      "languages": ["typescript", "tsx", "sql"],
+      "anchors": ["worker/index.ts", "drizzle/0001_shallow_reavers.sql", "README.md", "package.json"],
+      "symbol": "worker",
+      "search": "CREATE TABLE"
+    },
+    {
+      "id": "ai-dev-system",
+      "root": "projects",
+      "path": "AI-Dev-System",
+      "languages": ["rust", "typescript", "tsx", "python"],
+      "anchors": ["watcher-rs/src/lib.rs", "README.md", "package.json"],
+      "symbol": "init",
+      "search": "agent"
+    },
+    {
+      "id": "radiochron",
+      "root": "projects",
+      "path": "radiochron",
+      "languages": ["rust"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "scan",
+      "search": "wlan"
+    },
+    {
+      "id": "mcport",
+      "root": "projects",
+      "path": "mcport",
+      "languages": ["rust"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "ServerIdentity",
+      "search": "dispatch",
+      "pilot": true
+    },
+    {
+      "id": "weavatrix-rust",
+      "root": "projects",
+      "path": "weavatrix-rust",
+      "languages": ["rust", "javascript", "markdown"],
+      "anchors": ["src/lib.rs", "src/main.rs", "Cargo.toml"],
+      "symbol": "Analyzer",
+      "search": "trace_api_contract"
+    },
+    {
+      "id": "weavatrix-parse",
+      "root": "projects",
+      "path": "weavatrix-parse",
+      "languages": ["rust"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "extract_path",
+      "search": "token",
+      "pilot": true
+    },
+    {
+      "id": "weavatrix-scan",
+      "root": "projects",
+      "path": "weavatrix-scan",
+      "languages": ["rust"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "scan",
+      "search": "ignore"
+    },
+    {
+      "id": "weavatrix-search",
+      "root": "projects",
+      "path": "weavatrix-search",
+      "languages": ["rust"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "search",
+      "search": "query"
+    },
+    {
+      "id": "weavatrix-search-vector",
+      "root": "projects",
+      "path": "weavatrix-search-vector",
+      "languages": ["rust"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "search",
+      "search": "HNSW"
+    },
+    {
+      "id": "weavatrix-memory",
+      "root": "projects",
+      "path": "weavatrix-memory",
+      "languages": ["rust", "json"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "ContextCompiler",
+      "search": "MemoryEvent"
+    },
+    {
+      "id": "weavatrix-graph",
+      "root": "projects",
+      "path": "weavatrix-graph",
+      "languages": ["rust"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "Graph",
+      "search": "EdgeKind"
+    },
+    {
+      "id": "weavatrix-clone",
+      "root": "projects",
+      "path": "weavatrix-clone",
+      "languages": ["rust"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "detect",
+      "search": "similarity"
+    },
+    {
+      "id": "weavatrix-semantic",
+      "root": "projects",
+      "path": "weavatrix-semantic",
+      "languages": ["rust"],
+      "anchors": ["src/lib.rs", "Cargo.toml", "README.md"],
+      "symbol": "SemanticLinker",
+      "search": "similarity"
+    },
+    {
+      "id": "weavatrix-online",
+      "root": "projects",
+      "path": "weavatrix-online",
+      "languages": ["javascript"],
+      "anchors": ["src/extension.mjs", "README.md", "package.json"],
+      "symbol": "createOnlineExtension",
+      "search": "vulnerability"
+    },
+    {
+      "id": "images-c",
+      "root": "github",
+      "path": "images",
+      "languages": ["c", "shell", "yaml"],
+      "anchors": ["kali/opt/mirai/src/bot/main.c", "README.md"],
+      "symbol": "main",
+      "search": "scanner",
+      "parserOnly": true,
+      "notes": "C parser corpus. Malware/vulnerability verdicts are outside the offline parity scope."
+    }
+  ],
+  "crossRepositoryFixtures": [
+    {
+      "id": "edgeanalytics-contracts",
+      "backend": "controller-rest-api",
+      "clients": ["frontend", "analytics"],
+      "transports": ["http", "graphql", "grpc", "event"]
+    },
+    {
+      "id": "grpc-contracts",
+      "backend": "grpc-server",
+      "clients": ["bgp-speaker"],
+      "transports": ["grpc", "event"]
+    }
+  ],
+  "rustOnlyFixtures": {
+    "historyRepositories": ["mcport", "weavatrix-parse", "weavatrix-rust"],
+    "semanticRepository": "weavatrix-parse"
+  }
+}

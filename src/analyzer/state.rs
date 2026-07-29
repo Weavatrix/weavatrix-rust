@@ -1,8 +1,6 @@
 use super::imports::{PendingImport, resolve as resolve_imports};
 use super::references::{PendingReference, resolve as resolve_references};
-use super::support::{
-    locator_key, normalized_path, parsed_provenance, sanitize_id, symbol_id, symbol_locator_key,
-};
+use super::support::{locator_key, normalized_path, parsed_provenance, sanitize_id, symbol_id};
 use crate::error::Result;
 use crate::language::{
     DomainFact, FileFacts, ImportFact, Language, LanguageRegistry, ReferenceFact, SymbolFact,
@@ -19,6 +17,7 @@ pub(super) struct ParsedSource {
     pub relative: String,
     pub bytes: u64,
     pub content_hash: Option<String>,
+    pub transport_candidate: bool,
     pub outcome: ParseOutcome,
 }
 
@@ -47,6 +46,7 @@ pub(super) fn parse_source(
         relative: relative.to_owned(),
         bytes: size,
         content_hash: content_hash.map(str::to_owned),
+        transport_candidate: false,
         outcome,
     };
     let Ok(text) = std::str::from_utf8(bytes) else {
@@ -60,15 +60,42 @@ pub(super) fn parse_source(
     let Some(adapter) = registry.adapter_for_extension(&extension) else {
         return Ok(sourced(ParseOutcome::Skipped));
     };
-    let facts = adapter.parse(crate::language::SourceFile {
+    let mut facts = adapter.parse(crate::language::SourceFile {
         path: relative,
         text,
     })?;
-    Ok(sourced(ParseOutcome::Parsed {
+    for reference in &mut facts.references {
+        if reference.kind == EdgeKind::Calls
+            && !reference.qualified
+            && qualified_at_span(text, &reference.span)
+        {
+            reference.qualified = true;
+        }
+    }
+    let transport_candidate = crate::language::file_facts_have_transport_evidence(&facts);
+    let mut parsed = sourced(ParseOutcome::Parsed {
         language: adapter.language(),
         extractor: adapter.extractor(),
         facts: Box::new(facts),
-    }))
+    });
+    parsed.transport_candidate = transport_candidate;
+    Ok(parsed)
+}
+
+/// The parser keeps a concrete receiver name when one exists. Expression
+/// receivers do not have such a name, but their member/path operator is still
+/// exact source evidence and must survive into call resolution.
+fn qualified_at_span(text: &str, span: &crate::SourceSpan) -> bool {
+    let Some(line) = text.lines().nth(span.start.line.saturating_sub(1) as usize) else {
+        return false;
+    };
+    let column = span.start.column.saturating_sub(1) as usize;
+    // Lossless-parser columns count source characters, not UTF-8 bytes. A
+    // byte slice can accidentally land on another valid boundary before the
+    // intended token when non-ASCII text precedes it.
+    let prefix = line.chars().take(column).collect::<String>();
+    let prefix = prefix.trim_end();
+    (prefix.ends_with('.') && !prefix.ends_with("..")) || prefix.ends_with("::")
 }
 
 pub(super) struct AnalysisState {
@@ -163,6 +190,7 @@ impl AnalysisState {
             relative,
             bytes,
             content_hash,
+            transport_candidate,
             outcome,
         } = parsed;
         let (language, extractor, facts) = match outcome {
@@ -181,7 +209,13 @@ impl AnalysisState {
                 facts,
             } => (language, extractor, facts),
         };
-        let file_id = self.add_file_node(&relative, bytes, content_hash.as_deref(), &language)?;
+        let file_id = self.add_file_node(
+            &relative,
+            bytes,
+            content_hash.as_deref(),
+            &language,
+            transport_candidate,
+        )?;
         let FileFacts {
             symbols,
             references,
@@ -221,10 +255,12 @@ impl AnalysisState {
         bytes: u64,
         content_hash: Option<&str>,
         language: &Language,
+        transport_candidate: bool,
     ) -> Result<NodeId> {
         let file_node = Node::new(format!("file:{relative}"), relative, NodeKind::File)?
             .with_language(language.as_str())
-            .with_attribute("bytes", bytes);
+            .with_attribute("bytes", bytes)
+            .with_attribute("transport_candidate", transport_candidate);
         let file_node = match content_hash {
             Some(hash) => file_node.with_attribute("content_hash", hash),
             None => file_node,
@@ -252,15 +288,21 @@ impl AnalysisState {
         let mut owners: BTreeMap<String, NodeId> = BTreeMap::new();
         let mut local = BTreeMap::new();
         for symbol in symbols {
-            let node = Node::new(
+            let mut node = Node::new(
                 symbol_id(relative, &symbol),
                 symbol.name.clone(),
                 symbol.kind.clone(),
             )?
             .with_language(language.as_str())
             .with_span(symbol.span.clone());
+            if symbol.test_only {
+                node = node.with_attribute("test_only", true);
+            }
             let id = node.id.clone();
-            local.insert(symbol_locator_key(&symbol), id.clone());
+            local.insert(
+                locator_key(&symbol.kind, &symbol.name, &symbol.span),
+                id.clone(),
+            );
             self.symbol_index
                 .entry(language.clone())
                 .or_default()
@@ -280,7 +322,9 @@ impl AnalysisState {
             // by containment.
             // A type is declared before its members are, so by the time a
             // member arrives its owner is already a node.
-            if let Some(name) = symbol.owner.as_ref() {
+            if symbol.kind == NodeKind::Method
+                && let Some(name) = symbol.owner.as_ref()
+            {
                 match owners.get(name) {
                     Some(owner) if *owner != id => {
                         self.graph.add_edge(Edge::new(
@@ -345,7 +389,11 @@ impl AnalysisState {
             let source = reference
                 .owner
                 .as_ref()
-                .and_then(|owner| local_symbols.get(&locator_key(owner)).cloned())
+                .and_then(|owner| {
+                    local_symbols
+                        .get(&locator_key(&owner.kind, &owner.name, &owner.span))
+                        .cloned()
+                })
                 .unwrap_or_else(|| file_id.clone());
             self.pending_references.push(PendingReference {
                 source,
@@ -368,7 +416,11 @@ impl AnalysisState {
             let source = fact
                 .owner
                 .as_ref()
-                .and_then(|owner| local_symbols.get(&locator_key(owner)).cloned())
+                .and_then(|owner| {
+                    local_symbols
+                        .get(&locator_key(&owner.kind, &owner.name, &owner.span))
+                        .cloned()
+                })
                 .unwrap_or_else(|| file_id.clone());
             let id = NodeId::new(format!(
                 "domain:{}:{}",

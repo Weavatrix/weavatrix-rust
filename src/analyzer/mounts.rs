@@ -7,9 +7,10 @@
 //! declared ones, so agents can find endpoints by their served URL.
 
 use super::state::{ParseOutcome, ParsedSource};
+use super::support::normalize_join;
 use crate::language::{DomainFact, Language};
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 use weavatrix_graph::NodeKind;
 
 const EXTENSIONS: &[&str] = &["js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts"];
@@ -156,21 +157,6 @@ fn resolve(source: &str, specifier: &str, files: &BTreeSet<String>) -> Option<St
         }
     }
     None
-}
-
-fn normalize_join(parent: &Path, value: &str) -> String {
-    let joined = parent.join(value.replace('\\', "/"));
-    let mut normalized = PathBuf::new();
-    for component in joined.components() {
-        match component {
-            Component::ParentDir => {
-                normalized.pop();
-            }
-            Component::CurDir | Component::Prefix(_) | Component::RootDir => {}
-            Component::Normal(value) => normalized.push(value),
-        }
-    }
-    super::support::normalized_path(&normalized)
 }
 
 #[cfg(test)]

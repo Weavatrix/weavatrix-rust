@@ -1,11 +1,11 @@
-# Weavatrix Rust
+# Weavatrix
 
 [![CI](https://github.com/sergii-ziborov/weavatrix-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/sergii-ziborov/weavatrix-rust/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/weavatrix-rust.svg)](https://crates.io/crates/weavatrix-rust)
 [![docs.rs](https://docs.rs/weavatrix-rust/badge.svg)](https://docs.rs/weavatrix-rust)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/LICENSE)
 
-Weavatrix Rust is a local, read-only repository-intelligence engine and MCP
+Weavatrix is a local, read-only repository-intelligence engine and MCP
 server. It compiles source files, Git objects, measured coverage, clone
 evidence, lexical search, vectors, semantic links, and temporal memory into one
 bounded evidence graph for coding agents.
@@ -36,10 +36,13 @@ deterministic code graph.
 
 - deterministic scan with ignore rules, skip evidence, revision hashes, and
   incremental refresh;
-- typed repository, file, symbol, endpoint, SQL, Kubernetes, Kafka, `RabbitMQ`,
-  and `MongoDB` graph nodes;
+- typed repository, file, JSON configuration/lockfile, symbol, endpoint, SQL,
+  GraphQL, Protobuf/gRPC, Kubernetes, Kafka, `RabbitMQ`, JMS, NATS, SQS/SNS and
+  `MongoDB` graph evidence;
 - Rust AST extraction plus Go, C, C++, Bash, SQL, YAML/Kubernetes, JavaScript,
   TypeScript, Python, Java, and C# adapters;
+- lossless tokenization in `weavatrix-parse`: every source byte remains
+  recoverable for future compiler and source-to-source translation work;
 - direct Git object history, graph diff, change impact, co-change analytics,
   and cross-repository history/shared-object/diff operations;
 - literal and regex search without a ripgrep executable;
@@ -58,6 +61,9 @@ as unavailable stubs.
 ## Install and run
 
 ```powershell
+npx -y weavatrix .
+
+# Or install/use the Rust crate directly:
 cargo install weavatrix-rust
 weavatrix analyze . --pretty
 weavatrix list-tools
@@ -65,9 +71,10 @@ weavatrix tool graph_stats .
 weavatrix mcp . --profile=code
 ```
 
-The MCP transport is newline-delimited JSON-RPC over stdio and negotiates MCP
-protocol version `2025-06-18`. Tool results support structured JSON or compact
-text via `output_format`.
+The MCP transport is newline-delimited JSON-RPC over stdio. `mcport` 0.3.0
+supports modern MCP `2026-07-28` discovery/results as well as compatible
+`2025-11-25` and `2025-06-18` clients. Tool results support structured JSON or
+compact text via `output_format`.
 
 For a minimal graph-only build:
 
@@ -75,34 +82,59 @@ For a minimal graph-only build:
 cargo build --no-default-features
 ```
 
+That build keeps the library plus the standalone `analyze`, `list-tools`, and
+`tool` CLI commands, while omitting `mcport` and the stdio server. Library
+consumers can use the same boundary explicitly:
+
+```toml
+[dependencies]
+weavatrix-rust = { version = "1", default-features = false }
+```
+
+Add the `mcp` feature only when the embedding application needs the stdio
+transport.
+
 ## JavaScript parity and measured speed
 
-The Rust tool catalog covers all 35 read-only tools from the JavaScript
-Weavatrix 0.2.1 baseline and adds cross-repository Git, vector search, semantic
-linking, SEO link suggestions, and temporal memory context.
+The Rust catalog covers all 34 tools shared with `weavatrix-js` and adds five
+native tools for cross-repository, vector, semantic, SEO, and temporal-memory
+workflows.
 
-Same-commit cold-build medians against JavaScript Weavatrix 0.3.14, measured
-back-to-back on the same checkouts (median of three warm-cache builds each;
-the Rust timing includes endpoint extraction, the JavaScript timing does not):
+An immutable JavaScript 0.3.14 checkout (502 files) was built by both engines
+and normalized to the same edge identities. Rust covered every JavaScript
+import, method, and re-export edge. Every JavaScript call target was also
+present: 2,024 edges matched exactly, while 299 differed only because Rust
+attached the containing symbol as an owner; there were zero missing or
+wrong targets.
 
-| Repository | Rust | JavaScript 0.3.14 | Rust speedup | Endpoint evidence |
+| Edge | Rust | JavaScript | Common | JavaScript misses/wrong targets |
 |---|---:|---:|---:|---:|
-| frontend | 371.4 ms | 14,284.1 ms | 38.5x | 1 vs 0 |
-| analytics | 141.9 ms | 3,151.6 ms | 22.2x | 73 vs 67 |
-| automation | 240.1 ms | 23,110.7 ms | 96.3x | 0 vs 0 |
-| bgp-speaker | 9.9 ms | 533.3 ms | 53.9x | 0 vs 0 |
-| warroom | 180.6 ms | 2,988.3 ms | 16.5x | 9 vs 8 |
-| AI-Dev-System | 101.8 ms | 3,002.0 ms | 29.5x | 20 vs 18 |
-| grpc-server | 11.3 ms | 2,491.3 ms | 220.5x | 0 vs 0 |
-| controller-rest-api | 319.3 ms | 14,830.4 ms | 46.4x | 1,299 vs 987 |
-| radiochron | 35.9 ms | 1,126.0 ms | 31.4x | 0 vs 0 |
+| imports | 2,320 | 1,126 | 1,126 | 0 / 0 |
+| method | 63 | 4 | 4 | 0 / 0 |
+| `re_exports` | 80 | 75 | 75 | 0 / 0 |
+| calls | 3,403 | 2,323 | 2,024 exact + 299 owner-only | 0 / 0 |
 
-Parsing is parallel across cores and the release binary is thin-LTO
-optimized. Rust wins every repository; the geometric-mean speedup is about
-45x. These
-are end-to-end static-analysis measurements, not equivalent compiler
-precision. Endpoint counts are a narrow correctness signal; more nodes alone
-do not prove higher accuracy.
+The npm release boundary is measured separately because a fast library can
+still become a slow MCP package. On 2026-07-29, packaged `weavatrix` 1.0.0
+(Rust engine 1.0.1) and
+`weavatrix-js` 0.3.15 were installed into isolated roots. Each tool used three
+paired fresh processes with alternating engine order, empty per-process
+HOME/cache directories, identity/protocol checks, and five warm calls after
+the cold call. The boundary starts at spawning the installed package bin and
+ends at the first successful tool response.
+
+| Tool | Rust cold median | JavaScript cold median | Speedup |
+|---|---:|---:|---:|
+| `graph_stats` | 249.87 ms | 7,561.94 ms | 30.73x |
+| `list_endpoints` | 321.07 ms | 7,400.17 ms | 26.15x |
+| `find_dead_code` | 310.45 ms | 9,298.27 ms | 31.81x |
+| `run_audit` | 378.47 ms | 11,583.83 ms | 35.62x |
+
+The median over all 12 paired cold-boundary ratios is **30.34x**; every
+selected tool is faster than JavaScript. Warm-call medians are 3.17 ms for Rust
+and 494.83 ms for JavaScript, a **156.10x** speedup. The cold release gate requires
+at least 24x and the warm gate requires 30x. The release binary uses fat LTO,
+one codegen unit, abort-on-panic, and stripped symbols.
 
 See [the benchmark report](docs/benchmarks.md) for revisions, methodology,
 component competitors, raw artifacts, and limitations.
@@ -111,7 +143,7 @@ component competitors, raw artifacts, and limitations.
 
 Every relationship carries extractor identity, evidence type, confidence, and
 an optional source span. Static reachability is never labeled as measured test
-coverage. Dynamic dispatch and unresolved targets remain explicit unknowns.
+coverage.
 
 The production source has no network, process-launch, or source-write path.
 MCP tools may retarget local repositories and read Git objects, but never edit
@@ -128,13 +160,31 @@ cargo llvm-cov --workspace --all-features --ignore-filename-regex '(main|error)\
 cargo bench --bench repository_suite -- <repository>...
 ```
 
-The release gate currently measures 85.52% line coverage. It excludes only
+The release gate currently measures 87.18% line coverage. It excludes only
 the binary CLI wiring and error-enum declarations, while all engine, parser,
 MCP, integration, and tool modules remain in scope.
 
 Architecture and dependency boundaries are documented in
 [docs/architecture.md](docs/architecture.md) and
 [docs/dependencies.md](docs/dependencies.md).
+
+## Lineage and reproducibility
+
+The canonical npm package moved from JavaScript to the native Rust engine
+because the Rust implementation covers more languages and transports, exposes
+five additional native workflows, preserves lossless parser input, and is
+substantially faster at the installed MCP boundary. The JavaScript line remains
+available as [`weavatrix-js`](https://github.com/sergii-ziborov/weavatrix-js)
+for existing JS extensions and compatibility.
+
+The Rust source and crates.io release live in
+[`weavatrix-rust`](https://github.com/sergii-ziborov/weavatrix-rust). Its parser
+is [`weavatrix-parse`](https://github.com/sergii-ziborov/weavatrix-parse), and
+the stdio MCP transport is built with
+[`mcport`](https://github.com/sergii-ziborov/mcport). Exact commands, revisions,
+thresholds, and retained reports are documented in
+[docs/benchmarks.md](docs/benchmarks.md); these links describe the build
+lineage, not separate products an npm user must assemble.
 
 ## License
 

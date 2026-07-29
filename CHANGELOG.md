@@ -1,43 +1,29 @@
 ﻿# Changelog
 
-## Unreleased
+## 1.0.1 - 2026-07-30
 
-- parallelize source parsing across all cores with deterministic
-  integration order, and ship thin-LTO release binaries: cold builds are now
-  16-244x faster than JavaScript 0.3.14 (geometric mean ~45x, was ~20x);
-- resolve Express mount chains across files (middleware-separated
-  arguments, destructured requires, multi-line route declarations): endpoint
-  recall against the controller-rest-api swagger ground truth rises from
-  11.7% to 85.5%, exact parity with the JavaScript engine at its
-  static-analysis ceiling;
-
-- close measured accuracy gaps against JavaScript 0.3.14: Python class
-  inheritance (430/430 parity on the corpus), Java/C# field symbols and
-  call-chain false-positive removal, Go const/var group members and grouped
-  aliased imports, workspace-aware Rust `crate::`/`self::`/`super::`/module
-  import resolution, Python absolute module imports, go-module and Java
-  classpath import resolution, CommonJS `require()` and multi-line
-  `import ... from` extraction (see the accuracy section of
-  docs/benchmarks.md and benchmark-results/accuracy-sweep-vs-js-0.3.14.txt);
-- record the Express mount-chain endpoint gap against the swagger ground
-  truth honestly (Rust recall 11.7% vs JavaScript 85.5%) as the next
-  accuracy target;
-
-- extract the MCP stdio runtime into the reusable `mcport` crate
-  (blocking loop, `serde_json`-only, MSRV 1.78) so other MCP ports such as
-  radiochron-mcp can drop their async executors;
-- respond to `initialize`, `ping`, and `tools/list` instantly by deferring
-  graph construction to the first tool call; repository init failures now
-  surface as tool errors instead of terminating the server;
-- strip a UTF-8 BOM from incoming MCP lines so Windows shell pipelines cannot
-  break the first request;
-- re-measure the JavaScript comparison against Weavatrix 0.3.14 with a
-  median-of-three, same-revision methodology (supersedes the 35-50x claims;
-  honest range is 7-171x per repository, geometric mean about 20x);
-- stage the npm distribution: zero-dependency launcher, per-platform binary
-  packages via `optionalDependencies`, no install scripts, npm provenance CI
-  (`npm/`, `scripts/build-npm-packages.mjs`,
-  `.github/workflows/npm-release.yml`, `docs/npm-distribution.md`).
+- expose 39 read-only tools spanning graph, source, Git, cross-repository
+  impact, Health, architecture, clones, search, vectors, semantic/SEO links,
+  coverage, and temporal memory;
+- replace lexical fallbacks with the lossless `weavatrix-parse` pipeline and
+  add typed GraphQL, Protobuf/gRPC, JSON/JSONC, YAML/Kubernetes, Kafka,
+  RabbitMQ/AMQP, NATS, SNS/SQS, and JMS evidence;
+- resolve repository-relative Rust modules, re-exports, cross-file impl
+  ownership, import aliases, call owners, test-only symbols, and production
+  entry points before dead-code review;
+- add cross-repository HTTP, GraphQL, gRPC, and event-contract tracing with
+  concrete transport identities and source spans;
+- integrate `mcport` 0.3.0 discovery, structured results, older MCP protocol
+  compatibility, graph-first startup, bounded refresh, and filesystem
+  watching;
+- keep the library and CLI usable without MCP through
+  `--no-default-features`, including Rust parsing through the lossless parser
+  fallback;
+- ship the native engine inside `weavatrix@1.0.0` as one zero-runtime-
+  dependency package for Windows, macOS, and Linux on x64 and arm64;
+- enforce installed-package identity, correctness, a 24x cold MCP speed gate,
+  a 30x warm gate, npm provenance, crates.io verification, and immutable
+  release evidence in CI.
 
 ## 0.2.0 - 2026-07-27
 

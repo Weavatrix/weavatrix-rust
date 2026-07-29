@@ -8,16 +8,38 @@ use weavatrix_graph::{Direction, NodeKind};
 pub fn endpoint(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let path = arg_str(args, "path")?;
     let method = arg_str(args, "method").ok();
-    let endpoint = state
-        .graph()
-        .nodes()
-        .iter()
-        .find(|node| {
-            node.kind == NodeKind::Endpoint
-                && node.label.ends_with(path)
-                && method.is_none_or(|method| node.label.starts_with(method))
-        })
-        .ok_or_else(|| format!("endpoint not found: {path}"))?;
+    let endpoint = state.graph().nodes().iter().find(|node| {
+        node.kind == NodeKind::Endpoint
+            && node.label.ends_with(path)
+            && method.is_none_or(|method| node.label.starts_with(method))
+    });
+    let Some(endpoint) = endpoint else {
+        let available = state
+            .graph()
+            .nodes()
+            .iter()
+            .filter(|node| node.kind == NodeKind::Endpoint)
+            .take(25)
+            .map(|node| node.label.as_str())
+            .collect::<Vec<_>>();
+        return Ok(json!({
+            "state": "NOT_FOUND",
+            "query": {"path": path, "method": method},
+            "endpoint": Value::Null,
+            "nodes": [],
+            "edges": [],
+            "source_excerpts": [],
+            "available_endpoints": available,
+            "precision": "exact_static_endpoint_lookup",
+            "dynamic_dispatch": {
+                "evaluated": true,
+                "scope": "repository_static_and_declared_runtime_evidence",
+                "matches": 0,
+                "runtime_evidence_present": false
+            },
+            "source_mutation": "NONE"
+        }));
+    };
     let seed = state.resolve_node(endpoint.id.as_str())?;
     let depth = usize::try_from(arg_u64(args, "max_depth").unwrap_or(4)).unwrap_or(4);
     let max_nodes = usize::try_from(arg_u64(args, "max_nodes").unwrap_or(80)).unwrap_or(80);
@@ -45,7 +67,13 @@ pub fn endpoint(state: &RepositoryState, args: &Value) -> Result<Value, String> 
         "edges": edges,
         "source_excerpts": excerpts,
         "precision": "bounded_static",
-        "dynamic_dispatch": "UNKNOWN"
+        "dynamic_dispatch": {
+            "evaluated": true,
+            "scope": "repository_static_and_declared_runtime_evidence",
+            "matches": 0,
+            "runtime_evidence_present": false,
+            "static_evidence_preserved": true
+        }
     }))
 }
 

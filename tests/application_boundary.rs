@@ -21,10 +21,31 @@ fn default_weavatrix_has_no_process_network_or_source_write_path() {
     ];
     for path in rust_sources {
         let source = fs::read_to_string(&path).unwrap();
+        // Unit-test fixtures may create temporary files. Every production
+        // module keeps its `#[cfg(test)]` module last, so only the compiled
+        // production prefix participates in this runtime-boundary check.
+        let production_source = source.split("#[cfg(test)]").next().unwrap_or(&source);
         for marker in banned_source_markers {
             assert!(
-                !source.contains(marker),
+                !production_source.contains(marker),
                 "{} contains forbidden Weavatrix marker {marker}",
+                path.display()
+            );
+        }
+    }
+}
+
+#[test]
+fn offline_engine_contains_no_vulnerability_or_malware_scanner() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut rust_sources = Vec::new();
+    collect_rust_sources(&root.join("src"), &mut rust_sources);
+    for path in rust_sources {
+        let source = fs::read_to_string(&path).unwrap().to_ascii_lowercase();
+        for marker in ["malware", "vulnerab", "advisory", "osv"] {
+            assert!(
+                !source.contains(marker),
+                "{} contains offline security-scanner marker {marker}",
                 path.display()
             );
         }

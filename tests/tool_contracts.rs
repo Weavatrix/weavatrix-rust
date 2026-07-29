@@ -22,7 +22,10 @@ use weavatrix_rust::{NodeKind, Weavatrix, tools};
 fn exercises_the_read_only_tool_contract_end_to_end() {
     let backend = repository();
     let client = GitFixture::new();
-    client.write("src/client.ts", "fetch('/api/items');\n");
+    client.write(
+        "src/client.ts",
+        "import * as natsLib from 'nats';\nconst nc = natsLib.connect();\nfetch('/api/items');\nnc.subscribe('jobs');\n",
+    );
     client.commit("client");
     let mut engine = Weavatrix::open(&backend.root).unwrap();
 
@@ -47,6 +50,22 @@ fn exercises_the_read_only_tool_contract_end_to_end() {
             tools::call(&mut engine, name, input).unwrap_or_else(|error| panic!("{name}: {error}"));
         assert!(result.is_object(), "{name}");
     }
+    let neighbors = tools::call(
+        &mut engine,
+        "get_neighbors",
+        json!({"label": function_ids[0], "max_results": 1}),
+    )
+    .unwrap();
+    assert!(neighbors["page"]["returned"].as_u64().unwrap() <= 1);
+    assert!(neighbors["page"]["total"].as_u64().unwrap() >= 1);
+    let community = tools::call(
+        &mut engine,
+        "get_community",
+        json!({"community_id": 0, "max_nodes": 1}),
+    )
+    .unwrap();
+    assert_eq!(community["page"]["returned"], 1);
+    assert!(community["page"]["total"].as_u64().unwrap() >= 1);
     for (name, input) in health_source_calls(&function_ids) {
         let result =
             tools::call(&mut engine, name, input).unwrap_or_else(|error| panic!("{name}: {error}"));
@@ -77,6 +96,128 @@ fn exercises_the_read_only_tool_contract_end_to_end() {
     coverage_formats(&mut engine, &backend);
     assert!(tools::call(&mut engine, "rebuild_graph", json!({})).is_ok());
     assert!(tools::call(&mut engine, "unknown", json!({})).is_err());
+}
+
+#[test]
+fn absent_optional_configuration_and_routes_are_structured_results() {
+    let fixture = GitFixture::new();
+    fixture.write(
+        "src/main.js",
+        "export function main() { return 'configured by code only'; }\n",
+    );
+    fixture.commit("without architecture contract");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    for (tool, args) in [
+        (
+            "prepare_change",
+            json!({"files": ["src/main.js"], "intent": "inspect"}),
+        ),
+        ("verify_architecture", json!({})),
+        (
+            "explain_architecture_violation",
+            json!({"fingerprint": "missing"}),
+        ),
+        (
+            "propose_architecture_exception",
+            json!({"fingerprint": "missing", "reason": "none"}),
+        ),
+    ] {
+        let result = tools::call(&mut engine, tool, args)
+            .unwrap_or_else(|error| panic!("{tool} must not expose an IO error: {error}"));
+        assert_eq!(
+            result["state"], "NOT_CONFIGURED",
+            "{tool} must make the optional configuration state explicit"
+        );
+    }
+
+    let missing = tools::call(
+        &mut engine,
+        "trace_endpoint",
+        json!({"path": "/absent", "method": "GET"}),
+    )
+    .expect("an absent endpoint is a query result, not a tool failure");
+    assert_eq!(missing["state"], "NOT_FOUND");
+    assert_eq!(missing["endpoint"], Value::Null);
+    assert_eq!(missing["nodes"], json!([]));
+}
+
+#[test]
+fn a_root_http_route_is_an_unmatched_contract_not_an_empty_search_error() {
+    let backend = GitFixture::new();
+    backend.write(
+        "src/server.js",
+        "function home() { return 'ok'; }\nrouter.get('/', home);\n",
+    );
+    backend.commit("root route");
+    let client = GitFixture::new();
+    client.write("src/client.js", "fetch('/api/items');\n");
+    client.commit("unrelated client route");
+    let mut engine = Weavatrix::open(&backend.root).unwrap();
+
+    let result = tools::call(
+        &mut engine,
+        "trace_api_contract",
+        json!({
+            "backend": backend.root,
+            "clients": [client.root],
+            "transport": "http"
+        }),
+    )
+    .expect("a root route must not issue an empty source query");
+
+    assert_eq!(result["status"], "COMPLETE");
+    assert_eq!(result["verdict"]["code"], "NO_STATIC_CLIENT_MATCH");
+    assert_eq!(result["http"]["totals"]["endpoints"], 1);
+    assert_eq!(result["http"]["totals"]["matches"], 0);
+    assert_eq!(result["http"]["totals"]["unmatched_endpoints"], 1);
+}
+
+#[test]
+fn offline_audit_exposes_no_vulnerability_or_malware_surface() {
+    let fixture = GitFixture::new();
+    fixture.write(
+        "src/main.js",
+        "export function main() { return 'offline health only'; }\n",
+    );
+    fixture.commit("offline");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    let definition = tools::catalog()
+        .into_iter()
+        .find(|tool| tool.name == "run_audit")
+        .expect("run_audit stays available for offline repository health");
+    assert_no_security_surface(&definition.input_schema);
+
+    let report = tools::call(
+        &mut engine,
+        "run_audit",
+        json!({"max_findings": 20, "include_malware_scan": true}),
+    )
+    .expect("legacy security arguments must not re-enable an offline scanner");
+    assert_no_security_surface(&report);
+}
+
+fn assert_no_security_surface(value: &Value) {
+    const FORBIDDEN: &[&str] = &["malware", "vulnerab", "advisory", "osv"];
+    match value {
+        Value::Object(entries) => {
+            for (key, nested) in entries {
+                let normalized = key.to_ascii_lowercase();
+                assert!(
+                    !FORBIDDEN.iter().any(|term| normalized.contains(term)),
+                    "offline tool surface contains forbidden security key {key}"
+                );
+                assert_no_security_surface(nested);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                assert_no_security_surface(item);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn graph_calls(ids: &[String]) -> Vec<(&'static str, Value)> {
@@ -141,6 +282,35 @@ fn health_source_calls(ids: &[String]) -> Vec<(&'static str, Value)> {
 }
 
 fn git_calls(engine: &mut Weavatrix, backend: &GitFixture, client: &GitFixture) {
+    let http = tools::call(
+        engine,
+        "trace_api_contract",
+        json!({
+            "backend": backend.root,
+            "clients": [client.root],
+            "transport": "http"
+        }),
+    )
+    .unwrap();
+    assert_eq!(http["status"], "COMPLETE");
+    assert_eq!(http["verdict"]["code"], "MATCHED");
+    assert_eq!(http["http"]["totals"]["matches"], 1);
+
+    let event = tools::call(
+        engine,
+        "trace_api_contract",
+        json!({
+            "backend": backend.root,
+            "clients": [client.root],
+            "transport": "event"
+        }),
+    )
+    .unwrap();
+    assert_eq!(event["status"], "COMPLETE");
+    assert_eq!(event["transport_contracts"]["status"], "COMPLETE");
+    assert_eq!(event["transport_contracts"]["totals"]["matches"], 1);
+    assert_eq!(event["transport_contracts"]["totals"]["ambiguities"], 0);
+
     for (name, input) in [
         ("git_history", json!({"max_commits": 20, "months": 1200})),
         (
@@ -153,10 +323,6 @@ fn git_calls(engine: &mut Weavatrix, backend: &GitFixture, client: &GitFixture) 
                 "duplicate_ratchet": true}),
         ),
         ("graph_diff", json!({"base_ref": "HEAD~1"})),
-        (
-            "trace_api_contract",
-            json!({"backend": backend.root, "clients": [client.root]}),
-        ),
         (
             "cross_repo_git",
             json!({"repositories": [
@@ -176,11 +342,17 @@ fn git_calls(engine: &mut Weavatrix, backend: &GitFixture, client: &GitFixture) 
         json!({"path": client.root.to_string_lossy()}),
     )
     .unwrap();
-    assert_eq!(opened["repository"], client.root.to_string_lossy().as_ref());
+    let opened_root = std::fs::canonicalize(
+        opened["repository"]
+            .as_str()
+            .expect("open_repo returns a repository path"),
+    )
+    .unwrap();
+    assert_eq!(opened_root, std::fs::canonicalize(&client.root).unwrap());
     tools::call(
         engine,
         "open_repo",
-        json!({"path": backend.root.to_string_lossy()}),
+        json!({"path": backend.root.to_string_lossy(), "build": false}),
     )
     .unwrap();
 }
@@ -258,7 +430,8 @@ fn coverage_formats(engine: &mut Weavatrix, fixture: &GitFixture) {
         "SF:app/main.js\nDA:1,1\nDA:2,0\nend_of_record\n",
     );
     let report = tools::call(engine, "coverage_map", json!({})).unwrap();
-    assert_eq!(report["actualCoverage"], "AVAILABLE");
+    assert_eq!(report["status"], "COMPLETE");
+    assert_eq!(report["measured_coverage"]["present"], true);
 }
 
 /// A contract written for the JavaScript engine names coupling kinds rather
@@ -339,7 +512,7 @@ fn repository() -> GitFixture {
     fixture.write("lib/util.js", "export function helper(){ return 1; }\n");
     fixture.write(
         "app/main.js",
-        "import { helper } from '../lib/util.js';\nexport function list(){ return helper(); }\nrouter.get('/api/items', list);\n",
+        "import { helper } from '../lib/util.js';\nimport * as natsLib from 'nats';\nconst nc = natsLib.connect();\nexport function list(){ return helper(); }\nrouter.get('/api/items', list);\nnc.publish('jobs', new Uint8Array());\n",
     );
     let clone = "export function duplicate(value){ const a=value+1; const b=a*2; const c=b-3; return c+a+b+value; }\n";
     fixture.write("app/clone-a.js", clone);
@@ -355,7 +528,7 @@ fn repository() -> GitFixture {
     fixture.commit("baseline");
     fixture.write(
         "app/main.js",
-        "import { helper } from '../lib/util.js';\nexport function list(){ return helper()+1; }\nrouter.get('/api/items', list);\n",
+        "import { helper } from '../lib/util.js';\nimport * as natsLib from 'nats';\nconst nc = natsLib.connect();\nexport function list(){ return helper()+1; }\nrouter.get('/api/items', list);\nnc.publish('jobs', new Uint8Array());\n",
     );
     fixture.commit("change");
     fixture

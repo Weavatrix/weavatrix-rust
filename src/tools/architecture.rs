@@ -1,36 +1,51 @@
 use crate::RepositoryState;
-use crate::tools::arg_str;
+use crate::tools::{arg_str, node_path};
 use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::io::ErrorKind;
 
 pub fn contract(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     if arg_str(args, "action").ok() == Some("approve") {
         return Err("read-only MCP never writes architecture contracts".to_owned());
     }
-    match load(state) {
-        Ok(contract) => Ok(json!({
+    match load_optional(state)? {
+        Some(contract) => Ok(json!({
             "state": "CONFIGURED",
             "source": ".weavatrix/architecture.json",
             "contract": contract
         })),
-        Err(reason) if arg_str(args, "action").ok() == Some("preview") => Ok(json!({
+        None if arg_str(args, "action").ok() == Some("preview") => Ok(json!({
             "state": "PREVIEW",
             "source": "derived graph folders",
             "contract": starter(state),
-            "warning": reason,
+            "warning": "no active architecture contract",
             "write": "NONE"
         })),
-        Err(reason) => Ok(json!({"state": "NOT_CONFIGURED", "reason": reason})),
+        None => Ok(not_configured(
+            state,
+            "Save the starter as .weavatrix/architecture.json, review it, then verify.",
+        )),
     }
 }
 
 pub fn prepare(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    let contract = load(state)?;
     let files = args
         .get("files")
         .and_then(Value::as_array)
         .ok_or_else(|| "files must be an array".to_owned())?;
+    let Some(contract) = load_optional(state)? else {
+        return Ok(json!({
+            "state": "NOT_CONFIGURED",
+            "guidance": "PROVISIONAL_STARTER",
+            "enforceable": false,
+            "intent": args.get("intent"),
+            "files": files,
+            "starter": starter(state),
+            "remediation": remediation(),
+            "write": "NONE"
+        }));
+    };
     let selected = files
         .iter()
         .filter_map(Value::as_str)
@@ -50,7 +65,19 @@ pub fn prepare(state: &RepositoryState, args: &Value) -> Result<Value, String> {
 }
 
 pub fn verify(state: &RepositoryState) -> Result<Value, String> {
-    let contract = load(state)?;
+    let Some(contract) = load_optional(state)? else {
+        return Ok(json!({
+            "state": "NOT_CONFIGURED",
+            "enforceable": false,
+            "new": [],
+            "existing": [],
+            "excepted": [],
+            "fixed": [],
+            "starter": starter(state),
+            "remediation": remediation(),
+            "write": "NONE"
+        }));
+    };
     validate_kinds(&contract)?;
     let baseline = contract
         .pointer("/ratchet/baseline/fingerprints")
@@ -105,23 +132,41 @@ fn accepted_exceptions(contract: &Value) -> BTreeSet<String> {
 }
 
 pub fn explain(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    let contract = match configured_contract(
+        state,
+        "Create and verify an architecture contract before explaining violations.",
+    )? {
+        LoadedContract::Configured(contract) => contract,
+        LoadedContract::NotConfigured(response) => return Ok(response),
+    };
     let fingerprint = arg_str(args, "fingerprint")?;
-    let contract = load(state)?;
-    let violation = violations(state, &contract)
-        .into_iter()
-        .find(|item| item["fingerprint"] == fingerprint)
-        .ok_or_else(|| format!("active architecture violation not found: {fingerprint}"))?;
+    let Some(violation) = active_violation(state, &contract, fingerprint) else {
+        return Ok(json!({
+            "state": "NOT_FOUND",
+            "fingerprint": fingerprint,
+            "reason": "the fingerprint is not an active architecture violation"
+        }));
+    };
     Ok(json!({"violation": violation, "contract": ".weavatrix/architecture.json"}))
 }
 
 pub fn propose_exception(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    let contract = match configured_contract(
+        state,
+        "Create and verify an architecture contract before proposing exceptions.",
+    )? {
+        LoadedContract::Configured(contract) => contract,
+        LoadedContract::NotConfigured(response) => return Ok(response),
+    };
     let fingerprint = arg_str(args, "fingerprint")?;
     let reason = arg_str(args, "reason")?;
-    let contract = load(state)?;
-    let violation = violations(state, &contract)
-        .into_iter()
-        .find(|item| item["fingerprint"] == fingerprint)
-        .ok_or_else(|| format!("active architecture violation not found: {fingerprint}"))?;
+    let Some(violation) = active_violation(state, &contract, fingerprint) else {
+        return Ok(json!({
+            "state": "NOT_FOUND",
+            "fingerprint": fingerprint,
+            "reason": "only an active architecture violation can be proposed as an exception"
+        }));
+    };
     Ok(json!({
         "state": "PROPOSAL_ONLY",
         "proposal": {
@@ -134,15 +179,54 @@ pub fn propose_exception(state: &RepositoryState, args: &Value) -> Result<Value,
     }))
 }
 
-fn load(state: &RepositoryState) -> Result<Value, String> {
+enum LoadedContract {
+    Configured(Value),
+    NotConfigured(Value),
+}
+
+fn configured_contract(state: &RepositoryState, reason: &str) -> Result<LoadedContract, String> {
+    Ok(match load_optional(state)? {
+        Some(contract) => LoadedContract::Configured(contract),
+        None => LoadedContract::NotConfigured(not_configured(state, reason)),
+    })
+}
+
+fn active_violation(state: &RepositoryState, contract: &Value, fingerprint: &str) -> Option<Value> {
+    violations(state, contract)
+        .into_iter()
+        .find(|item| item["fingerprint"] == fingerprint)
+}
+
+fn load_optional(state: &RepositoryState) -> Result<Option<Value>, String> {
     let path = state.root().join(".weavatrix/architecture.json");
-    let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("{}: {error}", path.display())),
+    };
     let value: Value =
         blazingly_json::from_slice(&bytes).map_err(|error| format!("invalid contract: {error}"))?;
     if value.get("components").and_then(Value::as_array).is_none() {
         return Err("architecture contract has no components".to_owned());
     }
-    Ok(value)
+    Ok(Some(value))
+}
+
+fn remediation() -> Value {
+    json!({
+        "offline_path": ".weavatrix/architecture.json",
+        "next_tool": "verify_architecture"
+    })
+}
+
+fn not_configured(state: &RepositoryState, reason: &str) -> Value {
+    json!({
+        "state": "NOT_CONFIGURED",
+        "reason": reason,
+        "starter": starter(state),
+        "remediation": remediation(),
+        "write": "NONE"
+    })
 }
 
 fn starter(state: &RepositoryState) -> Value {
@@ -179,10 +263,10 @@ fn violations(state: &RepositoryState, contract: &Value) -> Vec<Value> {
         let Some(target) = state.graph().node(edge.target.as_str()) else {
             continue;
         };
-        let Some(source_file) = node_file(source) else {
+        let Some(source_file) = node_path(source) else {
             continue;
         };
-        let Some(target_file) = node_file(target) else {
+        let Some(target_file) = node_path(target) else {
             continue;
         };
         let Some(from) = component_for(contract, source_file) else {
@@ -347,13 +431,6 @@ fn component_for<'contract>(contract: &'contract Value, file: &str) -> Option<&'
         })
         .max_by_key(|(length, _)| *length)
         .map(|(_, id)| id)
-}
-
-fn node_file(node: &weavatrix_graph::Node) -> Option<&str> {
-    node.span
-        .as_ref()
-        .map(|span| span.file.as_str())
-        .or_else(|| (node.kind == weavatrix_graph::NodeKind::File).then_some(node.label.as_str()))
 }
 
 fn list_contains(value: Option<&Value>, expected: &str) -> bool {

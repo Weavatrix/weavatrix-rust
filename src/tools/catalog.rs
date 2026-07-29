@@ -62,7 +62,7 @@ pub fn catalog() -> Vec<ToolDefinition> {
         ),
         tool(
             "trace_api_contract",
-            "Cross-repository endpoint contract evidence.",
+            "Cross-repository HTTP, GraphQL, gRPC and event-transport contract evidence.",
             &["backend", "clients"],
         ),
         tool(

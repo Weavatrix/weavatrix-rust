@@ -16,6 +16,7 @@ pub enum Error {
     Graph(weavatrix_graph::GraphError),
     Json(blazingly_json::Error),
     Scan(weavatrix_scan::Error),
+    Analysis(String),
 }
 
 impl Error {
@@ -48,6 +49,7 @@ impl Display for Error {
             Self::Graph(source) => write!(formatter, "invalid graph: {source}"),
             Self::Json(source) => write!(formatter, "JSON serialization failed: {source}"),
             Self::Scan(source) => write!(formatter, "repository scan failed: {source}"),
+            Self::Analysis(message) => write!(formatter, "repository analysis failed: {message}"),
         }
     }
 }

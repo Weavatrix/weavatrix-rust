@@ -1,4 +1,4 @@
-//! Runtime-correctness, advisory and malware review over local evidence.
+//! Runtime-correctness review over local evidence.
 //!
 //! Every check here reads only repository bytes: no network, no package
 //! manager, no execution. Each projection reports what it actually covered so
@@ -128,7 +128,17 @@ pub(super) fn runtime_findings(
     let mut truncated = false;
     for (path, language, text) in sources {
         scanned += 1;
-        for (offset, line) in text.lines().enumerate() {
+        let ignored_lines = if language == "rust" {
+            rust_cfg_test_lines(&text)
+        } else {
+            BTreeSet::new()
+        };
+        let code = runtime_code(&path, &text);
+        let async_lines = async_context_lines(&path, &language, &code);
+        for (offset, (line, code_line)) in text.lines().zip(code.lines()).enumerate() {
+            if ignored_lines.contains(&(offset + 1)) {
+                continue;
+            }
             if line.len() > 400 {
                 continue;
             }
@@ -136,7 +146,12 @@ pub(super) fn runtime_findings(
                 if !rule.languages.is_empty() && !rule.languages.contains(&language.as_str()) {
                     continue;
                 }
-                if (rule.matches)(line) {
+                if rule.id == "runtime.blocking_call_in_async"
+                    && !async_lines.contains(&(offset + 1))
+                {
+                    continue;
+                }
+                if (rule.matches)(code_line) {
                     if findings.len() >= max {
                         truncated = true;
                         break;
@@ -158,6 +173,168 @@ pub(super) fn runtime_findings(
     }
     findings.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
     (findings, scanned, truncated)
+}
+
+fn runtime_code(path: &str, source: &str) -> String {
+    let Some(extension) = Path::new(path).extension().and_then(|value| value.to_str()) else {
+        return source.to_owned();
+    };
+    let Some(language) = weavatrix_parse::Language::from_extension(extension) else {
+        return source.to_owned();
+    };
+    let mut code = source.as_bytes().to_vec();
+    for token in weavatrix_parse::tokenize(source, language) {
+        if matches!(
+            token.kind,
+            weavatrix_parse::TokenKind::String
+                | weavatrix_parse::TokenKind::Regex
+                | weavatrix_parse::TokenKind::LineComment
+                | weavatrix_parse::TokenKind::BlockComment
+                | weavatrix_parse::TokenKind::Unterminated
+        ) {
+            code[token.start..token.end].fill(b' ');
+        }
+    }
+    String::from_utf8(code).unwrap_or_else(|_| source.to_owned())
+}
+
+fn async_context_lines(path: &str, language: &str, source: &str) -> BTreeSet<usize> {
+    if language == "python" {
+        return python_async_lines(source);
+    }
+    let Some(extension) = Path::new(path).extension().and_then(|value| value.to_str()) else {
+        return BTreeSet::new();
+    };
+    let Some(language) = weavatrix_parse::Language::from_extension(extension) else {
+        return BTreeSet::new();
+    };
+    if !matches!(
+        language,
+        weavatrix_parse::Language::JavaScript
+            | weavatrix_parse::Language::TypeScript
+            | weavatrix_parse::Language::Rust
+    ) {
+        return BTreeSet::new();
+    }
+    brace_async_lines(source, language)
+}
+
+fn brace_async_lines(source: &str, language: weavatrix_parse::Language) -> BTreeSet<usize> {
+    let tokens = weavatrix_parse::tokenize_lite(source, language);
+    let mut lines = BTreeSet::new();
+    let mut index = 0_usize;
+    while index < tokens.len() {
+        if tokens[index].text(source) != "async" {
+            index += 1;
+            continue;
+        }
+        lines.insert(tokens[index].line as usize);
+        let limit = (index + 128).min(tokens.len());
+        let Some(open) = (index + 1..limit)
+            .take_while(|candidate| tokens[*candidate].text(source) != ";")
+            .find(|candidate| tokens[*candidate].text(source) == "{")
+        else {
+            index += 1;
+            continue;
+        };
+        let mut depth = 0_usize;
+        let mut close = None;
+        for (candidate, token) in tokens.iter().enumerate().skip(open) {
+            match token.text(source) {
+                "{" => depth += 1,
+                "}" => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        close = Some(candidate);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(close) = close else {
+            index += 1;
+            continue;
+        };
+        lines.extend(tokens[index].line as usize..=tokens[close].line as usize);
+        index = close + 1;
+    }
+    lines
+}
+
+fn python_async_lines(source: &str) -> BTreeSet<usize> {
+    let mut lines = BTreeSet::new();
+    let mut scopes = Vec::<usize>::new();
+    for (offset, line) in source.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let indent = line.len().saturating_sub(trimmed.len());
+        while scopes.last().is_some_and(|scope| indent <= *scope) {
+            scopes.pop();
+        }
+        if !scopes.is_empty() {
+            lines.insert(offset + 1);
+        }
+        if trimmed.starts_with("async def ") {
+            lines.insert(offset + 1);
+            scopes.push(indent);
+        }
+    }
+    lines
+}
+
+/// Lines compiled only under `cfg(test)`. Token positions make brace matching
+/// insensitive to braces written inside strings or comments.
+pub(super) fn rust_cfg_test_lines(source: &str) -> BTreeSet<usize> {
+    let tokens = weavatrix_parse::tokenize_lite(source, weavatrix_parse::Language::Rust);
+    let mut ignored = BTreeSet::new();
+    let mut index = 0_usize;
+    while index + 2 < tokens.len() {
+        if tokens[index].text(source) != "#"
+            || tokens[index + 1].text(source) != "["
+            || tokens[index + 2].text(source) != "cfg"
+        {
+            index += 1;
+            continue;
+        }
+        let Some(attribute_end) =
+            (index + 3..tokens.len()).find(|candidate| tokens[*candidate].text(source) == "]")
+        else {
+            break;
+        };
+        if !(index + 3..attribute_end).any(|candidate| tokens[candidate].text(source) == "test") {
+            index = attribute_end + 1;
+            continue;
+        }
+        let Some(open) = (attribute_end + 1..tokens.len())
+            .find(|candidate| tokens[*candidate].text(source) == "{")
+        else {
+            break;
+        };
+        let mut depth = 0_usize;
+        let mut close = None;
+        for (candidate, token) in tokens.iter().enumerate().skip(open) {
+            match token.text(source) {
+                "{" => depth += 1,
+                "}" => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        close = Some(candidate);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(close) = close else {
+            break;
+        };
+        ignored.extend(tokens[index].line as usize..=tokens[close].line as usize);
+        index = close + 1;
+    }
+    ignored
 }
 
 /// Production source text of the analyzed worktree.
@@ -183,280 +360,22 @@ pub(super) fn runtime(state: &RepositoryState, max: usize) -> Value {
     let (findings, scanned, truncated) = runtime_findings(product_sources(state), max);
     json!({
         "status": if findings.is_empty() {"PASS"} else {"REVIEW"},
-        "completeness": "PARTIAL_PATTERN_BASED",
+        "execution": {"status": "COMPLETE"},
+        "static_analysis": {
+            "present": true,
+            "scope": "bounded line-level rules over production source"
+        },
+        "runtime_evidence": {
+            "present": false,
+            "reason": "run_audit does not execute the repository or ingest profiler and telemetry data"
+        },
         "rules": RULES.iter().map(|rule| rule.id).collect::<Vec<_>>(),
         "files_scanned": scanned,
         "findings_total": findings.len(),
         "truncated": truncated,
         "findings": findings,
-        "caveat": "line-level patterns over production source; no data-flow or execution",
+        "caveat": "bounded syntax-context patterns over production source; no data-flow or execution",
     })
-}
-
-/// Offline dependency-risk advisories: version-pinning and lockfile evidence,
-/// plus any local advisory database the repository ships.
-pub(super) fn advisories(state: &RepositoryState, max: usize) -> Value {
-    let mut findings = Vec::new();
-    let mut manifests = Vec::new();
-    let mut lockfiles = Vec::new();
-    for (manifest, locks) in [
-        ("Cargo.toml", &["Cargo.lock"][..]),
-        (
-            "package.json",
-            &[
-                "package-lock.json",
-                "npm-shrinkwrap.json",
-                "yarn.lock",
-                "pnpm-lock.yaml",
-            ],
-        ),
-        ("go.mod", &["go.sum"]),
-        (
-            "pyproject.toml",
-            &["poetry.lock", "uv.lock", "requirements.txt"],
-        ),
-    ] {
-        if !state.root().join(manifest).is_file() {
-            continue;
-        }
-        manifests.push(manifest);
-        let present = locks
-            .iter()
-            .filter(|lock| state.root().join(lock).is_file())
-            .collect::<Vec<_>>();
-        if present.is_empty() {
-            findings.push(json!({
-                "id": format!("advisory.unlocked:{manifest}"),
-                "rule": "advisory.missing_lockfile",
-                "category": "advisories",
-                "severity": "high",
-                "manifest": manifest,
-                "message": "declared dependencies have no committed lockfile; installed versions are not reproducible",
-            }));
-        } else {
-            for lock in present {
-                lockfiles.push(*lock);
-            }
-        }
-        findings.extend(floating_ranges(state.root(), manifest));
-    }
-    let local_database = advisory_database(state.root());
-    findings.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
-    let total = findings.len();
-    json!({
-        "status": if findings.is_empty() {"PASS"} else {"REVIEW"},
-        "completeness": if local_database.is_some() {
-            "PARTIAL_LOCAL_DATABASE"
-        } else {
-            "PARTIAL_OFFLINE_NO_CVE_FEED"
-        },
-        "covers": [
-            "missing lockfiles",
-            "floating version ranges",
-            "advisory identifiers referenced by a committed local database",
-        ],
-        "does_not_cover": "published CVE/RUSTSEC/OSV feeds; this engine never opens a network connection",
-        "manifests": manifests,
-        "lockfiles": lockfiles,
-        "local_advisory_database": local_database,
-        "findings_total": total,
-        "findings": findings.into_iter().take(max).collect::<Vec<_>>(),
-    })
-}
-
-/// Version requirements that accept arbitrary future releases.
-fn floating_ranges(root: &Path, manifest: &str) -> Vec<Value> {
-    let Ok(text) = fs::read_to_string(root.join(manifest)) else {
-        return Vec::new();
-    };
-    let mut findings = Vec::new();
-    for (offset, line) in text.lines().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('#') || trimmed.starts_with("//") {
-            continue;
-        }
-        let floating = trimmed.contains("\"*\"")
-            || trimmed.contains("= \"*\"")
-            || trimmed.contains("\"latest\"")
-            || trimmed.contains(">=")
-                && !trimmed.contains(", <")
-                && !trimmed.contains(",<")
-                && manifest != "go.mod";
-        if !floating {
-            continue;
-        }
-        let name = trimmed
-            .split(['=', ':'])
-            .next()
-            .unwrap_or(trimmed)
-            .trim()
-            .trim_matches('"');
-        findings.push(json!({
-            "id": format!("advisory.floating:{manifest}:{name}"),
-            "rule": "advisory.floating_version_range",
-            "category": "advisories",
-            "severity": "medium",
-            "manifest": manifest,
-            "package": name,
-            "line": offset + 1,
-            "message": "unbounded version requirement accepts arbitrary future releases",
-        }));
-    }
-    findings
-}
-
-fn advisory_database(root: &Path) -> Option<String> {
-    for candidate in [
-        ".weavatrix/advisories.json",
-        "advisories.json",
-        "security/advisories.json",
-    ] {
-        if root.join(candidate).is_file() {
-            return Some(candidate.to_owned());
-        }
-    }
-    None
-}
-
-/// Malware heuristics over installed third-party packages.
-pub(super) fn malware(state: &RepositoryState, max: usize, requested: bool) -> Value {
-    let roots = ["node_modules", "vendor", ".venv/Lib/site-packages"]
-        .into_iter()
-        .filter(|directory| state.root().join(directory).is_dir())
-        .collect::<Vec<_>>();
-    if !requested {
-        return json!({
-            "status": "NOT_REQUESTED",
-            "completeness": "AVAILABLE_ON_REQUEST",
-            "installed_trees": roots,
-            "message": "pass include_malware_scan:true to grep installed packages; the scan reads many files and is off by default",
-        });
-    }
-    if roots.is_empty() {
-        return json!({
-            "status": "PASS",
-            "completeness": "COMPLETE_NO_INSTALLED_TREES",
-            "message": "no installed third-party package tree exists in this checkout, so there is nothing to scan",
-        });
-    }
-    let mut findings = Vec::new();
-    let mut scanned = 0_usize;
-    let mut packages = BTreeSet::new();
-    for directory in &roots {
-        scan_tree(
-            &state.root().join(directory),
-            state.root(),
-            0,
-            &mut scanned,
-            &mut packages,
-            &mut findings,
-            max,
-        );
-    }
-    findings.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
-    json!({
-        "status": if findings.is_empty() {"PASS"} else {"REVIEW"},
-        "completeness": "PARTIAL_HEURISTIC",
-        "installed_trees": roots,
-        "packages_seen": packages.len(),
-        "files_scanned": scanned,
-        "findings_total": findings.len(),
-        "findings": findings.into_iter().take(max).collect::<Vec<_>>(),
-        "caveat": "heuristic signals, not a verdict; obfuscated or novel payloads can evade them",
-    })
-}
-
-const MALWARE_SIGNALS: &[(&str, &str, &str)] = &[
-    ("malware.install_hook_network", "high", "curl "),
-    ("malware.install_hook_network", "high", "wget "),
-    ("malware.remote_eval", "critical", "eval(Buffer.from("),
-    ("malware.remote_eval", "critical", "child_process.exec("),
-    ("malware.credential_probe", "high", "process.env.NPM_TOKEN"),
-    ("malware.credential_probe", "high", "id_rsa"),
-    ("malware.obfuscated_payload", "medium", "base64,eval"),
-];
-
-#[allow(clippy::too_many_arguments)]
-fn scan_tree(
-    directory: &Path,
-    root: &Path,
-    depth: usize,
-    scanned: &mut usize,
-    packages: &mut BTreeSet<String>,
-    findings: &mut Vec<Value>,
-    max: usize,
-) {
-    if depth > 6 || findings.len() >= max || *scanned > 20_000 {
-        return;
-    }
-    let Ok(entries) = fs::read_dir(directory) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            scan_tree(&path, root, depth + 1, scanned, packages, findings, max);
-            continue;
-        }
-        let name = path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default();
-        let extension = Path::new(name)
-            .extension()
-            .and_then(|value| value.to_str())
-            .map(str::to_ascii_lowercase)
-            .unwrap_or_default();
-        let interesting =
-            name == "package.json" || matches!(extension.as_str(), "js" | "cjs" | "sh" | "py");
-        if !interesting {
-            continue;
-        }
-        if fs::metadata(&path).is_ok_and(|meta| meta.len() > 512_000) {
-            continue;
-        }
-        let Ok(text) = fs::read_to_string(&path) else {
-            continue;
-        };
-        *scanned += 1;
-        let relative = path
-            .strip_prefix(root)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
-        if name == "package.json" {
-            packages.insert(relative.clone());
-            if text.contains("\"postinstall\"")
-                || text.contains("\"preinstall\"")
-                || text.contains("\"install\"")
-            {
-                findings.push(json!({
-                    "id": format!("malware.install_script:{relative}"),
-                    "rule": "malware.install_script",
-                    "category": "malware",
-                    "severity": "medium",
-                    "file": relative,
-                    "message": "installed package declares an install lifecycle script that runs on npm install",
-                }));
-            }
-        }
-        for (rule, severity, needle) in MALWARE_SIGNALS {
-            if text.contains(needle) {
-                findings.push(json!({
-                    "id": format!("{rule}:{relative}:{needle}"),
-                    "rule": rule,
-                    "category": "malware",
-                    "severity": severity,
-                    "file": relative,
-                    "signal": needle,
-                    "message": "installed package contains a signal associated with supply-chain payloads",
-                }));
-            }
-            if findings.len() >= max {
-                return;
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -505,6 +424,93 @@ mod tests {
         assert_ne!(
             first[0]["line"], second[0]["line"],
             "the reported line still follows the code"
+        );
+    }
+
+    #[test]
+    fn runtime_rules_ignore_rust_code_compiled_only_for_tests() {
+        let source = r#"
+pub fn production() {
+    risky().unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    const JSON: &str = "{ braces in strings do not close the module }";
+
+    #[test]
+    fn smoke() {
+        risky().expect("tests may assert");
+    }
+}
+"#;
+        let (findings, scanned, truncated) = runtime_findings(
+            [(
+                "src/lib.rs".to_owned(),
+                "rust".to_owned(),
+                source.to_owned(),
+            )],
+            10,
+        );
+
+        assert_eq!(scanned, 1);
+        assert!(!truncated);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0]["line"], 3);
+    }
+
+    #[test]
+    fn blocking_calls_are_reported_only_inside_async_contexts() {
+        let rust = r"
+fn background_worker() {
+    std::thread::sleep(std::time::Duration::from_millis(10));
+}
+
+async fn request_handler() {
+    std::thread::sleep(std::time::Duration::from_millis(10));
+}
+";
+        let python = r"
+def background_worker():
+    time.sleep(1)
+
+async def request_handler():
+    time.sleep(1)
+";
+        let javascript = r#"
+function backgroundWorker() {
+    readFileSync("state.json");
+}
+
+async function requestHandler() {
+    readFileSync("state.json");
+}
+"#;
+        let (findings, scanned, truncated) = runtime_findings(
+            [
+                ("src/lib.rs".to_owned(), "rust".to_owned(), rust.to_owned()),
+                (
+                    "worker.py".to_owned(),
+                    "python".to_owned(),
+                    python.to_owned(),
+                ),
+                (
+                    "worker.js".to_owned(),
+                    "javascript".to_owned(),
+                    javascript.to_owned(),
+                ),
+            ],
+            10,
+        );
+        assert_eq!(scanned, 3);
+        assert!(!truncated);
+        assert_eq!(findings.len(), 3);
+        assert!(
+            findings.iter().all(|finding| {
+                let expected = if finding["file"] == "worker.py" { 6 } else { 7 };
+                finding["line"] == expected
+            }),
+            "{findings:#?}"
         );
     }
 }

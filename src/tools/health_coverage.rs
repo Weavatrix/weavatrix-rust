@@ -1,10 +1,11 @@
 use crate::RepositoryState;
+use crate::tools::{optional_str, optional_u64};
 use blazingly_json::{Value, json};
 use std::fs;
 use std::path::Path;
 use weavatrix_graph::NodeKind;
 
-pub(super) fn coverage(state: &RepositoryState) -> Value {
+pub(super) fn coverage(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let candidates = [
         "lcov.info",
         "coverage/lcov.info",
@@ -14,6 +15,9 @@ pub(super) fn coverage(state: &RepositoryState) -> Value {
         "target/llvm-cov/coverage.json",
         "coverage/coverage-final.json",
     ];
+    let path_filter = optional_str(args, "path")?;
+    let top = usize::try_from(optional_u64(args, "top_n")?.unwrap_or(u64::MAX))
+        .map_err(|_| "top_n is too large".to_owned())?;
     for candidate in candidates {
         let path = state.root().join(candidate);
         if !path.is_file() {
@@ -24,25 +28,39 @@ pub(super) fn coverage(state: &RepositoryState) -> Value {
         } else {
             parse_json_coverage(&path)
         };
-        return match parsed {
-            Ok(files) => json!({
-                "actualCoverage": "AVAILABLE",
+        let mut files = parsed
+            .map_err(|reason| format!("cannot parse coverage report {candidate}: {reason}"))?;
+        if let Some(filter) = path_filter {
+            files.retain(|file| {
+                file["path"]
+                    .as_str()
+                    .is_some_and(|path| path.contains(filter))
+            });
+        }
+        files.truncate(top);
+        return Ok(json!({
+            "status": "COMPLETE",
+            "measured_coverage": {
+                "present": true,
                 "report": candidate,
-                "files": files,
                 "source": "measured report; Weavatrix did not execute tests"
-            }),
-            Err(reason) => json!({
-                "actualCoverage": "AVAILABLE_UNPARSED",
-                "report": candidate,
-                "reason": reason
-            }),
-        };
+            },
+            "report": candidate,
+            "files": files,
+            "static_reachability": static_test_reachability(state)
+        }));
     }
-    json!({
-        "actualCoverage": "NOT_AVAILABLE",
-        "staticReachability": static_test_reachability(state),
+    Ok(json!({
+        "status": "COMPLETE",
+        "measured_coverage": {
+            "present": false,
+            "reason": "no supported measured coverage report exists in the analyzed repository",
+            "searched": candidates
+        },
+        "files": [],
+        "static_reachability": static_test_reachability(state),
         "warning": "static test reachability is not measured coverage"
-    })
+    }))
 }
 
 fn parse_lcov(path: &Path) -> Result<Vec<Value>, String> {
@@ -76,7 +94,11 @@ fn parse_lcov(path: &Path) -> Result<Vec<Value>, String> {
             }));
         }
     }
-    Ok(files)
+    if files.is_empty() {
+        Err("LCOV contains no complete source records".to_owned())
+    } else {
+        Ok(files)
+    }
 }
 
 fn parse_json_coverage(path: &Path) -> Result<Vec<Value>, String> {

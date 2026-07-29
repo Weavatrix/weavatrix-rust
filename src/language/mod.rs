@@ -3,14 +3,21 @@ use crate::snapshot::Diagnostic;
 use std::fmt::{Display, Formatter};
 use weavatrix_graph::{EdgeKind, NodeKind, SourceSpan};
 
-mod lexical;
+mod contract;
+mod graphql;
+mod json;
+mod protobuf;
 #[cfg(feature = "lang-rust")]
 mod rust;
 #[cfg(feature = "lang-rust")]
 mod rust_endpoint;
 pub mod tokenized;
+mod yaml;
 
-pub use lexical::LexicalAdapter;
+pub(crate) use contract::file_facts_have_transport_evidence;
+#[cfg(test)]
+pub(crate) use contract::may_contain_transport_marker;
+
 #[cfg(feature = "lang-rust")]
 pub use rust::RustAdapter;
 
@@ -26,6 +33,9 @@ pub enum Language {
     Kubernetes,
     JavaScript,
     TypeScript,
+    Graphql,
+    Protobuf,
+    Json,
     Python,
     Java,
     CSharp,
@@ -45,6 +55,9 @@ impl Language {
             Self::Kubernetes => "kubernetes",
             Self::JavaScript => "javascript",
             Self::TypeScript => "typescript",
+            Self::Graphql => "graphql",
+            Self::Protobuf => "protobuf",
+            Self::Json => "json",
             Self::Python => "python",
             Self::Java => "java",
             Self::CSharp => "csharp",
@@ -70,6 +83,9 @@ pub struct SymbolFact {
     pub name: String,
     pub kind: NodeKind,
     pub span: SourceSpan,
+    /// This declaration is compiled only for tests, either because it carries
+    /// a test attribute itself or because it is nested below `#[cfg(test)]`.
+    pub test_only: bool,
     /// The type this symbol was declared inside, when it was.
     ///
     /// A class and its methods are joined by their own edge rather than by
@@ -89,8 +105,23 @@ pub struct SymbolLocator {
 pub struct ReferenceFact {
     pub name: String,
     pub kind: EdgeKind,
+    /// Receiver written before the referenced name, when the source used a
+    /// qualified/member form such as `JSON.parse` or `entry.isFile`.
+    pub receiver: Option<String>,
+    /// Whether the source qualified the reference with a member/path
+    /// operator. This remains true for expression receivers such as
+    /// `statSync(path).isFile`, where there is no single receiver name.
+    pub qualified: bool,
     pub span: SourceSpan,
     pub owner: Option<SymbolLocator>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportBindingFact {
+    /// The name exported by the imported module.
+    pub imported: String,
+    /// The name made available in the importing file.
+    pub local: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -101,6 +132,8 @@ pub struct ImportFact {
     /// compile time, so it couples declarations without coupling runtime
     /// behaviour, and architecture rules distinguish the two.
     pub type_only: bool,
+    /// Exact exported-to-local bindings, when the parser can prove them.
+    pub bindings: Vec<ImportBindingFact>,
 }
 
 impl ImportFact {
@@ -110,6 +143,7 @@ impl ImportFact {
             target,
             span,
             type_only: false,
+            bindings: Vec::new(),
         }
     }
 
@@ -119,7 +153,14 @@ impl ImportFact {
             target,
             span,
             type_only: true,
+            bindings: Vec::new(),
         }
+    }
+
+    #[must_use]
+    pub fn with_bindings(mut self, bindings: Vec<ImportBindingFact>) -> Self {
+        self.bindings = bindings;
+        self
     }
 }
 
@@ -177,6 +218,12 @@ impl Default for LanguageRegistry {
         let mut adapters: Vec<Box<dyn LanguageAdapter>> = vec![Box::new(RustAdapter)];
         #[cfg(not(feature = "lang-rust"))]
         let mut adapters: Vec<Box<dyn LanguageAdapter>> = Vec::new();
+        adapters.extend([
+            Box::new(graphql::GraphqlAdapter) as Box<dyn LanguageAdapter>,
+            Box::new(protobuf::ProtobufAdapter) as Box<dyn LanguageAdapter>,
+            Box::new(json::JsonAdapter) as Box<dyn LanguageAdapter>,
+            Box::new(yaml::YamlAdapter) as Box<dyn LanguageAdapter>,
+        ]);
         // `adapter_for_extension` takes the first adapter claiming an
         // extension, and the tokenizer answers correctly where reading lines
         // only usually does: a comment is a comment wherever it appears, a
@@ -184,12 +231,13 @@ impl Default for LanguageRegistry {
         // and a span covers the name rather than the whole line.
         adapters.extend(
             tokenized::TokenizedAdapter::defaults()
+                // `weavatrix-parse` is the Rust implementation in the
+                // dependency-light build; the full build keeps exactly one
+                // `.rs` adapter and lets the richer syn path win.
+                .filter(|adapter| {
+                    !cfg!(feature = "lang-rust") || !adapter.extensions().contains(&"rs")
+                })
                 .map(|adapter| Box::new(adapter) as Box<dyn LanguageAdapter>),
-        );
-        // The line scanner keeps what it still owns alone - YAML and the
-        // Kubernetes manifests - and nothing else reaches it.
-        adapters.extend(
-            LexicalAdapter::defaults().map(|adapter| Box::new(adapter) as Box<dyn LanguageAdapter>),
         );
         Self { adapters }
     }
@@ -211,6 +259,10 @@ impl LanguageRegistry {
     }
 
     pub fn languages(&self) -> impl Iterator<Item = Language> + '_ {
-        self.adapters.iter().map(|adapter| adapter.language())
+        self.adapters
+            .iter()
+            .map(|adapter| adapter.language())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
     }
 }

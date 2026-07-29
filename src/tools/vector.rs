@@ -73,22 +73,5 @@ pub fn search(_args: &Value) -> Result<Value, String> {
 
 #[cfg(feature = "vector")]
 fn values(value: &Value) -> Result<Vec<f32>, String> {
-    value
-        .as_array()
-        .ok_or_else(|| "vector values must be an array".to_owned())?
-        .iter()
-        .map(|value| {
-            let value = value
-                .as_f64()
-                .filter(|value| value.is_finite())
-                .ok_or_else(|| "vector value must be finite".to_owned())?;
-            if !(f64::from(f32::MIN)..=f64::from(f32::MAX)).contains(&value) {
-                return Err("vector value is outside finite f32 range".to_owned());
-            }
-            value
-                .to_string()
-                .parse::<f32>()
-                .map_err(|error| format!("invalid vector value: {error}"))
-        })
-        .collect()
+    super::vector_values(value, "vector values must be an array")
 }

@@ -11,10 +11,13 @@ use crate::snapshot::Snapshot;
 use state::{AnalysisState, ParsedSource, parse_source};
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use support::{canonical_repository, capabilities};
-use weavatrix_scan::{ScanOptions, ScanReport, Scanner};
+use weavatrix_scan::{
+    ContentDiscoveryMode, ContentFileStatus, ContentVisitControl, ContentVisitEvent, ScanOptions,
+    ScanReport, Scanner,
+};
 
 /// Runs `fetch` for every index across all available cores and returns the
 /// results in index order, so downstream integration stays deterministic.
@@ -40,13 +43,17 @@ where
                         break;
                     }
                     let result = fetch(index);
-                    let mut guard = results.lock().expect("parser thread panicked");
+                    let mut guard = results
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     guard.push((index, result));
                 }
             });
         }
     });
-    let mut items = results.into_inner().expect("parser thread panicked");
+    let mut items = results
+        .into_inner()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     items.sort_unstable_by_key(|(index, _)| *index);
     items.into_iter().map(|(_, result)| result).collect()
 }
@@ -121,8 +128,71 @@ impl Analyzer {
         repository: impl AsRef<Path>,
     ) -> Result<(Snapshot, ScanReport)> {
         let repository = canonical_repository(repository.as_ref())?;
-        let scan = self.scan(&repository, None)?;
-        let snapshot = self.analyze_report(&repository, &scan)?;
+        let timing = std::env::var_os("WEAVATRIX_PHASE_TIMING").is_some();
+        let started = std::time::Instant::now();
+        let parsed = Arc::new(Mutex::new(Vec::<(u64, Result<ParsedSource>)>::new()));
+        let sink = Arc::clone(&parsed);
+        let visit = Scanner::new(&repository)
+            .options(self.scan_options())
+            .visit_content_manifest(move |_| {
+                let sink = Arc::clone(&sink);
+                let registry = LanguageRegistry::default();
+                let mut bytes = Vec::new();
+                move |event| {
+                    match event {
+                        ContentVisitEvent::FileStart { file, .. } => {
+                            bytes.clear();
+                            if let Ok(required) = usize::try_from(file.bytes)
+                                && required > bytes.capacity()
+                            {
+                                bytes.reserve(required - bytes.capacity());
+                            }
+                        }
+                        ContentVisitEvent::Chunk { bytes: chunk, .. } => {
+                            bytes.extend_from_slice(chunk);
+                        }
+                        ContentVisitEvent::FileEnd {
+                            file,
+                            status: ContentFileStatus::Selected,
+                            content_hash,
+                            ..
+                        } => {
+                            let result =
+                                parse_source(file.relative, &bytes, content_hash, &registry);
+                            sink.lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                .push((file.sequence, result));
+                        }
+                        ContentVisitEvent::FileEnd { .. } => bytes.clear(),
+                    }
+                    ContentVisitControl::Continue
+                }
+            })?;
+        let scan = visit.into_scan_report();
+        let mut parsed = {
+            let mut guard = parsed
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            std::mem::take(&mut *guard)
+        };
+        parsed.sort_unstable_by_key(|(sequence, _)| *sequence);
+        let mut parsed = parsed
+            .into_iter()
+            .map(|(_, result)| result)
+            .collect::<Result<Vec<_>>>()?;
+        mounts::apply(&mut parsed);
+        let parsed_at = started.elapsed();
+        let (snapshot, integrated_at, resolved_at) =
+            self.integrate_snapshot(&repository, &scan, parsed, &started)?;
+        if timing {
+            eprintln!(
+                "phase-timing one-pass-parse={:.1}ms integrate={:.1}ms resolve={:.1}ms snapshot={:.1}ms",
+                parsed_at.as_secs_f64() * 1e3,
+                integrated_at.saturating_sub(parsed_at).as_secs_f64() * 1e3,
+                resolved_at.saturating_sub(integrated_at).as_secs_f64() * 1e3,
+                started.elapsed().saturating_sub(resolved_at).as_secs_f64() * 1e3,
+            );
+        }
         Ok((snapshot, scan))
     }
 
@@ -155,6 +225,27 @@ impl Analyzer {
         })?;
         mounts::apply(&mut parsed);
         let parsed_at = started.elapsed();
+        let (snapshot, integrated_at, resolved_at) =
+            self.integrate_snapshot(repository, scan, parsed, &started)?;
+        if timing {
+            eprintln!(
+                "phase-timing parse={:.1}ms integrate={:.1}ms resolve={:.1}ms snapshot={:.1}ms",
+                parsed_at.as_secs_f64() * 1e3,
+                integrated_at.saturating_sub(parsed_at).as_secs_f64() * 1e3,
+                resolved_at.saturating_sub(integrated_at).as_secs_f64() * 1e3,
+                started.elapsed().saturating_sub(resolved_at).as_secs_f64() * 1e3,
+            );
+        }
+        Ok(snapshot)
+    }
+
+    fn integrate_snapshot(
+        &self,
+        repository: &Path,
+        scan: &ScanReport,
+        parsed: Vec<ParsedSource>,
+        started: &std::time::Instant,
+    ) -> Result<(Snapshot, std::time::Duration, std::time::Duration)> {
         let (node_hint, edge_hint) = AnalysisState::expected(&parsed);
         let mut state = AnalysisState::with_capacity(repository, node_hint, edge_hint)?;
         state.add_scan_warnings(scan.warnings.clone());
@@ -168,17 +259,8 @@ impl Analyzer {
             repository,
             scan.revision.clone(),
             capabilities(&self.languages),
-        );
-        if timing {
-            eprintln!(
-                "phase-timing parse={:.1}ms integrate={:.1}ms resolve={:.1}ms snapshot={:.1}ms",
-                parsed_at.as_secs_f64() * 1e3,
-                integrated_at.saturating_sub(parsed_at).as_secs_f64() * 1e3,
-                resolved_at.saturating_sub(integrated_at).as_secs_f64() * 1e3,
-                started.elapsed().saturating_sub(resolved_at).as_secs_f64() * 1e3,
-            );
-        }
-        snapshot
+        )?;
+        Ok((snapshot, integrated_at, resolved_at))
     }
 
     fn scan_options(&self) -> ScanOptions {
@@ -189,6 +271,7 @@ impl Analyzer {
             .collect::<BTreeSet<_>>();
         let mut options = ScanOptions::default().with_extensions(extensions);
         options.max_file_bytes = self.config.max_file_bytes;
+        options.content_discovery = ContentDiscoveryMode::BufferedParallel;
         options
     }
 

@@ -18,11 +18,8 @@ pub fn read_source(state: &RepositoryState, args: &Value) -> Result<Value, Strin
     } else {
         (arg_str(args, "path")?.to_owned(), None)
     };
-    let root = state
-        .root()
-        .canonicalize()
-        .map_err(|error| format!("cannot resolve repository: {error}"))?;
-    let path = secure_path(&root, &relative)?;
+    let root = state.root();
+    let path = secure_path(root, &relative)?;
     let text = fs::read_to_string(&path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     let start = arg_u64(args, "start_line").ok().or(anchor).unwrap_or(1);
@@ -70,24 +67,37 @@ pub fn search(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         searcher = searcher.scan_options(scan);
     }
     let report = searcher.search().map_err(|error| error.to_string())?;
+    let total_matching_lines = report.matching_lines;
+    let total_occurrences = report.occurrences;
+    let total_files_with_matches = report.files_with_matches;
+    let retained_matches = report.matches.len();
+    let returned_matches = retained_matches.min(max);
+    let truncated = report.truncated || retained_matches > max;
     Ok(json!({
         "backend": format!("{:?}", report.backend).to_ascii_lowercase(),
-        "matches": report.matches.into_iter().map(|item| json!({
+        "matches": report.matches.into_iter().take(max).map(|item| json!({
             "path": item.path,
             "line": item.line_number,
             "end_line": item.end_line_number,
             "text": item.line,
             "encoding": item.encoding,
             "spans": item.spans.into_iter().map(|span| json!({
-                "pattern": span.pattern_index, "start": span.start, "end": span.end
+            "pattern": span.pattern_index, "start": span.start, "end": span.end
             })).collect::<Vec<_>>()
         })).collect::<Vec<_>>(),
-        "matching_lines": report.matching_lines,
-        "occurrences": report.occurrences,
-        "files_with_matches": report.files_with_matches,
+        "totals": {
+            "matching_lines": total_matching_lines,
+            "occurrences": total_occurrences,
+            "files_with_matches": total_files_with_matches,
+            "returned_matches": returned_matches
+        },
+        "matching_lines": total_matching_lines,
+        "occurrences": total_occurrences,
+        "files_with_matches": total_files_with_matches,
+        "returned_matches": returned_matches,
         "files_searched": report.files_searched,
         "bytes_searched": report.bytes_searched,
-        "truncated": report.truncated,
+        "truncated": truncated,
         "warnings": report.warnings.into_iter().map(|warning| json!({
             "path": warning.path,
             "kind": format!("{:?}", warning.kind).to_ascii_lowercase(),
@@ -169,11 +179,18 @@ fn secure_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
     if relative.is_empty() || Path::new(relative).is_absolute() {
         return Err("source path must be repository-relative".to_owned());
     }
-    let joined = root.join(relative);
+    // Snapshot paths use forward slashes for deterministic serialization.
+    // On Windows that can spell the extended-length root as `//?/C:/...`,
+    // while `canonicalize` returns `\\?\C:\...`; compare two canonical paths
+    // so the boundary check does not reject an existing in-repository file.
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("cannot resolve repository root: {error}"))?;
+    let joined = canonical_root.join(relative);
     let path = joined
         .canonicalize()
         .map_err(|error| format!("cannot resolve {relative}: {error}"))?;
-    if !path.starts_with(root) || !path.is_file() {
+    if !path.starts_with(&canonical_root) || !path.is_file() {
         return Err(format!(
             "source path escapes repository or is not a file: {relative}"
         ));

@@ -108,6 +108,32 @@ fn extracts_primary_and_optional_language_facts() {
 }
 
 #[test]
+fn spring_class_and_method_mappings_form_the_served_route() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "warehouse/Controller.java",
+        "@RestController\n@RequestMapping(\"warehouse\")\npublic class Controller {\n@GetMapping(\"/stock\") public void stock() {}\n@RequestMapping(\"summary\") public void summary() {}\n}\n",
+    );
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    for endpoint in ["GET /warehouse/stock", "ANY /warehouse/summary"] {
+        assert!(
+            snapshot
+                .nodes
+                .iter()
+                .any(|node| node.kind == NodeKind::Endpoint && node.label == endpoint),
+            "Spring class and method mappings must form the served path: {endpoint}"
+        );
+    }
+    assert!(
+        !snapshot
+            .nodes
+            .iter()
+            .any(|node| node.kind == NodeKind::Endpoint && node.label == "ANY /warehouse"),
+        "a class-level Spring mapping is a prefix, not a callable endpoint"
+    );
+}
+
+#[test]
 fn resolves_relative_imports_to_repository_files() {
     let fixture = Fixture::new();
     fixture.write(
@@ -121,6 +147,59 @@ fn resolves_relative_imports_to_repository_files() {
             && edge.source.as_str() == "file:web/client.ts"
             && edge.target.as_str() == "file:web/helper.ts"
     }));
+}
+
+#[test]
+fn resolves_imports_inside_nested_python_and_plain_java_source_roots() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "apps/reporting/python/main.py",
+        "from service import load_report\n",
+    );
+    fixture.write(
+        "apps/reporting/python/service.py",
+        "from utils import normalize\n\ndef load_report():\n    return normalize('x')\n",
+    );
+    fixture.write(
+        "apps/reporting/python/utils.py",
+        "def normalize(value):\n    return value\n",
+    );
+    fixture.write(
+        "fixtures/java/src/api/UserReader.java",
+        "package api;\nimport model.User;\npublic interface UserReader {}\n",
+    );
+    fixture.write(
+        "fixtures/java/src/model/User.java",
+        "package model;\npublic class User {}\n",
+    );
+
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    let import = |source: &str, target: &str| {
+        snapshot.edges.iter().any(|edge| {
+            edge.kind == EdgeKind::Imports
+                && edge.source.as_str() == source
+                && edge.target.as_str() == target
+        })
+    };
+    for (source, target) in [
+        (
+            "file:apps/reporting/python/main.py",
+            "file:apps/reporting/python/service.py",
+        ),
+        (
+            "file:apps/reporting/python/service.py",
+            "file:apps/reporting/python/utils.py",
+        ),
+        (
+            "file:fixtures/java/src/api/UserReader.java",
+            "file:fixtures/java/src/model/User.java",
+        ),
+    ] {
+        assert!(
+            import(source, target),
+            "nested source-root import must resolve: {source} -> {target}"
+        );
+    }
 }
 
 #[test]
@@ -286,6 +365,7 @@ fn dead_code_starts_from_declared_entry_points() {
         .unwrap_or_default();
 
     for reachable in [
+        "file:package.json",
         "file:bin/cli.js",
         "file:src/index.js",
         "file:src/server.js",
@@ -306,6 +386,52 @@ fn dead_code_starts_from_declared_entry_points() {
             .is_some_and(|entries| entries.len() >= 2),
         "the entry points used are reported so the claim is auditable"
     );
+}
+
+#[test]
+fn dead_code_excludes_inline_cfg_test_modules_in_product_files() {
+    use blazingly_json::json;
+    use weavatrix_rust::{Weavatrix, tools};
+
+    let fixture = Fixture::new();
+    fixture.write(
+        "cargo-blazingly/src/main.rs",
+        "fn main() {}\nfn genuinely_unused() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn embedded_test() {}\n\n    fn helper_for_test() {}\n}\n\n#[cfg(not(not(test)))]\nfn double_negated_test() {}\n",
+    );
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let candidates = |report: &blazingly_json::Value| {
+        report["candidates"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|item| item["node"]["label"].as_str().map(str::to_owned))
+            .collect::<Vec<_>>()
+    };
+    let production = tools::call(&mut engine, "find_dead_code", json!({"top_n": 50})).unwrap();
+    let with_tests = tools::call(
+        &mut engine,
+        "find_dead_code",
+        json!({"top_n": 50, "include_tests": true}),
+    )
+    .unwrap();
+
+    let production = candidates(&production);
+    let with_tests = candidates(&with_tests);
+    assert!(
+        production.iter().any(|label| label == "genuinely_unused"),
+        "real production dead code must remain visible, got {production:?}"
+    );
+    for test_symbol in ["embedded_test", "helper_for_test", "double_negated_test"] {
+        assert!(
+            !production.iter().any(|label| label == test_symbol),
+            "{test_symbol} inherits #[cfg(test)] and must not be a production candidate"
+        );
+        assert!(
+            with_tests.iter().any(|label| label == test_symbol),
+            "include_tests must reveal {test_symbol}, got {with_tests:?}"
+        );
+    }
 }
 
 /// Tools whose schema offers `include_tests` / `include_classified` must
@@ -461,6 +587,56 @@ fn resolves_the_module_aliases_a_project_declares() {
         unresolved[0].message.contains("./nowhere"),
         "the diagnostic names the specifier, got {:?}",
         unresolved[0].message
+    );
+}
+
+#[test]
+fn resolves_typescript_runtime_extensions_without_overriding_real_javascript() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "src/entry.ts",
+        "import './plain.js';\nimport './component.jsx';\nimport './module.js';\nimport './common.jsx';\nimport './exact.js';\n",
+    );
+    fixture.write("src/plain.ts", "export const plain = true;\n");
+    fixture.write("src/component.tsx", "export const component = true;\n");
+    fixture.write("src/module.mts", "export const moduleValue = true;\n");
+    fixture.write("src/common.cts", "export const common = true;\n");
+    fixture.write("src/exact.js", "export const runtime = true;\n");
+    fixture.write("src/exact.ts", "export const source = true;\n");
+
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    let imports = snapshot
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.kind == EdgeKind::Imports && edge.source.as_str() == "file:src/entry.ts"
+        })
+        .map(|edge| edge.target.as_str())
+        .collect::<Vec<_>>();
+
+    for target in [
+        "file:src/plain.ts",
+        "file:src/component.tsx",
+        "file:src/module.mts",
+        "file:src/common.cts",
+        "file:src/exact.js",
+    ] {
+        assert!(
+            imports.contains(&target),
+            "runtime specifier must resolve to {target}, got {imports:?}"
+        );
+    }
+    assert!(
+        !imports.contains(&"file:src/exact.ts"),
+        "an exact JavaScript target must win over its TypeScript sibling"
+    );
+    assert!(
+        snapshot
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "import.unresolved"),
+        "all runtime specifiers should resolve, got {:?}",
+        snapshot.diagnostics
     );
 }
 

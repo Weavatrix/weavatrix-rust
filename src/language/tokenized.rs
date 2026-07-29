@@ -12,10 +12,11 @@
 //! often the only place a service endpoint is written down.
 
 use super::{
-    DomainFact, FileFacts, ImportFact, Language, LanguageAdapter, MountFact, ReferenceFact,
-    SourceFile, SymbolFact, SymbolLocator,
+    DomainFact, FileFacts, ImportBindingFact, ImportFact, Language, LanguageAdapter, MountFact,
+    ReferenceFact, SourceFile, SymbolFact, SymbolLocator,
 };
 use crate::Result;
+use std::collections::BTreeMap;
 use weavatrix_graph::{EdgeKind, NodeKind, SourcePosition, SourceSpan};
 use weavatrix_parse::{DeclarationKind, Facts, ReferenceKind, Span};
 
@@ -41,6 +42,10 @@ impl TokenizedAdapter {
                 Parsed::TypeScript,
                 &["ts", "tsx", "mts", "cts"][..],
             ),
+            // The syn adapter wins when `lang-rust` is enabled. This parser
+            // remains the dependency-light Rust fallback so a standalone
+            // `--no-default-features` build does not silently drop `.rs`.
+            (Language::Rust, Parsed::Rust, &["rs"][..]),
             (Language::Python, Parsed::Python, &["py", "pyi"][..]),
             (Language::Go, Parsed::Go, &["go"][..]),
             (Language::Java, Parsed::Java, &["java"][..]),
@@ -145,22 +150,33 @@ impl LanguageAdapter for TokenizedAdapter {
 /// Turns the tokenizer's facts into the shapes the graph builder consumes.
 fn convert(facts: &Facts, path: &str) -> FileFacts {
     let mut converted = FileFacts::default();
+    let class_route_prefixes = class_route_prefixes(facts);
 
     for declaration in &facts.declarations {
         converted.symbols.push(SymbolFact {
             name: declaration.name.clone(),
             kind: node_kind(declaration.kind),
             span: span(&declaration.span, path),
+            test_only: facts.declaration_is_test_only(declaration.span),
             owner: declaration.owner.clone(),
         });
     }
 
     for import in &facts.imports {
+        let bindings = import
+            .bindings
+            .iter()
+            .map(|binding| ImportBindingFact {
+                imported: binding.imported.clone(),
+                local: binding.local.clone(),
+            })
+            .collect();
         let fact = if import.type_only {
             ImportFact::type_only(import.specifier.clone(), span(&import.span, path))
         } else {
             ImportFact::new(import.specifier.clone(), span(&import.span, path))
-        };
+        }
+        .with_bindings(bindings);
         if import.reexport {
             converted.reexports.push(fact);
         } else {
@@ -169,10 +185,18 @@ fn convert(facts: &Facts, path: &str) -> FileFacts {
     }
 
     for reference in &facts.references {
-        domain(reference, path, facts, &mut converted);
+        domain(
+            reference,
+            path,
+            facts,
+            &class_route_prefixes,
+            &mut converted,
+        );
         converted.references.push(ReferenceFact {
             name: reference.name.clone(),
             kind: edge_kind(reference.kind),
+            receiver: reference.receiver.clone(),
+            qualified: reference.receiver.is_some(),
             span: span(&reference.span, path),
             // The owner is carried as a name, and the graph matches it against
             // a declaration by name, kind and position - so the locator is
@@ -193,6 +217,43 @@ fn convert(facts: &Facts, path: &str) -> FileFacts {
     }
 
     converted
+}
+
+/// Associates Spring's class-level `@RequestMapping` with the class it
+/// annotates.
+///
+/// The lossless parser has already established that both pieces are real
+/// syntax rather than text in a comment or string. An annotation precedes its
+/// target, so the first following top-level class is the only valid owner.
+/// Method-level mappings already carry the enclosing class as their owner.
+fn class_route_prefixes(facts: &Facts) -> BTreeMap<String, String> {
+    let mut prefixes = BTreeMap::new();
+    for annotation in facts.references.iter().filter(|reference| {
+        reference.kind == ReferenceKind::Call
+            && reference.name == "RequestMapping"
+            && reference.owner.is_none()
+    }) {
+        let Some(prefix) = annotation.string_arguments.first() else {
+            continue;
+        };
+        let Some(class) = facts
+            .declarations
+            .iter()
+            .filter(|declaration| {
+                declaration.owner.is_none()
+                    && matches!(
+                        declaration.kind,
+                        DeclarationKind::Class | DeclarationKind::Struct
+                    )
+                    && declaration.span.start > annotation.span.end
+            })
+            .min_by_key(|declaration| declaration.span.start)
+        else {
+            continue;
+        };
+        prefixes.insert(class.name.clone(), normalize_route(prefix));
+    }
+    prefixes
 }
 
 /// Call names that register a route, and the method each exposes.
@@ -246,6 +307,7 @@ fn domain(
     reference: &weavatrix_parse::Reference,
     path: &str,
     facts: &Facts,
+    class_route_prefixes: &BTreeMap<String, String>,
     converted: &mut FileFacts,
 ) {
     // A SQL statement names the table it touches, and whether it reads or
@@ -310,17 +372,14 @@ fn domain(
         return;
     };
 
-    if let Some((_, method, _)) = ROUTES.iter().find(|(call, _, needs_receiver)| {
-        *call == name && (!needs_receiver || reference.receiver.is_some())
-    }) && argument.starts_with('/')
-    {
-        converted.domains.push(DomainFact {
-            name: format!("{method} {argument}"),
-            kind: NodeKind::Endpoint,
-            relation: EdgeKind::Exposes,
-            span: span(&reference.span, path),
-            owner: owner(converted),
-        });
+    if let Some(route) = route_fact(
+        reference,
+        argument,
+        path,
+        class_route_prefixes,
+        owner(converted),
+    ) {
+        converted.domains.push(route);
         return;
     }
 
@@ -341,6 +400,77 @@ fn domain(
         span: span(&reference.span, path),
         owner: owner(converted),
     });
+}
+
+fn route_fact(
+    reference: &weavatrix_parse::Reference,
+    argument: &str,
+    path: &str,
+    class_route_prefixes: &BTreeMap<String, String>,
+    owner: Option<SymbolLocator>,
+) -> Option<DomainFact> {
+    let name = reference.name.as_str();
+    // A class-level Spring mapping is a mount prefix, not an endpoint by
+    // itself. Its association with the following class was resolved above.
+    if name == "RequestMapping" && reference.owner.is_none() {
+        return None;
+    }
+    let annotation_route = matches!(
+        name,
+        "RequestMapping"
+            | "GetMapping"
+            | "PostMapping"
+            | "PutMapping"
+            | "PatchMapping"
+            | "DeleteMapping"
+            | "HttpGet"
+            | "HttpPost"
+            | "HttpPut"
+            | "HttpPatch"
+            | "HttpDelete"
+    );
+    let (_, method, _) = ROUTES.iter().find(|(call, _, needs_receiver)| {
+        *call == name && (!needs_receiver || reference.receiver.is_some())
+    })?;
+    if !argument.starts_with('/') && !annotation_route {
+        return None;
+    }
+    let route = reference
+        .owner
+        .as_ref()
+        .and_then(|owner| class_route_prefixes.get(owner))
+        .map_or_else(
+            || normalize_route(argument),
+            |prefix| join_routes(prefix, argument),
+        );
+    Some(DomainFact {
+        name: format!("{method} {route}"),
+        kind: NodeKind::Endpoint,
+        relation: EdgeKind::Exposes,
+        span: span(&reference.span, path),
+        owner,
+    })
+}
+
+fn normalize_route(route: &str) -> String {
+    let trimmed = route.trim();
+    if trimmed.is_empty() || trimmed == "/" {
+        "/".to_owned()
+    } else {
+        format!("/{}", trimmed.trim_matches('/'))
+    }
+}
+
+fn join_routes(prefix: &str, route: &str) -> String {
+    let prefix = normalize_route(prefix);
+    let route = normalize_route(route);
+    if prefix == "/" {
+        route
+    } else if route == "/" {
+        prefix
+    } else {
+        format!("{prefix}{route}")
+    }
 }
 
 /// The graph's vocabulary for a declared name.
@@ -369,7 +499,10 @@ fn node_kind(kind: DeclarationKind) -> NodeKind {
         DeclarationKind::Selector => NodeKind::Custom("selector".to_owned()),
         DeclarationKind::Resource => NodeKind::Custom("resource".to_owned()),
         DeclarationKind::Heading => NodeKind::Custom("heading".to_owned()),
-        _ => NodeKind::Unknown,
+        // `DeclarationKind` is non-exhaustive across the crate boundary.
+        // A future parser kind still carries an exact typed identity; it must
+        // never be collapsed into the graph's generic Unknown bucket.
+        _ => NodeKind::Custom(format!("parser:{kind:?}").to_ascii_lowercase()),
     }
 }
 
@@ -452,6 +585,25 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["./real.js"],
             "the line scanner recognised a comment only by its prefix"
+        );
+    }
+
+    #[test]
+    fn a_receiver_getting_a_map_key_is_not_an_http_route() {
+        let facts = adapter("js")
+            .parse(SourceFile {
+                path: "src/routes.js",
+                text: "map.get('key');\nrouter.get('/items', list);\n",
+            })
+            .expect("parses");
+        assert_eq!(
+            facts
+                .domains
+                .iter()
+                .filter(|domain| domain.kind == NodeKind::Endpoint)
+                .map(|domain| domain.name.as_str())
+                .collect::<Vec<_>>(),
+            ["GET /items"]
         );
     }
 

@@ -1,12 +1,77 @@
 ﻿# Benchmark report
 
-Measured on 2026-07-27 on the same Windows workstation. Rust measurements use
-optimized release builds; JavaScript measurements use Weavatrix 0.3.14 on
-Node v24.15.0. Results are medians unless stated otherwise. Raw end-to-end
-artifacts are committed as `benchmark-results/rust-real.json` and
-`benchmark-results/js-real-0.3.14.json`.
+Current release evidence was measured on 2026-07-29 on the same Windows
+workstation. Historical component and in-process graph measurements from
+2026-07-27 remain below so changes in methodology are visible rather than
+silently replacing old numbers.
 
-## End-to-end Weavatrix Rust vs JavaScript 0.3.14
+## Installed npm MCP boundary: npm 1.0.0 / Rust engine 1.0.1 vs JavaScript 0.3.15
+
+This is the release gate. Both local source trees were packed, installed into
+isolated npm roots, and invoked through their installed package bins. Each of
+the four tools used three paired fresh processes. Pair order alternated between
+Rust-first and JavaScript-first; every process received an empty HOME, graph
+home, and XDG/AppData cache. Package/native/initialize versions, MCP protocol
+responses, advertised tools, successful results, and process cleanup are
+mandatory invariants.
+
+| Tool | Rust cold median | JavaScript cold median | Paired speedup |
+|---|---:|---:|---:|
+| graph_stats | 249.87 ms | 7,561.94 ms | 30.73x |
+| list_endpoints | 321.07 ms | 7,400.17 ms | 26.15x |
+| find_dead_code | 310.45 ms | 9,298.27 ms | 31.81x |
+| run_audit | 378.47 ms | 11,583.83 ms | 35.62x |
+
+The median of all 12 paired cold-boundary ratios is **30.34x**, above the
+24x release threshold, and every selected tool is faster than JavaScript.
+Warm-call medians are 3.17 ms for Rust and 494.83 ms for JavaScript, a
+**156.10x** speedup and above the independent 30x warm-call threshold.
+
+The boundary is spawn-to-first-successful-tool-response. It includes the npm
+launcher, MCP initialization, catalog listing, graph construction, and the
+requested tool. It excludes npm installation, which is recorded separately.
+The Windows PowerShell RSS sampler could not attach before the short Rust
+processes exited, so Rust RSS is explicitly unavailable; it is not recorded as
+zero. JavaScript median peak process-tree RSS was 782,077,952 bytes. Cleanup
+uses PID plus process creation time so unrelated processes that later reuse a
+PID cannot be mistaken for leaked children.
+
+Raw evidence:
+
+- `benchmark-results/npm-mcp-boundary-mcport-0.3.0-vs-js-0.3.15.json`
+  (SHA-256 `8224CACEA4F10B6B09BB525FCC1E4FFA0A7AF1292CD1C4EC63515A2CF99D7F5A`);
+- harness: `scripts/benchmark-npm-mcp.mjs`;
+- Rust package: `weavatrix` 1.0.0, native `weavatrix-rust` 1.0.1 Windows GNU
+  fat-LTO binary;
+- JavaScript package: `weavatrix-js` 0.3.15 on Node v24.15.0.
+
+## Immutable graph parity against JavaScript 0.3.14
+
+Both engines analyzed the same clean 502-file checkout at
+`66ddec80f29ec53bd501f89c5516402b7b80d474`. Paths, symbols, and relations were
+normalized before comparison.
+
+| Relation | Rust | JavaScript | Common | Result |
+|---|---:|---:|---:|---|
+| imports | 2,320 | 1,126 | 1,126 | 100% JS coverage |
+| method | 63 | 4 | 4 | 100% JS coverage |
+| re_exports | 80 | 75 | 75 | 100% JS coverage |
+| calls | 3,403 | 2,323 | 2,024 exact | 299 owner-only; 0 missing; 0 wrong |
+
+All 299 non-exact JavaScript call edges were audited. Rust resolved the same
+source-line target and additionally attached the containing symbol, so they are
+owner-model differences rather than missing or incorrect targets. Rust-only
+edges are retained as evidence but are not automatically called correct merely
+because there are more of them.
+
+Raw evidence:
+
+- `benchmark-results/graph-parity-rust-1.0.0-vs-js-0.3.14.json`
+  (SHA-256 `BF7393AAA83764A432DADD522C86FDDA03646F8A2006DBB08F8B325EAEF492DA`);
+- `benchmark-results/call-audit-rust-1.0.0-vs-js-0.3.14.json`
+  (SHA-256 `B4164FF769B79986282E311390BB7E3C34737FEE68992AE62CBA23D3421D382D`).
+
+## Historical in-process graph builds (2026-07-27)
 
 Both engines were measured back-to-back on the same checkouts; every row
 compares identical Git revisions (verified per artifact). Both harnesses take
@@ -45,7 +110,7 @@ treated as a universal precision score - controller-rest-api is the clearest
 example, where the two engines count route surfaces differently in both
 directions.
 
-## Graph accuracy vs JavaScript 0.3.14
+## Historical multi-repository graph comparison (2026-07-27)
 
 Both graphs were normalized to shared shapes (file paths, `file#symbol`
 pairs, `source -> target` relation strings) and compared per category on the

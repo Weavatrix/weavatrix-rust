@@ -3,7 +3,12 @@ use blazingly_json::{Value, json};
 #[allow(clippy::too_many_lines)]
 pub(super) fn optional_fields(tool: &str) -> &'static [&'static str] {
     match tool {
-        "get_neighbors" => &["relation_filter"],
+        "get_neighbors" => &[
+            "relation_filter",
+            "max_results",
+            "cursor",
+            "response_detail",
+        ],
         "query_graph" => &[
             "question",
             "mode",
@@ -70,6 +75,8 @@ pub(super) fn optional_fields(tool: &str) -> &'static [&'static str] {
             "max_symbols",
             "impact_depth",
             "max_impact_nodes",
+            "data_flow_depth",
+            "max_data_flow_edges",
             "duplicate_ratchet",
             "api_contract",
             "tests",
@@ -83,11 +90,23 @@ pub(super) fn optional_fields(tool: &str) -> &'static [&'static str] {
             "changed_files",
             "client_names",
             "include_tests",
+            "include_classified",
             "max_impact_depth",
             "max_endpoints",
             "max_matches",
+            "max_source_files",
+            "max_source_file_bytes",
             "max_affected_files",
             "top_n",
+            "client_wrappers",
+            "auto_discover_wrappers",
+            "runtime_config",
+            "runtime_evidence_files",
+            "runtime_evidence_max_age_hours",
+            "response_detail",
+            "page_size",
+            "per_item_limit",
+            "cursor",
         ],
         "search_code" => &["is_regex", "glob", "before", "after", "max_results"],
         "read_source" => &["label", "path", "start_line", "before", "after"],
@@ -132,7 +151,6 @@ pub(super) fn optional_fields(tool: &str) -> &'static [&'static str] {
             "min_severity",
             "max_findings",
             "include_classified",
-            "include_malware_scan",
             "base_ref",
             "changed_files",
             "debt",
@@ -149,6 +167,7 @@ pub(super) fn optional_fields(tool: &str) -> &'static [&'static str] {
             "include_tests",
             "include_classified",
         ],
+        "get_community" => &["max_nodes", "cursor"],
         "list_communities" | "module_map" => &["top_n", "include_non_product"],
         "list_endpoints" => &["method", "path", "max_results", "include_classified"],
         "trace_endpoint" => &[
@@ -213,7 +232,15 @@ pub(super) fn field_schema(tool: &str, name: &str) -> Value {
     if tool == "vector_search" && name == "query" {
         return json!({"type": "array", "items": {"type": "number"}});
     }
-    if matches!(name, "request" | "candidate_contract" | "api_contract") {
+    if matches!(
+        name,
+        "request"
+            | "candidate_contract"
+            | "api_contract"
+            | "client_wrappers"
+            | "runtime_config"
+            | "runtime_evidence_files"
+    ) {
         return json!({"type": "object"});
     }
     if matches!(
@@ -228,13 +255,13 @@ pub(super) fn field_schema(tool: &str, name: &str) -> Value {
             | "include_boilerplate"
             | "include_declarative"
             | "include_strings"
-            | "include_malware_scan"
             | "include_non_product"
             | "build"
             | "allow_cross_language"
             | "exact"
             | "run_tests"
             | "duplicate_ratchet"
+            | "auto_discover_wrappers"
     ) {
         return json!({"type": "boolean"});
     }
@@ -263,7 +290,11 @@ fn is_integer(name: &str) -> bool {
                 | "token_budget"
                 | "community_id"
                 | "impact_depth"
+                | "data_flow_depth"
                 | "loop_depth_threshold"
+                | "runtime_evidence_max_age_hours"
+                | "page_size"
+                | "per_item_limit"
         )
 }
 
@@ -276,6 +307,9 @@ fn enum_schema(tool: &str, name: &str) -> Option<Value> {
         ("cross_repo_git", "action") => &["histories", "shared_commits", "diff"],
         ("get_architecture_contract", "action") => &["preview"],
         ("run_audit", "debt") => &["new", "existing", "all"],
+        ("verified_change", "phase") => &["plan", "verify"],
+        ("trace_api_contract", "transport") => &["all", "http", "graphql", "grpc", "event"],
+        ("trace_api_contract" | "get_neighbors", "response_detail") => &["compact", "full"],
         ("open_repo" | "rebuild_graph", "mode") => &["full", "no-tests", "tests-only"],
         _ => return None,
     };

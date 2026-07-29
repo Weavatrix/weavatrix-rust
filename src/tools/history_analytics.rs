@@ -1,5 +1,5 @@
 use crate::RepositoryState;
-use crate::tools::arg_u64;
+use crate::tools::optional_u64;
 use blazingly_json::{Value, json};
 use std::collections::BTreeMap;
 use weavatrix_git::{HistoryRecord, Repository};
@@ -35,7 +35,8 @@ pub(super) fn analyze(
         commits.push(json!({
             "id": record.id.to_string(),
             "time": time,
-            "changed_files": paths.len()
+            "changed_files": paths.len(),
+            "summary": record.commit.summary_lossy()
         }));
     }
     let mut hotspots = frequency
@@ -52,15 +53,18 @@ pub(super) fn analyze(
         .collect::<Vec<_>>();
     hotspots
         .sort_unstable_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
-    let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(10)).unwrap_or(10);
-    let minimum = arg_u64(args, "min_pair_count").unwrap_or(3);
-    let max_pairs = usize::try_from(arg_u64(args, "max_pairs").unwrap_or(100)).unwrap_or(100);
+    let top = usize::try_from(optional_u64(args, "top_n")?.unwrap_or(10))
+        .map_err(|_| "top_n is too large".to_owned())?;
+    let minimum = optional_u64(args, "min_pair_count")?.unwrap_or(3);
+    let max_pairs = usize::try_from(optional_u64(args, "max_pairs")?.unwrap_or(100))
+        .map_err(|_| "max_pairs is too large".to_owned())?;
     let mut pairs = coupling
         .into_iter()
         .filter(|(_, count)| *count >= minimum)
         .collect::<Vec<_>>();
     pairs.sort_unstable_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
     Ok(json!({
+        "status": "COMPLETE",
         "commits_scanned": records.len(),
         "commits": commits,
         "hotspots": hotspots.into_iter().take(top).map(
@@ -79,8 +83,15 @@ pub(super) fn analyze(
             })
         ).collect::<Vec<_>>(),
         "metric": "changed-file frequency multiplied by static graph connectivity",
-        "numstat_lines": "NOT_AVAILABLE",
-        "commit_messages": "NOT_READ"
+        "git_evidence": {
+            "present": true,
+            "changed_paths": true,
+            "commit_messages": true
+        },
+        "numstat_lines": {
+            "present": false,
+            "reason": "this history contract analyzes changed paths and graph connectivity; it does not request line-addition and line-deletion counts"
+        }
     }))
 }
 

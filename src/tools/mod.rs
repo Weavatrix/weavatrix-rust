@@ -17,6 +17,7 @@ mod history_diff;
 mod memory;
 mod semantic;
 mod source;
+mod transport_contracts;
 mod vector;
 mod workflow;
 
@@ -33,6 +34,9 @@ use blazingly_json::{Value, json};
 /// failures without mutating repository source.
 #[allow(clippy::needless_pass_by_value)]
 pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<Value, String> {
+    if name == "trace_api_contract" {
+        return workflow::trace_api_cached(weavatrix, &arguments);
+    }
     let state = weavatrix.state();
     match name {
         "graph_stats" => Ok(graph::stats(state)),
@@ -46,17 +50,16 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
         "git_history" => history::history(state, &arguments),
         "cross_repo_git" => history::cross_repo(state, &arguments),
         "verified_change" => workflow::verified_change(state, &arguments),
-        "trace_api_contract" => workflow::trace_api(state, &arguments),
         "get_community" | "list_communities" => graph::communities(state, &arguments),
         "search_code" => source::search(state, &arguments),
         "read_source" => source::read_source(state, &arguments),
         "inspect_symbol" => source::inspect(state, &arguments),
         "context_bundle" => source::context(state, &arguments),
         "find_duplicates" => health::duplicates(state, &arguments),
-        "find_dead_code" => Ok(health::dead_code(state, &arguments)),
-        "run_audit" => Ok(health::audit(state, &arguments)),
-        "coverage_map" => Ok(health::coverage(state, &arguments)),
-        "hot_path_review" => Ok(health::hot_paths(state, &arguments)),
+        "find_dead_code" => health::dead_code(state, &arguments),
+        "run_audit" => health::audit(state, &arguments),
+        "coverage_map" => health::coverage(state, &arguments),
+        "hot_path_review" => health::hot_paths(state, &arguments),
         "module_map" => Ok(graph::module_map(state, &arguments)),
         "list_endpoints" => graph::endpoints(state, &arguments),
         "trace_endpoint" => graph_trace::endpoint(state, &arguments),
@@ -77,10 +80,15 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
         }
         "open_repo" => {
             let path = arg_str(&arguments, "path")?.to_owned();
-            weavatrix
-                .open_repository(&path)
+            let should_build = arg_bool(&arguments, "build").unwrap_or(true);
+            let graph_built = weavatrix
+                .open_repository_with_build(&path, should_build)
                 .map_err(|error| error.to_string())?;
-            Ok(json!({"repository": path, "graph": graph::stats(weavatrix.state())}))
+            Ok(json!({
+                "repository": weavatrix.state().root(),
+                "built": graph_built,
+                "graph": graph::stats(weavatrix.state())
+            }))
         }
         "list_known_repos" => Ok(json!({
             "repositories": weavatrix.known_roots().collect::<Vec<_>>()
@@ -89,29 +97,82 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
     }
 }
 
-pub(crate) fn arg_str<'value>(args: &'value Value, key: &str) -> Result<&'value str, String> {
+fn arg_value<'value, T>(
+    args: &'value Value,
+    key: &str,
+    expected: &str,
+    extract: impl FnOnce(&'value Value) -> Option<T>,
+) -> Result<T, String> {
     args.get(key)
-        .and_then(Value::as_str)
-        .ok_or_else(|| format!("{key} must be a string"))
+        .and_then(extract)
+        .ok_or_else(|| format!("{key} must be {expected}"))
+}
+
+pub(crate) fn arg_str<'value>(args: &'value Value, key: &str) -> Result<&'value str, String> {
+    arg_value(args, key, "a string", Value::as_str)
 }
 
 pub(crate) fn arg_u64(args: &Value, key: &str) -> Result<u64, String> {
-    args.get(key)
-        .and_then(Value::as_u64)
-        .ok_or_else(|| format!("{key} must be a non-negative integer"))
-}
-
-#[cfg(feature = "semantic")]
-pub(crate) fn arg_f64(args: &Value, key: &str) -> Result<f64, String> {
-    args.get(key)
-        .and_then(Value::as_f64)
-        .ok_or_else(|| format!("{key} must be a number"))
+    arg_value(args, key, "a non-negative integer", Value::as_u64)
 }
 
 pub(crate) fn arg_bool(args: &Value, key: &str) -> Result<bool, String> {
+    arg_value(args, key, "a boolean", Value::as_bool)
+}
+
+pub(crate) fn optional_str<'value>(
+    args: &'value Value,
+    key: &str,
+) -> Result<Option<&'value str>, String> {
     args.get(key)
-        .and_then(Value::as_bool)
-        .ok_or_else(|| format!("{key} must be a boolean"))
+        .map(|value| {
+            value
+                .as_str()
+                .ok_or_else(|| format!("{key} must be a string"))
+        })
+        .transpose()
+}
+
+pub(crate) fn optional_u64(args: &Value, key: &str) -> Result<Option<u64>, String> {
+    args.get(key)
+        .map(|value| {
+            value
+                .as_u64()
+                .ok_or_else(|| format!("{key} must be a non-negative integer"))
+        })
+        .transpose()
+}
+
+pub(crate) fn optional_bool(args: &Value, key: &str) -> Result<Option<bool>, String> {
+    args.get(key)
+        .map(|value| {
+            value
+                .as_bool()
+                .ok_or_else(|| format!("{key} must be a boolean"))
+        })
+        .transpose()
+}
+
+#[cfg(any(feature = "semantic", feature = "vector"))]
+fn vector_values(value: &Value, array_error: &str) -> Result<Vec<f32>, String> {
+    value
+        .as_array()
+        .ok_or_else(|| array_error.to_owned())?
+        .iter()
+        .map(|value| {
+            let value = value
+                .as_f64()
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| "vector value must be finite".to_owned())?;
+            if !(f64::from(f32::MIN)..=f64::from(f32::MAX)).contains(&value) {
+                return Err("vector value is outside finite f32 range".to_owned());
+            }
+            value
+                .to_string()
+                .parse::<f32>()
+                .map_err(|error| format!("invalid vector value: {error}"))
+        })
+        .collect()
 }
 
 /// The repository path a node's evidence comes from, if any.
@@ -133,8 +194,8 @@ pub(crate) fn node_is_visible(state: &crate::RepositoryState, slot: usize, args:
     let Some(node) = state.graph().node_at(index) else {
         return true;
     };
-    if let Some(path) = node_path(node) {
-        return health::path_is_visible(path, args);
+    if node_path(node).is_some() {
+        return evidence_node_is_visible(node, args);
     }
     // Domain nodes such as endpoints, tables and topics carry no span: they are
     // classified by the files that declare them, so a route declared only in a
@@ -144,15 +205,25 @@ pub(crate) fn node_is_visible(state: &crate::RepositoryState, slot: usize, args:
         let Some(source) = state.graph().node(edge.source.as_str()) else {
             continue;
         };
-        let Some(path) = node_path(source) else {
+        if node_path(source).is_none() {
             continue;
-        };
+        }
         declared = true;
-        if health::path_is_visible(path, args) {
+        if evidence_node_is_visible(source, args) {
             return true;
         }
     }
     // Repository and package nodes have no declaring file; keep them rather
     // than hide evidence.
     !declared
+}
+
+fn evidence_node_is_visible(node: &weavatrix_graph::Node, args: &Value) -> bool {
+    if matches!(
+        node.attributes.get("test_only"),
+        Some(weavatrix_graph::AttributeValue::Bool(true))
+    ) {
+        return args.get("include_tests").and_then(Value::as_bool) == Some(true);
+    }
+    node_path(node).is_none_or(|path| health::path_is_visible(path, args))
 }

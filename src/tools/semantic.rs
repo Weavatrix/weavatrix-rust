@@ -1,6 +1,6 @@
 use crate::RepositoryState;
 #[cfg(feature = "semantic")]
-use crate::tools::{arg_bool, arg_f64, arg_str, arg_u64};
+use crate::tools::{arg_bool, arg_str, arg_u64};
 use blazingly_json::Value;
 #[cfg(feature = "semantic")]
 use blazingly_json::json;
@@ -66,24 +66,10 @@ fn vectors(args: &Value) -> Result<Vec<SemanticVector>, String> {
                 .ok_or_else(|| "vector.node must be a string".to_owned())?;
             let values = item
                 .get("values")
-                .and_then(Value::as_array)
-                .ok_or_else(|| "vector.values must be an array".to_owned())?
-                .iter()
-                .map(|value| {
-                    let value = value
-                        .as_f64()
-                        .ok_or_else(|| "vector value must be a number".to_owned())?;
-                    if !value.is_finite()
-                        || !(f64::from(f32::MIN)..=f64::from(f32::MAX)).contains(&value)
-                    {
-                        return Err("vector value is outside finite f32 range".to_owned());
-                    }
-                    value
-                        .to_string()
-                        .parse::<f32>()
-                        .map_err(|error| format!("invalid vector value: {error}"))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+                .ok_or_else(|| "vector.values must be an array".to_owned())
+                .and_then(|values| {
+                    super::vector_values(values, "vector.values must be an array")
+                })?;
             SemanticVector::new(node, values).map_err(|error| error.to_string())
         })
         .collect()
@@ -99,7 +85,9 @@ fn link_config(args: &Value, default_selection: SelectionMode) -> LinkConfig {
     };
     LinkConfig::new(
         arg_str(args, "model").unwrap_or("caller-supplied"),
-        arg_f64(args, "min_similarity").unwrap_or(0.78),
+        args.get("min_similarity")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.78),
         usize::try_from(arg_u64(args, "top_k").unwrap_or(8)).unwrap_or(8),
     )
     .with_selection(selection)
@@ -112,22 +100,45 @@ fn link(
     config: LinkConfig,
     policy: Option<&SeoLinkPolicy>,
 ) -> Result<SemanticLinkReport, String> {
+    macro_rules! run {
+        ($linker:expr) => {{
+            let linker = $linker;
+            apply_policy(
+                policy,
+                || {
+                    linker
+                        .link(state.graph(), vectors)
+                        .map_err(|error| error.to_string())
+                },
+                |policy| {
+                    linker
+                        .link_with_policy(state.graph(), vectors, policy)
+                        .map_err(|error| error.to_string())
+                },
+            )
+        }};
+    }
+
     let dimensions = vectors.first().map_or(0, SemanticVector::dimension);
     if vectors.len() >= 2_000 {
         let linker = VectorSemanticLinker::new(config, VectorCandidateConfig::new(dimensions))
             .map_err(|error| error.to_string())?;
-        return match policy {
-            Some(policy) => linker.link_with_policy(state.graph(), vectors, policy),
-            None => linker.link(state.graph(), vectors),
-        }
-        .map_err(|error| error.to_string());
+        return run!(linker);
     }
     let linker = SemanticLinker::new(config).map_err(|error| error.to_string())?;
+    run!(linker)
+}
+
+#[cfg(feature = "semantic")]
+fn apply_policy(
+    policy: Option<&SeoLinkPolicy>,
+    without: impl FnOnce() -> Result<SemanticLinkReport, String>,
+    with: impl FnOnce(&SeoLinkPolicy) -> Result<SemanticLinkReport, String>,
+) -> Result<SemanticLinkReport, String> {
     match policy {
-        Some(policy) => linker.link_with_policy(state.graph(), vectors, policy),
-        None => linker.link(state.graph(), vectors),
+        Some(policy) => with(policy),
+        None => without(),
     }
-    .map_err(|error| error.to_string())
 }
 
 #[cfg(feature = "semantic")]

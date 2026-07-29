@@ -176,6 +176,30 @@ fn graph_search_source_and_semantic_tools_work_together() {
 }
 
 #[test]
+#[cfg(feature = "search")]
+fn search_code_bounds_returned_matches_without_losing_totals() {
+    let fixture = Fixture::new();
+    fixture.write("src/many.rs", "needle\nneedle\nneedle\nneedle\nneedle\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    let search = tools::call(
+        &mut engine,
+        "search_code",
+        json!({"query": "needle", "max_results": 2}),
+    )
+    .unwrap();
+
+    assert_eq!(search["matches"].as_array().map(Vec::len), Some(2));
+    assert_eq!(search["returned_matches"], 2);
+    assert_eq!(search["totals"]["returned_matches"], 2);
+    assert_eq!(search["matching_lines"], 5);
+    assert_eq!(search["totals"]["matching_lines"], 5);
+    assert_eq!(search["occurrences"], 5);
+    assert_eq!(search["totals"]["occurrences"], 5);
+    assert_eq!(search["truncated"], true);
+}
+
+#[test]
 fn rust_tarpaulin_coverage_is_measured_not_static_reachability() {
     let fixture = Fixture::new();
     fixture.write("src/lib.rs", "pub fn covered() {}\n");
@@ -196,7 +220,8 @@ fn rust_tarpaulin_coverage_is_measured_not_static_reachability() {
     );
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
     let coverage = tools::call(&mut engine, "coverage_map", json!({})).unwrap();
-    assert_eq!(coverage["actualCoverage"], "AVAILABLE");
+    assert_eq!(coverage["status"], "COMPLETE");
+    assert_eq!(coverage["measured_coverage"]["present"], true);
     assert_eq!(coverage["files"][0]["lines_hit"], 1);
     assert_eq!(coverage["files"][0]["lines_found"], 1);
 }
@@ -220,6 +245,32 @@ fn audit_compares_external_imports_with_supported_manifests() {
     assert!(findings.iter().any(|finding| {
         finding["rule"] == "dependency.unused_declaration" && finding["package"] == "lodash"
     }));
+}
+
+#[test]
+#[cfg(feature = "lang-rust")]
+fn audit_matches_hyphenated_cargo_dependencies_to_grouped_rust_uses() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\n\n[dependencies]\nblazingly-json = \"0.1.0\"\n",
+    );
+    fixture.write(
+        "src/lib.rs",
+        "use blazingly_json::{Value, json};\npub fn value() -> Value { json!({\"ok\": true}) }\n",
+    );
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let audit = tools::call(&mut engine, "run_audit", json!({})).unwrap();
+    let findings = audit["dependency_report"]["findings"].as_array().unwrap();
+
+    assert!(
+        !findings.iter().any(|finding| {
+            finding["rule"] == "dependency.unused_declaration"
+                && finding["package"] == "blazingly-json"
+        }),
+        "grouped use must count as exact Cargo import evidence, got {findings:?}"
+    );
 }
 
 #[test]

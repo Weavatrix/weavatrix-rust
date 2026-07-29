@@ -1,0 +1,4 @@
+interface:
+  display_name: "Weavatrix"
+  short_description: "Native repository intelligence for coding agents"
+  default_prompt: "Use $weavatrix to inspect this repository with graph, health, impact, and source evidence."

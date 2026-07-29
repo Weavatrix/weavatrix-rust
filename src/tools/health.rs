@@ -1,10 +1,8 @@
 use crate::RepositoryState;
-#[cfg(feature = "clone")]
-use crate::tools::arg_str;
-use crate::tools::arg_u64;
+use crate::tools::{optional_bool, optional_str, optional_u64};
 use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
-use weavatrix_graph::{EdgeKind, GraphView, NodeKind, strongly_connected_components};
+use weavatrix_graph::{AttributeValue, EdgeKind, GraphView, NodeIndex, NodeKind};
 
 #[cfg(feature = "clone")]
 #[allow(clippy::too_many_lines)]
@@ -13,14 +11,22 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
         CloneConfig, CloneDetector, DetectionMode, RepositoryCloneDetector, Similarity,
     };
 
-    let mode = match arg_str(args, "mode").unwrap_or("near_miss") {
+    let mode = match optional_str(args, "mode")?.unwrap_or("near_miss") {
         "strict" | "exact" => DetectionMode::Exact,
         "renamed" => DetectionMode::Renamed,
-        _ => DetectionMode::NearMiss,
+        "near_miss" => DetectionMode::NearMiss,
+        other => {
+            return Err(format!(
+                "mode must be strict, exact, renamed, or near_miss; got {other}"
+            ));
+        }
     };
-    let min_tokens = usize::try_from(arg_u64(args, "min_tokens").unwrap_or(50))
+    let min_tokens = usize::try_from(optional_u64(args, "min_tokens")?.unwrap_or(50))
         .map_err(|_| "min_tokens is too large")?;
-    let percent = arg_u64(args, "min_similarity").unwrap_or(80).min(100);
+    let percent = optional_u64(args, "min_similarity")?.unwrap_or(80);
+    if percent > 100 {
+        return Err("min_similarity must be between 0 and 100".to_owned());
+    }
     let detector = CloneDetector::new(CloneConfig {
         mode,
         min_tokens,
@@ -31,11 +37,28 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
     let report = RepositoryCloneDetector::new(detector)
         .detect(state.root())
         .map_err(|error| error.to_string())?;
-    let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(15)).unwrap_or(15);
-    let include_tests = args.get("include_tests").and_then(Value::as_bool) == Some(true);
-    let include_classified = args.get("include_classified").and_then(Value::as_bool) == Some(true);
-    let visible = |path: &str| {
-        let class = path_class(path);
+    let top = usize::try_from(optional_u64(args, "top_n")?.unwrap_or(15))
+        .map_err(|_| "top_n is too large".to_owned())?;
+    let include_tests = optional_bool(args, "include_tests")?.unwrap_or(false);
+    let include_classified = optional_bool(args, "include_classified")?.unwrap_or(false);
+    let mut test_lines = std::collections::HashMap::<String, BTreeSet<usize>>::new();
+    let mut visible = |path: &str, start: u32, end: u32| {
+        let mut class = path_class(path);
+        if class == PathClass::Product
+            && std::path::Path::new(path)
+                .extension()
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
+        {
+            let lines = test_lines.entry(path.to_owned()).or_insert_with(|| {
+                std::fs::read_to_string(state.root().join(path)).map_or_else(
+                    |_| BTreeSet::new(),
+                    |source| super::health_runtime::rust_cfg_test_lines(&source),
+                )
+            });
+            if (start..=end).all(|line| lines.contains(&(line as usize))) {
+                class = PathClass::Test;
+            }
+        }
         match class {
             PathClass::Product => true,
             PathClass::Test => include_tests,
@@ -47,7 +70,14 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
         .families
         .into_iter()
         .filter(|family| {
-            let keep = family.members.iter().any(|member| visible(&member.path));
+            let keep = family
+                .members
+                .iter()
+                .filter(|member| {
+                    visible(&member.path, member.span.start_line, member.span.end_line)
+                })
+                .count()
+                >= 2;
             suppressed_families += usize::from(!keep);
             keep
         })
@@ -70,16 +100,22 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
         .pairs
         .into_iter()
         .filter(|pair| {
-            let keep = visible(&pair.left.path) || visible(&pair.right.path);
+            let keep = visible(
+                &pair.left.path,
+                pair.left.span.start_line,
+                pair.left.span.end_line,
+            ) && visible(
+                &pair.right.path,
+                pair.right.span.start_line,
+                pair.right.span.end_line,
+            );
             suppressed_pairs += usize::from(!keep);
             keep
         })
         .collect::<Vec<_>>();
     pairs.sort_by_key(|pair| core::cmp::Reverse(pair.evidence.compared_tokens));
-    let include_boilerplate =
-        args.get("include_boilerplate").and_then(Value::as_bool) == Some(true);
-    let include_declarative =
-        args.get("include_declarative").and_then(Value::as_bool) == Some(true);
+    let include_boilerplate = optional_bool(args, "include_boilerplate")?.unwrap_or(false);
+    let include_declarative = optional_bool(args, "include_declarative")?.unwrap_or(false);
     let mut sources = std::collections::HashMap::<String, Vec<String>>::new();
     let mut suppressed_boilerplate = 0_usize;
     let mut suppressed_declarative = 0_usize;
@@ -112,6 +148,11 @@ pub fn duplicates(state: &RepositoryState, args: &Value) -> Result<Value, String
             true
         })
         .collect::<Vec<_>>();
+    let visible_pair_ids = families
+        .iter()
+        .flat_map(|family| family.pair_ids.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    pairs.retain(|pair| visible_pair_ids.contains(&pair.id));
     Ok(json!({
         "families": families.iter().take(top).map(|family| json!({
             "id": family.id,
@@ -227,6 +268,24 @@ fn path_class(path: &str) -> PathClass {
     if segments.first() == Some(&".github")
         || segments.first() == Some(&".gitlab")
         || has(&["ci", "workflows", ".circleci", "deploy", "k8s", "helm"])
+        || matches!(
+            file,
+            "package.json"
+                | "package-lock.json"
+                | "pnpm-lock.yaml"
+                | "yarn.lock"
+                | "cargo.toml"
+                | "cargo.lock"
+                | "pyproject.toml"
+                | "requirements.txt"
+                | "go.mod"
+                | "go.sum"
+                | "pom.xml"
+                | "build.gradle"
+                | "build.gradle.kts"
+                | "settings.gradle"
+                | "settings.gradle.kts"
+        )
     {
         return PathClass::Classified;
     }
@@ -240,12 +299,29 @@ fn path_class(path: &str) -> PathClass {
         "fixtures",
         "stories",
         "docs",
+        "bench",
+        "benches",
         "benchmark",
         "benchmarks",
+        "script",
+        "scripts",
         "temp",
         "dist",
         "build",
-    ]) || file.contains(".min.")
+    ]) || matches!(file, "test.rs" | "tests.rs" | "spec.rs" | "specs.rs")
+        || [
+            ".md",
+            ".markdown",
+            ".mdown",
+            ".mkd",
+            ".mkdn",
+            ".rst",
+            ".adoc",
+            ".asciidoc",
+        ]
+        .iter()
+        .any(|extension| file.ends_with(extension))
+        || file.contains(".min.")
         || file.contains(".openapi.")
     {
         return PathClass::Classified;
@@ -268,8 +344,11 @@ pub fn duplicates(_state: &RepositoryState, _args: &Value) -> Result<Value, Stri
     Err("clone capability is not compiled".to_owned())
 }
 
-pub fn dead_code(state: &RepositoryState, args: &Value) -> Value {
-    let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(30)).unwrap_or(30);
+pub fn dead_code(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    let top = usize::try_from(optional_u64(args, "top_n")?.unwrap_or(30))
+        .map_err(|_| "top_n is too large".to_owned())?;
+    let _ = optional_bool(args, "include_tests")?;
+    let _ = optional_bool(args, "include_classified")?;
     let entries = entry_points(state);
     let reachable = reachable_from(state, &entries);
     let candidates = state
@@ -310,14 +389,14 @@ pub fn dead_code(state: &RepositoryState, args: &Value) -> Value {
         })
         .take(top)
         .collect::<Vec<_>>();
-    json!({
+    Ok(json!({
         "candidates": candidates,
         "entry_points": entries.iter().filter_map(|index| {
             state.graph().node_at(*index).map(|node| node.id.as_str())
         }).collect::<Vec<_>>(),
         "reachable_nodes": reachable.len(),
         "verdict": "REVIEW_ONLY"
-    })
+    }))
 }
 
 /// Files a project declares as the way in: manifest entry points plus the
@@ -499,20 +578,29 @@ fn reachable_from(
     seen
 }
 
-pub fn audit(state: &RepositoryState, args: &Value) -> Value {
-    let max = usize::try_from(arg_u64(args, "max_findings").unwrap_or(30)).unwrap_or(30);
-    let cycles = strongly_connected_components(state.graph())
-        .into_iter()
-        .filter(|component| component.len() > 1)
-        .take(max)
-        .map(|component| {
-            component
-                .into_iter()
-                .filter_map(|index| state.graph().node_at(index))
-                .map(|node| node.id.as_str())
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
+pub fn audit(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    let max = usize::try_from(optional_u64(args, "max_findings")?.unwrap_or(30))
+        .map_err(|_| "max_findings is too large".to_owned())?;
+    let _ = optional_bool(args, "include_tests")?;
+    let _ = optional_bool(args, "include_classified")?;
+    let _ = optional_str(args, "category")?;
+    let _ = optional_str(args, "min_severity")?;
+    if let Some(view) = optional_str(args, "debt")?
+        && !matches!(view, "new" | "existing" | "all")
+    {
+        return Err("debt must be new, existing, or all".to_owned());
+    }
+    if let Some(changed) = args.get("changed_files") {
+        let changed = changed
+            .as_array()
+            .ok_or_else(|| "changed_files must be an array of strings".to_owned())?;
+        if changed.iter().any(|path| path.as_str().is_none()) {
+            return Err("changed_files must contain only strings".to_owned());
+        }
+    }
+    let all_cycles = runtime_dependency_cycles(state.graph(), args);
+    let has_cycles = !all_cycles.is_empty();
+    let cycles = all_cycles.into_iter().take(max).collect::<Vec<_>>();
     let mut language_counts = BTreeMap::<String, u64>::new();
     for node in state.graph().nodes() {
         if let Some(language) = &node.language {
@@ -521,42 +609,326 @@ pub fn audit(state: &RepositoryState, args: &Value) -> Value {
     }
     let dependency_report = super::health_dependencies::report(state, max);
     let runtime_report = super::health_runtime::runtime(state, max);
-    let advisory_report = super::health_runtime::advisories(state, max);
-    let malware_requested = args
-        .get("include_malware_scan")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let malware_report = super::health_runtime::malware(state, max, malware_requested);
-    let coverage_report = super::health_coverage::coverage(state);
-    let reviewing = [
-        &runtime_report,
-        &advisory_report,
-        &malware_report,
-        &dependency_report,
-    ]
-    .iter()
-    .any(|report| report["status"] == "REVIEW");
-    json!({
+    let coverage_report = super::health_coverage::coverage(state, &json!({}))?;
+    let reviewing = [&runtime_report, &dependency_report]
+        .iter()
+        .any(|report| report["status"] == "REVIEW")
+        || has_cycles;
+    let debt = debt(state, args, max, &runtime_report)?;
+    Ok(json!({
         "status": if state.snapshot().diagnostics.is_empty() && !reviewing {"PASS"} else {"REVIEW"},
+        "execution": {"status": "COMPLETE"},
         "findings": state.snapshot().diagnostics.iter().take(max).collect::<Vec<_>>(),
         "cycles": cycles,
+        "cycle_model": {
+            "scope": "production file-level runtime dependencies",
+            "relations": ["runtime imports", "cyclic cross-file call chains", "mounts", "transport producer-to-consumer"],
+            "excluded": ["containment", "symbol ownership", "references", "inheritance", "implements", "re-exports", "type-only and compile-time imports", "test and classified files by default"],
+        },
         "languages": language_counts,
         "capability_matrix": state.snapshot().capabilities,
         "dependency_report": dependency_report,
         "runtime_report": runtime_report,
-        "advisory_report": advisory_report,
-        "malware_report": malware_report,
         "coverage_report": coverage_report,
-        "completeness": {
-            "structure": "PARTIAL_LANGUAGE_AWARE",
-            "dependencies": "PARTIAL_MANIFEST_AWARE",
-            "runtime": runtime_report["completeness"].clone(),
-            "advisories": advisory_report["completeness"].clone(),
-            "malware": malware_report["completeness"].clone(),
-            "coverage": coverage_report["actualCoverage"].clone()
+        "evidence": {
+            "structure": {
+                "present": true,
+                "scope": "registered lossless and structural language adapters with typed graph provenance"
+            },
+            "dependencies": dependency_report["manifest_evidence"].clone(),
+            "runtime": runtime_report["runtime_evidence"].clone(),
+            "coverage": coverage_report["measured_coverage"].clone()
         },
-        "debt": debt(state, args, max, &cycles, &runtime_report)
+        "debt": debt
+    }))
+}
+
+/// Finds actionable dependency cycles after collapsing symbol-level runtime
+/// evidence to its declaring files. A cycle in the raw semantic graph is not
+/// necessarily a dependency cycle: containment, type membership and name
+/// references routinely point in both directions without creating runtime
+/// coupling.
+fn runtime_dependency_cycles(graph: &weavatrix_graph::Graph, args: &Value) -> Vec<Vec<String>> {
+    let mut files_by_path = BTreeMap::<String, NodeIndex>::new();
+    for (slot, node) in graph.nodes().iter().enumerate() {
+        if node.kind == NodeKind::File {
+            files_by_path.insert(node.label.clone(), node_index(slot));
+        }
+    }
+
+    // Symbols carry their source path in the lossless span, so calls and
+    // transport facts can be projected to the same file graph as imports.
+    let owners = graph
+        .nodes()
+        .iter()
+        .enumerate()
+        .filter_map(|(slot, node)| {
+            if node.kind == NodeKind::File {
+                return Some((node_index(slot), node_index(slot)));
+            }
+            let owner = node
+                .span
+                .as_ref()
+                .and_then(|span| files_by_path.get(&span.file))
+                .copied()?;
+            Some((node_index(slot), owner))
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let visible = |index: NodeIndex| {
+        graph
+            .node_at(index)
+            .is_some_and(|node| path_is_visible(&node.label, args))
+    };
+    let mut adjacency = BTreeMap::<NodeIndex, BTreeSet<NodeIndex>>::new();
+    let mut calls = BTreeMap::<NodeIndex, BTreeSet<NodeIndex>>::new();
+    let mut transport = BTreeMap::<NodeIndex, (BTreeSet<NodeIndex>, BTreeSet<NodeIndex>)>::new();
+    for edge in graph.edges() {
+        let (Some(source), Some(target)) = (
+            graph.node_index(edge.source.as_str()),
+            graph.node_index(edge.target.as_str()),
+        ) else {
+            continue;
+        };
+        let Some(source_file) = owners.get(&source).copied() else {
+            continue;
+        };
+        match edge.kind {
+            EdgeKind::Imports
+                if runtime_import(edge)
+                    && runtime_import_language(graph, source_file)
+                    && !rust_module_declaration(graph, source, target, edge) =>
+            {
+                let Some(target_file) = owners.get(&target).copied() else {
+                    continue;
+                };
+                add_runtime_dependency(&mut adjacency, source_file, target_file, &visible);
+            }
+            EdgeKind::Calls if reliable_call(edge) => {
+                let Some(target_file) = owners.get(&target).copied() else {
+                    continue;
+                };
+                if visible(source_file) && visible(target_file) {
+                    calls.entry(source).or_default().insert(target);
+                    calls.entry(target).or_default();
+                }
+            }
+            EdgeKind::Mounts => {
+                let Some(target_file) = owners.get(&target).copied() else {
+                    continue;
+                };
+                add_runtime_dependency(&mut adjacency, source_file, target_file, &visible);
+            }
+            EdgeKind::Publishes if visible(source_file) => {
+                transport.entry(target).or_default().0.insert(source_file);
+            }
+            EdgeKind::Consumes if visible(source_file) => {
+                transport.entry(target).or_default().1.insert(source_file);
+            }
+            _ => {}
+        }
+    }
+    // A transport is directional runtime coupling: every producer can trigger
+    // every consumer of the same concrete topic/queue/exchange.
+    for (producers, consumers) in transport.values() {
+        for producer in producers {
+            for consumer in consumers {
+                add_runtime_dependency(&mut adjacency, *producer, *consumer, &visible);
+            }
+        }
+    }
+
+    let mut cycles = strongly_connected_files(graph, &adjacency);
+    // File A calling B and some unrelated function in B calling A is a
+    // dependency cycle, but not an execution cycle. Calls therefore have to
+    // form a real cyclic call chain before their owning files are reported.
+    for component in strongly_connected_nodes(&calls) {
+        let files = component
+            .into_iter()
+            .filter_map(|node| owners.get(&node).copied())
+            .collect::<BTreeSet<_>>();
+        if files.len() > 1 {
+            cycles.push(file_ids(graph, files));
+        }
+    }
+    cycles.sort_unstable();
+    cycles.dedup();
+    cycles
+}
+
+/// Only the original import edge has a coupling attribute. Resolver expansion
+/// through a re-export chain intentionally has none and must not turn a barrel
+/// or Rust crate root into an all-to-all runtime dependency.
+fn runtime_import(edge: &weavatrix_graph::Edge) -> bool {
+    matches!(
+        edge.attributes.get("coupling"),
+        Some(AttributeValue::String(coupling)) if coupling == "runtime"
+    )
+}
+
+/// These languages execute an import/source operation at runtime. Rust
+/// `use`, Java/C# imports and C/C++ includes are compile-time name or text
+/// composition; executable cross-file coupling in those languages is carried
+/// by call edges instead.
+fn runtime_import_language(graph: &weavatrix_graph::Graph, source_file: NodeIndex) -> bool {
+    graph.node_at(source_file).is_some_and(|node| {
+        matches!(
+            node.language.as_deref(),
+            Some("javascript" | "typescript" | "python" | "go" | "bash" | "swift")
+        )
     })
+}
+
+/// A repository-unique call name is useful navigation evidence but is not
+/// strong enough to fail a health gate: unrelated methods named `build` or
+/// `new` can otherwise invent a recursive chain. Import-scoped resolution has
+/// a concrete defining module on both sides.
+fn reliable_call(edge: &weavatrix_graph::Edge) -> bool {
+    edge.provenance
+        .detail
+        .as_deref()
+        .is_some_and(|detail| detail == "resolved through an import of the defining module")
+}
+
+/// `mod child;` composes a Rust module tree; it does not execute an import.
+/// The parser emits both a module symbol and a file-resolution edge over the
+/// same span, which lets health distinguish it from `use self::child`.
+fn rust_module_declaration(
+    graph: &weavatrix_graph::Graph,
+    source: NodeIndex,
+    target: NodeIndex,
+    edge: &weavatrix_graph::Edge,
+) -> bool {
+    let (Some(source_node), Some(target_node), Some(edge_span)) = (
+        graph.node_at(source),
+        graph.node_at(target),
+        edge.provenance.span.as_ref(),
+    ) else {
+        return false;
+    };
+    if source_node.language.as_deref() != Some("rust") || target_node.kind != NodeKind::File {
+        return false;
+    }
+    let target_path = std::path::Path::new(&target_node.label);
+    let module_name = if target_path.file_name().is_some_and(|name| name == "mod.rs") {
+        target_path
+            .parent()
+            .and_then(std::path::Path::file_name)
+            .and_then(|name| name.to_str())
+    } else {
+        target_path.file_stem().and_then(|name| name.to_str())
+    };
+    let Some(module_name) = module_name else {
+        return false;
+    };
+    graph.nodes().iter().any(|node| {
+        node.kind == NodeKind::Module
+            && node.label == module_name
+            && node.span.as_ref().is_some_and(|span| {
+                span.file == source_node.label
+                    && span.start >= edge_span.start
+                    && span.end <= edge_span.end
+            })
+    })
+}
+
+fn add_runtime_dependency(
+    adjacency: &mut BTreeMap<NodeIndex, BTreeSet<NodeIndex>>,
+    source: NodeIndex,
+    target: NodeIndex,
+    visible: &impl Fn(NodeIndex) -> bool,
+) {
+    if source != target && visible(source) && visible(target) {
+        adjacency.entry(source).or_default().insert(target);
+        adjacency.entry(target).or_default();
+    }
+}
+
+/// Deterministic, iterative Kosaraju traversal. Iterative traversal avoids a
+/// stack overflow on monorepos with long dependency chains.
+fn strongly_connected_files(
+    graph: &weavatrix_graph::Graph,
+    adjacency: &BTreeMap<NodeIndex, BTreeSet<NodeIndex>>,
+) -> Vec<Vec<String>> {
+    strongly_connected_nodes(adjacency)
+        .into_iter()
+        .map(|component| file_ids(graph, component))
+        .collect()
+}
+
+fn file_ids(
+    graph: &weavatrix_graph::Graph,
+    component: impl IntoIterator<Item = NodeIndex>,
+) -> Vec<String> {
+    let mut members = component
+        .into_iter()
+        .filter_map(|index| graph.node_at(index))
+        .map(|node| node.id.to_string())
+        .collect::<Vec<_>>();
+    members.sort_unstable();
+    members
+}
+
+fn strongly_connected_nodes(
+    adjacency: &BTreeMap<NodeIndex, BTreeSet<NodeIndex>>,
+) -> Vec<Vec<NodeIndex>> {
+    let mut seen = BTreeSet::new();
+    let mut order = Vec::new();
+    for start in adjacency.keys().copied() {
+        if seen.contains(&start) {
+            continue;
+        }
+        let mut stack = vec![(start, false)];
+        while let Some((node, expanded)) = stack.pop() {
+            if expanded {
+                order.push(node);
+                continue;
+            }
+            if !seen.insert(node) {
+                continue;
+            }
+            stack.push((node, true));
+            if let Some(neighbors) = adjacency.get(&node) {
+                stack.extend(neighbors.iter().rev().map(|neighbor| (*neighbor, false)));
+            }
+        }
+    }
+    let mut reverse = BTreeMap::<NodeIndex, BTreeSet<NodeIndex>>::new();
+    for (source, targets) in adjacency {
+        reverse.entry(*source).or_default();
+        for target in targets {
+            reverse.entry(*target).or_default().insert(*source);
+        }
+    }
+    let mut assigned = BTreeSet::new();
+    let mut components = Vec::new();
+    for start in order.into_iter().rev() {
+        if !assigned.insert(start) {
+            continue;
+        }
+        let mut component = Vec::new();
+        let mut stack = vec![start];
+        while let Some(node) = stack.pop() {
+            component.push(node);
+            if let Some(neighbors) = reverse.get(&node) {
+                for neighbor in neighbors.iter().rev() {
+                    if assigned.insert(*neighbor) {
+                        stack.push(*neighbor);
+                    }
+                }
+            }
+        }
+        if component.len() > 1 {
+            component.sort_unstable();
+            components.push(component);
+        }
+    }
+    components.sort_unstable();
+    components
+}
+
+fn node_index(slot: usize) -> NodeIndex {
+    NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX))
 }
 
 /// Baseline comparison needs Git object reads, which the minimal build omits.
@@ -565,19 +937,20 @@ fn debt(
     _state: &RepositoryState,
     args: &Value,
     _max: usize,
-    _cycles: &[Vec<&str>],
     _runtime_report: &Value,
-) -> Value {
-    if super::arg_str(args, "base_ref").is_err() {
-        return json!({
-            "status": "NOT_REQUESTED",
-            "message": "pass base_ref (for example HEAD~1 or origin/main) to separate new findings from inherited ones",
-        });
-    }
-    json!({
-        "status": "UNAVAILABLE",
-        "reason": "baseline comparison reads Git objects; this build was compiled without the git feature",
-    })
+) -> Result<Value, String> {
+    let requested = optional_str(args, "base_ref")?;
+    Ok(json!({
+        "status": "COMPLETE",
+        "comparison": {
+            "present": false,
+            "reason": if requested.is_some() {
+                "baseline comparison requires the Git-enabled build"
+            } else {
+                "no base_ref was requested"
+            }
+        }
+    }))
 }
 
 /// Compares deterministic finding identities against an immutable Git
@@ -587,31 +960,27 @@ fn debt(
     state: &RepositoryState,
     args: &Value,
     max: usize,
-    cycles: &[Vec<&str>],
     runtime_report: &Value,
-) -> Value {
+) -> Result<Value, String> {
     // Both sides use the same generous cap: comparing a truncated current set
     // against a fuller baseline would invent "fixed" findings.
     const DEBT_CAP: usize = 5_000;
 
-    let Ok(base_ref) = super::arg_str(args, "base_ref") else {
-        return json!({
-            "status": "NOT_REQUESTED",
-            "message": "pass base_ref (for example HEAD~1 or origin/main) to separate new findings from inherited ones",
-        });
-    };
-    let view = super::arg_str(args, "debt").unwrap_or("new");
-    let (baseline_graph, baseline_sources) =
-        match super::history_diff::revision_evidence(state, base_ref) {
-            Ok(evidence) => evidence,
-            Err(reason) => {
-                return json!({
-                    "status": "UNAVAILABLE",
-                    "base_ref": base_ref,
-                    "reason": reason,
-                });
+    let Some(base_ref) = optional_str(args, "base_ref")? else {
+        return Ok(json!({
+            "status": "COMPLETE",
+            "comparison": {
+                "present": false,
+                "reason": "no base_ref was requested"
             }
-        };
+        }));
+    };
+    let view = optional_str(args, "debt")?.unwrap_or("new");
+    if !matches!(view, "new" | "existing" | "all") {
+        return Err("debt must be new, existing, or all".to_owned());
+    }
+    let (baseline_graph, baseline_sources) =
+        super::history_diff::revision_evidence(state, base_ref)?;
     // The baseline must be filtered exactly like the worktree set, or
     // suppressed test evidence would masquerade as fixed debt.
     let baseline_sources = baseline_sources
@@ -624,10 +993,9 @@ fn debt(
         .filter_map(|finding| finding["id"].as_str().map(str::to_owned))
         .collect::<std::collections::BTreeSet<_>>();
     baseline_ids.extend(
-        strongly_connected_components(&baseline_graph)
-            .into_iter()
-            .filter(|component| component.len() > 1)
-            .map(|component| cycle_id(&baseline_graph, &component)),
+        runtime_dependency_cycles(&baseline_graph, args)
+            .iter()
+            .map(|component| cycle_id(component)),
     );
 
     let (mut current, _, truncated) = super::health_runtime::runtime_findings(
@@ -635,9 +1003,9 @@ fn debt(
         DEBT_CAP,
     );
     let _ = runtime_report;
-    for component in cycles {
+    for component in runtime_dependency_cycles(state.graph(), args) {
         current.push(json!({
-            "id": format!("structure.cycle:{}", fingerprint(component.iter().copied())),
+            "id": cycle_id(&component),
             "rule": "structure.dependency_cycle",
             "category": "structure",
             "severity": "medium",
@@ -664,8 +1032,9 @@ fn debt(
         "all" => &Vec::new(),
         _ => &new,
     };
-    json!({
-        "status": "COMPARED",
+    Ok(json!({
+        "status": "COMPLETE",
+        "comparison": {"present": true},
         "base_ref": base_ref,
         "baseline_nodes": baseline_graph.nodes().len(),
         "truncated": truncated,
@@ -673,8 +1042,6 @@ fn debt(
         "comparable_categories": ["runtime", "structure"],
         "uncomparable_categories": {
             "dependencies": "manifests and lockfiles are read from the worktree, not the baseline checkout",
-            "advisories": "supply-chain evidence is not comparable across a source-only baseline",
-            "malware": "installed package trees are not part of a Git revision",
             "coverage": "measured coverage reports are not stored in Git revisions"
         },
         "counts": {"new": new.len(), "existing": existing.len(), "fixed": fixed.len()},
@@ -683,17 +1050,15 @@ fn debt(
         } else {
             json!(selected.iter().take(max).collect::<Vec<_>>())
         },
-    })
+    }))
 }
 
 #[cfg(feature = "git")]
-fn cycle_id(graph: &weavatrix_graph::Graph, component: &[weavatrix_graph::NodeIndex]) -> String {
-    let members = component
-        .iter()
-        .filter_map(|index| graph.node_at(*index))
-        .map(|node| node.id.as_str())
-        .collect::<Vec<_>>();
-    format!("structure.cycle:{}", fingerprint(members.into_iter()))
+fn cycle_id(component: &[String]) -> String {
+    format!(
+        "structure.cycle:{}",
+        fingerprint(component.iter().map(String::as_str))
+    )
 }
 
 /// Order-independent fingerprint of a member set.
@@ -726,8 +1091,11 @@ pub(super) fn path_is_visible(path: &str, args: &Value) -> bool {
     }
 }
 
-pub fn hot_paths(state: &RepositoryState, args: &Value) -> Value {
-    let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(20)).unwrap_or(20);
+pub fn hot_paths(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    let top = usize::try_from(optional_u64(args, "top_n")?.unwrap_or(20))
+        .map_err(|_| "top_n is too large".to_owned())?;
+    let _ = optional_bool(args, "include_tests")?;
+    let _ = optional_bool(args, "include_classified")?;
     let mut ranked = state
         .graph()
         .nodes()
@@ -758,14 +1126,14 @@ pub fn hot_paths(state: &RepositoryState, args: &Value) -> Value {
             .cmp(&left.0)
             .then_with(|| left.3.id.cmp(&right.3.id))
     });
-    json!({
+    Ok(json!({
         "candidates": ranked.into_iter().take(top).map(|(score, lines, degree, node)| {
             json!({"node": node, "score": score, "source_lines": lines, "graph_degree": degree})
         }).collect::<Vec<_>>(),
         "model": "source span plus graph fan-in/fan-out; not profiler data"
-    })
+    }))
 }
 
-pub fn coverage(state: &RepositoryState, _args: &Value) -> Value {
-    super::health_coverage::coverage(state)
+pub fn coverage(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    super::health_coverage::coverage(state, args)
 }

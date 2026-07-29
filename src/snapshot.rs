@@ -15,8 +15,6 @@ pub struct Capability {
 #[serde(rename_all = "snake_case")]
 pub enum CapabilityState {
     Complete,
-    Partial,
-    Unavailable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -81,20 +79,19 @@ impl Snapshot {
 }
 
 fn legacy_node(node: &Node) -> Value {
-    let mut out = Map::new();
-    out.insert("id".into(), Value::String(node.id.to_string()));
-    out.insert("label".into(), Value::String(node.label.clone()));
-    out.insert("kind".into(), Value::String(node.kind.as_str().to_owned()));
-    out.insert("file_type".into(), Value::String("code".into()));
+    let mut out = legacy_object([
+        ("id", Value::String(node.id.to_string())),
+        ("label", Value::String(node.label.clone())),
+        ("kind", Value::String(node.kind.as_str().to_owned())),
+        ("file_type", Value::String("code".into())),
+    ]);
     if node.kind == NodeKind::File {
         out.insert("source_file".into(), Value::String(node.label.clone()));
     }
     if let Some(language) = &node.language {
         out.insert("language".into(), Value::String(language.clone()));
     }
-    if let Some(span) = &node.span {
-        out.insert("source_file".into(), Value::String(span.file.clone()));
-        out.insert("source_range".into(), legacy_range(span));
+    legacy_record(out, node.span.as_ref(), &node.attributes, |out, span| {
         out.insert(
             "source_location".into(),
             Value::String(format!("L{}", span.start.line)),
@@ -103,44 +100,64 @@ fn legacy_node(node: &Node) -> Value {
             "source_end".into(),
             Value::String(format!("L{}", span.end.line)),
         );
-    }
-    insert_attributes(&mut out, &node.attributes);
-    Value::Object(out)
+    })
 }
 
 fn legacy_edge(edge: &Edge) -> Value {
-    let mut out = Map::new();
-    out.insert("source".into(), Value::String(edge.source.to_string()));
-    out.insert("target".into(), Value::String(edge.target.to_string()));
-    out.insert(
-        "relation".into(),
-        Value::String(edge.kind.as_str().to_owned()),
-    );
-    out.insert(
-        "provenance".into(),
-        Value::String(edge.provenance.evidence.as_str().to_owned()),
-    );
-    out.insert(
-        "confidence".into(),
-        Value::String(format!("{:?}", edge.provenance.confidence).to_ascii_lowercase()),
-    );
-    out.insert(
-        "extractor".into(),
-        Value::String(edge.provenance.extractor.clone()),
-    );
+    let mut out = legacy_object([
+        ("source", Value::String(edge.source.to_string())),
+        ("target", Value::String(edge.target.to_string())),
+        ("relation", Value::String(edge.kind.as_str().to_owned())),
+        (
+            "provenance",
+            Value::String(edge.provenance.evidence.as_str().to_owned()),
+        ),
+        (
+            "confidence",
+            Value::String(format!("{:?}", edge.provenance.confidence).to_ascii_lowercase()),
+        ),
+        (
+            "extractor",
+            Value::String(edge.provenance.extractor.clone()),
+        ),
+    ]);
     if let Some(detail) = &edge.provenance.detail {
         out.insert("detail".into(), Value::String(detail.clone()));
     }
-    if let Some(span) = &edge.provenance.span {
+    legacy_record(
+        out,
+        edge.provenance.span.as_ref(),
+        &edge.attributes,
+        |out, span| {
+            out.insert("line".into(), Value::from(span.start.line));
+            out.insert(
+                "character".into(),
+                Value::from(span.start.column.saturating_sub(1)),
+            );
+        },
+    )
+}
+
+fn legacy_object(entries: impl IntoIterator<Item = (&'static str, Value)>) -> Map<String, Value> {
+    let mut out = Map::new();
+    for (key, value) in entries {
+        out.insert(key.to_owned(), value);
+    }
+    out
+}
+
+fn legacy_record(
+    mut out: Map<String, Value>,
+    span: Option<&SourceSpan>,
+    attributes: &std::collections::BTreeMap<String, AttributeValue>,
+    decorate_span: impl FnOnce(&mut Map<String, Value>, &SourceSpan),
+) -> Value {
+    if let Some(span) = span {
         out.insert("source_file".into(), Value::String(span.file.clone()));
         out.insert("source_range".into(), legacy_range(span));
-        out.insert("line".into(), Value::from(span.start.line));
-        out.insert(
-            "character".into(),
-            Value::from(span.start.column.saturating_sub(1)),
-        );
+        decorate_span(&mut out, span);
     }
-    insert_attributes(&mut out, &edge.attributes);
+    insert_attributes(&mut out, attributes);
     Value::Object(out)
 }
 

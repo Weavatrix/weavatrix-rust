@@ -8,6 +8,14 @@ use weavatrix_rust::{Weavatrix, tools};
 fn main() {
     let repositories = repositories();
     if repositories.is_empty() {
+        // Cargo executes `harness = false` benches without a distinguishing
+        // argument during `cargo test --all-targets`. Test profiles retain
+        // debug assertions; an actual `cargo bench` uses the release profile
+        // and must still fail closed when no corpus was supplied.
+        if cfg!(debug_assertions) {
+            eprintln!("repository benchmark skipped during `cargo test`: no corpus configured");
+            return;
+        }
         eprintln!("pass repository paths after `--` or set WEAVATRIX_BENCH_REPOSITORIES");
         std::process::exit(2);
     }

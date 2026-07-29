@@ -1,10 +1,10 @@
-use super::support::{normalized_path, parsed_provenance, sanitize_id};
+use super::support::{normalize_join, normalized_path, parsed_provenance, sanitize_id};
 use crate::Result;
 use crate::language::{ImportFact, Language};
 use blazingly_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use weavatrix_graph::{Edge, EdgeKind, GraphBuilder, Node, NodeId, NodeKind};
 
 pub(super) struct PendingImport {
@@ -15,10 +15,37 @@ pub(super) struct PendingImport {
     pub import: ImportFact,
 }
 
-/// Which repository files each file can name directly: its own imports plus
-/// everything reachable through re-export barrels. This is the scope a name
-/// reference is allowed to resolve in.
-pub(super) type ImportScopes = BTreeMap<String, BTreeSet<String>>;
+/// The exact local import surface available to each source file.
+#[derive(Default)]
+pub(super) struct ImportScopes {
+    /// Imported files plus everything reachable through re-export barrels.
+    files: BTreeMap<String, BTreeSet<String>>,
+    /// Exact local name -> exported name and defining import path.
+    bindings: BTreeMap<String, BTreeMap<String, BTreeSet<ImportedBinding>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct ImportedBinding {
+    pub(super) path: String,
+    pub(super) imported: String,
+    /// Whether `path` was reached through the imported module's re-export
+    /// surface rather than named directly by the import specifier.
+    pub(super) forwarded: bool,
+}
+
+impl ImportScopes {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    pub(super) fn files(&self, source: &str) -> Option<&BTreeSet<String>> {
+        self.files.get(source)
+    }
+
+    pub(super) fn bindings(&self, source: &str, local: &str) -> Option<&BTreeSet<ImportedBinding>> {
+        self.bindings.get(source)?.get(local)
+    }
+}
 
 pub(super) fn resolve(
     graph: &mut GraphBuilder,
@@ -95,10 +122,32 @@ fn resolve_imports(
             continue;
         }
         if is_local && let Some(path) = context.local_path(&item) {
+            let forwarded = context.forwarded(&item, forwards);
             scopes
+                .files
                 .entry(item.source_path.clone())
                 .or_default()
-                .insert(path);
+                .insert(path.clone());
+            for binding in &item.import.bindings {
+                let imported = scopes
+                    .bindings
+                    .entry(item.source_path.clone())
+                    .or_default()
+                    .entry(binding.local.clone())
+                    .or_default();
+                imported.insert(ImportedBinding {
+                    path: path.clone(),
+                    imported: binding.imported.clone(),
+                    forwarded: false,
+                });
+                for defining in &forwarded {
+                    imported.insert(ImportedBinding {
+                        path: defining.clone(),
+                        imported: binding.imported.clone(),
+                        forwarded: true,
+                    });
+                }
+            }
         }
         let targets = if is_local {
             locals
@@ -130,6 +179,7 @@ fn resolve_imports(
         if is_local && !forwards.is_empty() {
             for defining in context.forwarded(&item, forwards) {
                 scopes
+                    .files
                     .entry(item.source_path.clone())
                     .or_default()
                     .insert(defining.clone());
@@ -453,20 +503,33 @@ impl<'a> ResolutionContext<'a> {
         let mut rust_roots = BTreeMap::new();
         if imports.iter().any(|item| item.language == Language::Rust) {
             for path in files.keys() {
-                let Some(root) = path
+                let Some(crate_root) = path
                     .strip_suffix("/src/lib.rs")
                     .or_else(|| path.strip_suffix("/src/main.rs"))
                 else {
                     continue;
                 };
-                let Some(name) = Path::new(root).file_name().and_then(|value| value.to_str())
+                let Some(name) = Path::new(crate_root)
+                    .file_name()
+                    .and_then(|value| value.to_str())
                 else {
                     continue;
                 };
-                rust_roots.insert(normalize_crate(name), format!("{root}/src"));
+                rust_roots.insert(normalize_crate(name), format!("{crate_root}/src"));
+                if let Ok(manifest) =
+                    std::fs::read_to_string(root.join(crate_root).join("Cargo.toml"))
+                    && let Some(package) = cargo_package_name(&manifest)
+                {
+                    rust_roots.insert(normalize_crate(&package), format!("{crate_root}/src"));
+                }
             }
             if files.contains_key("src/lib.rs") || files.contains_key("src/main.rs") {
                 rust_roots.insert(normalize_crate(repository_label), "src".to_owned());
+                if let Ok(manifest) = std::fs::read_to_string(root.join("Cargo.toml"))
+                    && let Some(package) = cargo_package_name(&manifest)
+                {
+                    rust_roots.insert(normalize_crate(&package), "src".to_owned());
+                }
             }
         }
         let mut java_index = BTreeMap::new();
@@ -475,9 +538,13 @@ impl<'a> ResolutionContext<'a> {
                 if !has_extension(path, "java") {
                     continue;
                 }
-                let key = path
-                    .rfind("/java/")
-                    .map_or(path.as_str(), |position| &path[position + 6..]);
+                let key = ["/src/main/java/", "/src/test/java/", "/src/", "/java/"]
+                    .into_iter()
+                    .find_map(|marker| {
+                        path.rfind(marker)
+                            .map(|position| &path[position + marker.len()..])
+                    })
+                    .unwrap_or(path.as_str());
                 java_index.insert(key.to_owned(), path.clone());
             }
         }
@@ -514,6 +581,9 @@ impl<'a> ResolutionContext<'a> {
                         candidates.push(candidate);
                     }
                 }
+            }
+            if item.language == Language::TypeScript {
+                candidates = typescript_runtime_specifier_fallbacks(candidates, &specifier);
             }
         }
         candidates
@@ -610,6 +680,27 @@ impl<'a> ResolutionContext<'a> {
     }
 }
 
+fn cargo_package_name(manifest: &str) -> Option<String> {
+    let mut package = false;
+    for line in manifest.lines() {
+        let line = line.split('#').next().unwrap_or_default().trim();
+        if line.starts_with('[') {
+            package = line == "[package]";
+            continue;
+        }
+        if package
+            && let Some((key, value)) = line.split_once('=')
+            && key.trim() == "name"
+        {
+            let name = value.trim().trim_matches(['"', '\'']);
+            if !name.is_empty() {
+                return Some(name.to_owned());
+            }
+        }
+    }
+    None
+}
+
 /// Ordered resolution candidates, most specific first.
 fn candidates(item: &PendingImport, rust_roots: &BTreeMap<String, String>) -> Vec<String> {
     let mut bases = Vec::new();
@@ -618,7 +709,11 @@ fn candidates(item: &PendingImport, rust_roots: &BTreeMap<String, String>) -> Ve
         .parent()
         .unwrap_or_else(|| Path::new(""));
     if target.starts_with('.')
-        || matches!(item.language, Language::C | Language::Cpp | Language::Bash)
+        || matches!(
+            item.language,
+            Language::C | Language::Cpp | Language::Bash | Language::Protobuf
+        )
+        || item.language.as_str() == "markdown"
     {
         push_unique(&mut bases, normalize_join(parent, &target));
     }
@@ -648,14 +743,19 @@ fn rust_candidates(
     }
     let source = Path::new(&item.source_path);
     let mut roots = Vec::new();
+    let mut crate_roots = Vec::new();
     match segments[0] {
         "crate" => {
             segments.remove(0);
-            roots.push(rust_src_root(source));
+            let root = rust_src_root(source);
+            roots.push(root.clone());
+            crate_roots.push(root);
         }
         "self" => {
             segments.remove(0);
-            roots.push(rust_module_dir(source));
+            let module = rust_module_dir(source);
+            roots.push(module.clone());
+            crate_roots.push(module);
         }
         "super" => {
             let mut module = rust_module_dir(source);
@@ -663,7 +763,8 @@ fn rust_candidates(
                 segments.remove(0);
                 module.pop();
             }
-            roots.push(module);
+            roots.push(module.clone());
+            crate_roots.push(module);
         }
         first => {
             roots.push(rust_module_dir(source));
@@ -672,12 +773,23 @@ fn rust_candidates(
                 let mut member = segments.clone();
                 member.remove(0);
                 push_prefix_walk(bases, Path::new(root), &member);
+                push_rust_crate_root(bases, Path::new(root));
             }
         }
     }
     for root in roots {
         push_prefix_walk(bases, &root, &segments);
     }
+    for root in crate_roots {
+        push_rust_crate_root(bases, &root);
+    }
+}
+
+fn push_rust_crate_root(bases: &mut Vec<String>, root: &Path) {
+    push_unique(bases, normalized_path(&root.with_extension("rs")));
+    push_unique(bases, normalized_path(&root.join("mod.rs")));
+    push_unique(bases, normalized_path(&root.join("lib.rs")));
+    push_unique(bases, normalized_path(&root.join("main.rs")));
 }
 
 fn push_prefix_walk(bases: &mut Vec<String>, root: &Path, segments: &[&str]) {
@@ -762,6 +874,11 @@ fn python_candidates(bases: &mut Vec<String>, target: &str, parent: &Path) {
         .split('.')
         .filter(|segment| !segment.is_empty())
         .collect::<Vec<_>>();
+    // A repository may contain several independently executable Python
+    // applications below its root. Their script directory is on `sys.path`,
+    // so an absolute-looking `from service import ...` can resolve to the
+    // sibling `service.py` before the repository-root fallback.
+    push_prefix_walk(bases, parent, &segments);
     push_prefix_walk(bases, Path::new(""), &segments);
 }
 
@@ -795,6 +912,36 @@ fn expand(bases: Vec<String>, extensions: &[&str]) -> Vec<String> {
     result
 }
 
+/// TypeScript source commonly imports the JavaScript path that will exist
+/// after compilation. Preserve a real `.js`/`.jsx` file when it is present,
+/// then try the exact sibling source forms only as fallbacks.
+fn typescript_runtime_specifier_fallbacks(candidates: Vec<String>, specifier: &str) -> Vec<String> {
+    let runtime_extension = Path::new(specifier)
+        .extension()
+        .and_then(|extension| extension.to_str());
+    if !matches!(runtime_extension, Some("js" | "jsx")) {
+        return candidates;
+    }
+
+    let mut result = Vec::new();
+    for candidate in candidates {
+        push_unique(&mut result, candidate.clone());
+        if Path::new(&candidate)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| matches!(extension, "js" | "jsx"))
+        {
+            for extension in ["ts", "tsx", "mts", "cts"] {
+                push_unique(
+                    &mut result,
+                    normalized_path(&Path::new(&candidate).with_extension(extension)),
+                );
+            }
+        }
+    }
+    result
+}
+
 fn extensions(language: &Language) -> &'static [&'static str] {
     match language {
         Language::Rust => &["rs"],
@@ -805,6 +952,7 @@ fn extensions(language: &Language) -> &'static [&'static str] {
         Language::C => &["c", "h"],
         Language::Cpp => &["cpp", "cc", "cxx", "h", "hpp", "hh"],
         Language::Bash => &["sh", "bash"],
+        Language::Protobuf => &["proto"],
         _ => &[],
     }
 }
@@ -842,19 +990,4 @@ fn package_name(language: &Language, value: &str) -> String {
         }
         _ => target,
     }
-}
-
-fn normalize_join(parent: &Path, value: &str) -> String {
-    let joined = parent.join(value.replace('\\', "/"));
-    let mut normalized = PathBuf::new();
-    for component in joined.components() {
-        match component {
-            Component::ParentDir => {
-                normalized.pop();
-            }
-            Component::CurDir | Component::Prefix(_) | Component::RootDir => {}
-            Component::Normal(value) => normalized.push(value),
-        }
-    }
-    normalized_path(&normalized)
 }

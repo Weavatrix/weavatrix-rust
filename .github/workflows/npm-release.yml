@@ -1,43 +1,42 @@
-name: npm release
+name: Release native npm package
 
 on:
   push:
     tags:
-      - "npm-v*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "npm version to publish (defaults to npm/weavatrix/package.json)"
-        required: false
+      - "v*"
+
+concurrency:
+  group: npm-release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
-  id-token: write # npm provenance
 
 jobs:
   build:
+    if: github.repository == 'sergii-ziborov/weavatrix'
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: win32-x64
-            runner: windows-latest
+            runner: windows-2025
             target: x86_64-pc-windows-msvc
             binary: target/x86_64-pc-windows-msvc/release/weavatrix.exe
           - platform: win32-arm64
-            runner: windows-latest
+            runner: windows-11-arm
             target: aarch64-pc-windows-msvc
             binary: target/aarch64-pc-windows-msvc/release/weavatrix.exe
           - platform: darwin-x64
-            runner: macos-14
+            runner: macos-15-intel
             target: x86_64-apple-darwin
             binary: target/x86_64-apple-darwin/release/weavatrix
           - platform: darwin-arm64
-            runner: macos-14
+            runner: macos-15
             target: aarch64-apple-darwin
             binary: target/aarch64-apple-darwin/release/weavatrix
           - platform: linux-x64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             target: x86_64-unknown-linux-musl
             binary: target/x86_64-unknown-linux-musl/release/weavatrix
           - platform: linux-arm64
@@ -46,51 +45,137 @@ jobs:
             binary: target/aarch64-unknown-linux-musl/release/weavatrix
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Install musl toolchain
+      - name: Check out tagged source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - name: Install the declared Rust toolchain and target
+        shell: bash
+        run: |
+          rustup toolchain install 1.89.0 --profile minimal
+          rustup target add --toolchain 1.89.0 "${{ matrix.target }}"
+      - name: Install the native musl linker
         if: startsWith(matrix.platform, 'linux')
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - name: Add Rust target
-        run: rustup target add ${{ matrix.target }}
-      - name: Build release binary
-        run: cargo build --release --locked --target ${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
+        run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - name: Build the release binary
+        shell: bash
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: musl-gcc
+        run: cargo +1.89.0 build --release --locked --target "${{ matrix.target }}"
+      - name: Verify the native binary identity
+        shell: bash
+        run: |
+          ENGINE_VERSION="$(node -p "require('./npm/weavatrix/package.json').weavatrixEngineVersion")"
+          CARGO_VERSION="$(cargo +1.89.0 metadata --no-deps --format-version 1 | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(JSON.parse(s).packages.find(p=>p.name==='weavatrix-rust').version))")"
+          [[ "$ENGINE_VERSION" == "$CARGO_VERSION" ]]
+          node -e "const {spawnSync}=require('node:child_process');const result=spawnSync(process.argv[1],['--version'],{encoding:'utf8'});if(result.status!==0||result.stdout.trim()!=='weavatrix '+process.argv[2]){process.stderr.write(result.stderr||result.stdout);process.exit(1)}" \
+            "${{ matrix.binary }}" "$ENGINE_VERSION"
+      - name: Normalize the binary artifact layout
+        shell: bash
+        run: |
+          mkdir -p "artifacts/${{ matrix.platform }}"
+          cp "${{ matrix.binary }}" "artifacts/${{ matrix.platform }}/"
+      - name: Preserve the verified native binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: binary-${{ matrix.platform }}
-          path: ${{ matrix.binary }}
+          path: artifacts
           if-no-files-found: error
+          retention-days: 7
 
   publish:
+    if: github.repository == 'sergii-ziborov/weavatrix'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out tagged source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          node-version: 22
+          persist-credentials: false
+      - name: Set up Node.js for npm trusted publishing
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
           registry-url: https://registry.npmjs.org
-      - uses: actions/download-artifact@v4
+          package-manager-cache: false
+      - name: Download all verified platform binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
+          pattern: binary-*
           path: binaries
-      - name: Assemble packages
+          merge-multiple: true
+      - name: Assemble and verify the universal package
+        shell: bash
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          for platform in win32-x64 win32-arm64 darwin-x64 darwin-arm64 linux-x64 linux-arm64; do
-            case "$platform" in
-              win32-*) binary="binaries/binary-$platform/weavatrix.exe" ;;
-              *) binary="binaries/binary-$platform/weavatrix" ;;
-            esac
-            node scripts/build-npm-packages.mjs "$platform" "$binary" $VERSION
-          done
-          node scripts/build-npm-packages.mjs main $VERSION
-      - name: Publish platform packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION="$(node -p "require('./npm/weavatrix/package.json').version")"
+          ENGINE_VERSION="$(node -p "require('./npm/weavatrix/package.json').weavatrixEngineVersion")"
+          [[ "$GITHUB_REF_NAME" == "v$VERSION" ]]
+          [[ -n "$ENGINE_VERSION" ]]
+          node scripts/build-npm-packages.mjs universal binaries "$VERSION"
+          npm pack npm/dist/weavatrix --dry-run --json
+          ! find npm/dist/weavatrix -type f -path '*node_modules*' -print -quit | grep .
+      - name: Smoke-test the installed package boundary
+        shell: bash
         run: |
-          for dir in npm/dist/cli-*; do
-            npm publish "$dir" --provenance --access public
+          PACKAGE="$(npm pack npm/dist/weavatrix --json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(JSON.parse(s)[0].filename))")"
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT" "$PACKAGE"' EXIT
+          npm install --prefix "$ROOT" --ignore-scripts --no-audit --no-fund "./$PACKAGE"
+          ENGINE_VERSION="$(node -p "require('./npm/weavatrix/package.json').weavatrixEngineVersion")"
+          [[ "$("$ROOT/node_modules/.bin/weavatrix" --version)" == "weavatrix $ENGINE_VERSION" ]]
+          "$ROOT/node_modules/.bin/weavatrix" list-tools | grep -q '"graph_stats"'
+      - name: Enforce the installed-package cold MCP performance gate
+        shell: bash
+        run: |
+          mkdir -p target/javascript-baseline
+          JAVASCRIPT_PACKAGE="$(
+            npm pack "weavatrix-js@0.3.15" \
+              --pack-destination target/javascript-baseline \
+              --json |
+            node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(require('node:path').resolve('target/javascript-baseline',JSON.parse(s)[0].filename)))"
+          )"
+          node scripts/benchmark-npm-mcp.mjs \
+            --rust-main npm/dist/weavatrix \
+            --javascript "$JAVASCRIPT_PACKAGE" \
+            --repo . \
+            --tools graph_stats,list_endpoints,find_dead_code,run_audit \
+            --samples 5 \
+            --cold-samples 3 \
+            --timeout-ms 300000 \
+            --min-cold-speedup 24 \
+            --min-warm-speedup 30 \
+            --out target/npm-mcp-boundary.json
+      - name: Preserve the installed-package benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-mcp-boundary
+          path: target/npm-mcp-boundary.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish existing canonical package with provenance
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./npm/weavatrix/package.json').version")"
+          if npm view "weavatrix@$VERSION" version >/dev/null 2>&1; then
+            echo "weavatrix@$VERSION already exists; verifying registry metadata"
+          else
+            npm publish npm/dist/weavatrix --ignore-scripts --provenance --access public
+          fi
+
+          PUBLISHED_HEAD=""
+          PREDICATE=""
+          for attempt in $(seq 1 24); do
+            PUBLISHED_HEAD="$(npm view "weavatrix@$VERSION" gitHead --json 2>/dev/null | tr -d '\"\r\n' || true)"
+            PREDICATE="$(npm view "weavatrix@$VERSION" dist.attestations.provenance.predicateType --json 2>/dev/null | tr -d '\"\r\n' || true)"
+            if [[ "$PUBLISHED_HEAD" == "$GITHUB_SHA" && "$PREDICATE" == "https://slsa.dev/provenance/v1" ]]; then
+              break
+            fi
+            sleep 5
           done
-      - name: Publish weavatrix
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish npm/dist/weavatrix --provenance --access public
+          [[ "$PUBLISHED_HEAD" == "$GITHUB_SHA" ]]
+          [[ "$PREDICATE" == "https://slsa.dev/provenance/v1" ]]

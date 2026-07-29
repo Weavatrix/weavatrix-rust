@@ -3,9 +3,19 @@
 //
 //   node scripts/build-npm-packages.mjs <platform-key> <binary-path> [version]
 //   node scripts/build-npm-packages.mjs main [version]
+//   node scripts/build-npm-packages.mjs current <platform-key> <binary-path> [version]
+//   node scripts/build-npm-packages.mjs universal <artifacts-root> [version]
 //
 // Output lands in npm/dist/<package-name>/ ready for `npm publish`.
-import { copyFileSync, cpSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs'
+import {
+    chmodSync,
+    copyFileSync,
+    cpSync,
+    mkdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -30,13 +40,51 @@ if (!mode) usage()
 if (mode === 'main') {
     const version = rest[0] || wrapperManifest.version
     const target = join(DIST, 'weavatrix')
+    rmSync(target, { recursive: true, force: true })
     cpSync(WRAPPER, target, { recursive: true })
     const manifest = { ...wrapperManifest, version }
-    manifest.optionalDependencies = Object.fromEntries(
-        Object.keys(manifest.optionalDependencies).map((name) => [name, version]))
     writeFileSync(join(target, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
     copyFileSync(join(ROOT, 'LICENSE'), join(target, 'LICENSE'))
+    cpSync(join(ROOT, 'skill'), join(target, 'skill'), { recursive: true })
     console.log(`assembled ${target} @ ${version}`)
+} else if (mode === 'current') {
+    const [platform, binaryPath, versionArg] = rest
+    const entry = PLATFORMS[platform]
+    if (!entry || !binaryPath) usage()
+    const version = versionArg || wrapperManifest.version
+    const target = join(DIST, 'weavatrix')
+    rmSync(target, { recursive: true, force: true })
+    cpSync(WRAPPER, target, { recursive: true })
+    const manifest = { ...wrapperManifest, version }
+    delete manifest.optionalDependencies
+    writeFileSync(join(target, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+    copyFileSync(join(ROOT, 'LICENSE'), join(target, 'LICENSE'))
+    cpSync(join(ROOT, 'skill'), join(target, 'skill'), { recursive: true })
+    const destination = join(target, 'bin', 'native', platform, entry.binary)
+    mkdirSync(dirname(destination), { recursive: true })
+    copyFileSync(binaryPath, destination)
+    if (entry.os !== 'win32') chmodSync(destination, 0o755)
+    console.log(`assembled current-platform universal ${target} @ ${version}`)
+} else if (mode === 'universal') {
+    const [artifactsRoot, versionArg] = rest
+    if (!artifactsRoot) usage()
+    const version = versionArg || wrapperManifest.version
+    const target = join(DIST, 'weavatrix')
+    rmSync(target, { recursive: true, force: true })
+    cpSync(WRAPPER, target, { recursive: true })
+    const manifest = { ...wrapperManifest, version }
+    delete manifest.optionalDependencies
+    writeFileSync(join(target, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+    copyFileSync(join(ROOT, 'LICENSE'), join(target, 'LICENSE'))
+    cpSync(join(ROOT, 'skill'), join(target, 'skill'), { recursive: true })
+    for (const [platform, { os, binary }] of Object.entries(PLATFORMS)) {
+        const source = join(artifactsRoot, platform, binary)
+        const destination = join(target, 'bin', 'native', platform, binary)
+        mkdirSync(dirname(destination), { recursive: true })
+        copyFileSync(source, destination)
+        if (os !== 'win32') chmodSync(destination, 0o755)
+    }
+    console.log(`assembled universal ${target} @ ${version}`)
 } else if (PLATFORMS[mode]) {
     const [binaryPath, versionArg] = rest
     if (!binaryPath) usage()
@@ -44,6 +92,7 @@ if (mode === 'main') {
     const { os, cpu, binary } = PLATFORMS[mode]
     const name = `@weavatrix/cli-${mode}`
     const target = join(DIST, `cli-${mode}`)
+    rmSync(target, { recursive: true, force: true })
     mkdirSync(target, { recursive: true })
     copyFileSync(binaryPath, join(target, binary))
     if (os !== 'win32') chmodSync(join(target, binary), 0o755)
@@ -72,5 +121,7 @@ if (mode === 'main') {
 function usage() {
     console.error('usage: node scripts/build-npm-packages.mjs <win32-x64|win32-arm64|darwin-x64|darwin-arm64|linux-x64|linux-arm64> <binary-path> [version]')
     console.error('   or: node scripts/build-npm-packages.mjs main [version]')
+    console.error('   or: node scripts/build-npm-packages.mjs current <platform-key> <binary-path> [version]')
+    console.error('   or: node scripts/build-npm-packages.mjs universal <artifacts-root> [version]')
     process.exit(2)
 }

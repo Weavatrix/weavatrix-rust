@@ -1,7 +1,9 @@
+#[cfg(feature = "mcp")]
 mod server;
 
 use std::str::FromStr;
 
+#[cfg(feature = "mcp")]
 pub use server::{McpError, serve, serve_with_profile};
 
 /// Selects a bounded tool surface without starting another MCP process.

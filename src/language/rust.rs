@@ -5,12 +5,12 @@ use super::{
 use crate::error::Result;
 use crate::snapshot::Diagnostic;
 use proc_macro2::{LineColumn, Span};
+use syn::UseTree;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
-use syn::{Expr, Member, UseTree};
 use weavatrix_graph::{EdgeKind, NodeKind, SourcePosition, SourceSpan};
 
-use super::rust_endpoint::{attribute_routes, route_call};
+use super::rust_endpoint::{attribute_routes, callable_name, route_call};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RustAdapter;
@@ -46,7 +46,8 @@ impl LanguageAdapter for RustAdapter {
         let mut collector = Collector {
             path: source.path,
             facts: FileFacts::default(),
-            owners: Vec::new(),
+            owner: OwnerScope::default(),
+            test_context: false,
         };
         collector.visit_file(&syntax);
         collector
@@ -68,7 +69,19 @@ impl LanguageAdapter for RustAdapter {
 struct Collector<'source> {
     path: &'source str,
     facts: FileFacts,
-    owners: Vec<SymbolLocator>,
+    owner: OwnerScope,
+    test_context: bool,
+}
+
+#[derive(Clone, Default)]
+struct OwnerScope {
+    symbol: Option<SymbolLocator>,
+    type_name: Option<String>,
+}
+
+enum OwnerUpdate {
+    Symbol(SymbolLocator),
+    Type(String),
 }
 
 impl Collector<'_> {
@@ -82,23 +95,39 @@ impl Collector<'_> {
             name: locator.name.clone(),
             kind: locator.kind.clone(),
             span: locator.span.clone(),
-            owner: None,
+            test_only: self.test_context,
+            owner: (locator.kind == NodeKind::Method)
+                .then(|| self.owner.type_name.clone())
+                .flatten(),
         });
         locator
     }
 
-    fn with_owner(&mut self, owner: SymbolLocator, visit: impl FnOnce(&mut Self)) {
-        self.owners.push(owner);
+    fn with_owner(&mut self, update: OwnerUpdate, visit: impl FnOnce(&mut Self)) {
+        let previous = self.owner.clone();
+        match update {
+            OwnerUpdate::Symbol(owner) => self.owner.symbol = Some(owner),
+            OwnerUpdate::Type(owner) => self.owner.type_name = Some(owner),
+        }
         visit(self);
-        self.owners.pop();
+        self.owner = previous;
+    }
+
+    fn with_test_context(&mut self, attributes: &[syn::Attribute], visit: impl FnOnce(&mut Self)) {
+        let previous = self.test_context;
+        self.test_context |= attributes_mark_test(attributes);
+        visit(self);
+        self.test_context = previous;
     }
 
     fn add_reference(&mut self, name: String, span: Span) {
         self.facts.references.push(ReferenceFact {
             name,
             kind: EdgeKind::Calls,
+            receiver: None,
+            qualified: false,
             span: source_span(self.path, span),
-            owner: self.owners.last().cloned(),
+            owner: self.owner.symbol.clone(),
         });
     }
 
@@ -108,7 +137,7 @@ impl Collector<'_> {
             kind: NodeKind::Endpoint,
             relation: EdgeKind::Exposes,
             span: source_span(self.path, span),
-            owner: self.owners.last().cloned(),
+            owner: self.owner.symbol.clone(),
         });
     }
 
@@ -121,77 +150,119 @@ impl Collector<'_> {
 
 impl<'ast> Visit<'ast> for Collector<'_> {
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
-        let owner = self.add_symbol(&node.sig.ident, NodeKind::Function, node.span());
-        self.with_owner(owner, |collector| {
-            collector.add_attribute_endpoints(&node.attrs);
-            syn::visit::visit_item_fn(collector, node);
+        self.with_test_context(&node.attrs, |collector| {
+            let owner =
+                collector.add_symbol(&node.sig.ident, NodeKind::Function, node.sig.ident.span());
+            collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
+                collector.add_attribute_endpoints(&node.attrs);
+                syn::visit::visit_item_fn(collector, node);
+            });
         });
     }
 
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
-        let owner = self.add_symbol(&node.sig.ident, NodeKind::Method, node.span());
-        self.with_owner(owner, |collector| {
-            collector.add_attribute_endpoints(&node.attrs);
-            syn::visit::visit_impl_item_fn(collector, node);
+        self.with_test_context(&node.attrs, |collector| {
+            let owner =
+                collector.add_symbol(&node.sig.ident, NodeKind::Method, node.sig.ident.span());
+            collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
+                collector.add_attribute_endpoints(&node.attrs);
+                syn::visit::visit_impl_item_fn(collector, node);
+            });
         });
     }
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
-        let owner = self.add_symbol(&node.sig.ident, NodeKind::Method, node.span());
-        self.with_owner(owner, |collector| {
-            syn::visit::visit_trait_item_fn(collector, node);
+        self.with_test_context(&node.attrs, |collector| {
+            let owner =
+                collector.add_symbol(&node.sig.ident, NodeKind::Method, node.sig.ident.span());
+            collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
+                syn::visit::visit_trait_item_fn(collector, node);
+            });
         });
     }
 
     fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
-        self.add_symbol(&node.ident, NodeKind::Struct, node.span());
-        syn::visit::visit_item_struct(self, node);
+        self.with_test_context(&node.attrs, |collector| {
+            collector.add_symbol(&node.ident, NodeKind::Struct, node.ident.span());
+            syn::visit::visit_item_struct(collector, node);
+        });
     }
 
     fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
-        self.add_symbol(&node.ident, NodeKind::Enum, node.span());
-        syn::visit::visit_item_enum(self, node);
+        self.with_test_context(&node.attrs, |collector| {
+            collector.add_symbol(&node.ident, NodeKind::Enum, node.ident.span());
+            syn::visit::visit_item_enum(collector, node);
+        });
     }
 
     fn visit_item_trait(&mut self, node: &'ast syn::ItemTrait) {
-        self.add_symbol(&node.ident, NodeKind::Trait, node.span());
-        syn::visit::visit_item_trait(self, node);
+        self.with_test_context(&node.attrs, |collector| {
+            collector.add_symbol(&node.ident, NodeKind::Trait, node.ident.span());
+            collector.with_owner(OwnerUpdate::Type(node.ident.to_string()), |collector| {
+                syn::visit::visit_item_trait(collector, node);
+            });
+        });
+    }
+
+    fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
+        self.with_test_context(&node.attrs, |collector| {
+            if let Some(owner) = impl_owner(&node.self_ty) {
+                collector.with_owner(OwnerUpdate::Type(owner), |collector| {
+                    syn::visit::visit_item_impl(collector, node);
+                });
+            } else {
+                syn::visit::visit_item_impl(collector, node);
+            }
+        });
     }
 
     fn visit_item_type(&mut self, node: &'ast syn::ItemType) {
-        self.add_symbol(&node.ident, NodeKind::TypeAlias, node.span());
-        syn::visit::visit_item_type(self, node);
+        self.with_test_context(&node.attrs, |collector| {
+            collector.add_symbol(&node.ident, NodeKind::TypeAlias, node.ident.span());
+            syn::visit::visit_item_type(collector, node);
+        });
     }
 
     fn visit_item_const(&mut self, node: &'ast syn::ItemConst) {
-        self.add_symbol(&node.ident, NodeKind::Constant, node.span());
-        syn::visit::visit_item_const(self, node);
+        self.with_test_context(&node.attrs, |collector| {
+            collector.add_symbol(&node.ident, NodeKind::Constant, node.ident.span());
+            syn::visit::visit_item_const(collector, node);
+        });
     }
 
     fn visit_item_static(&mut self, node: &'ast syn::ItemStatic) {
-        self.add_symbol(&node.ident, NodeKind::Static, node.span());
-        syn::visit::visit_item_static(self, node);
+        self.with_test_context(&node.attrs, |collector| {
+            collector.add_symbol(&node.ident, NodeKind::Static, node.ident.span());
+            syn::visit::visit_item_static(collector, node);
+        });
     }
 
     fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
-        self.add_symbol(&node.ident, NodeKind::Module, node.span());
-        if node.content.is_none() {
-            // `mod x;` without a body pulls in x.rs or x/mod.rs. It is the
-            // only thing that makes those files part of the crate, so without
-            // this edge they look unreachable.
-            self.facts.imports.push(ImportFact::new(
-                format!("self::{}", node.ident),
-                source_span(self.path, node.span()),
-            ));
-        }
-        syn::visit::visit_item_mod(self, node);
+        self.with_test_context(&node.attrs, |collector| {
+            collector.add_symbol(&node.ident, NodeKind::Module, node.ident.span());
+            if node.content.is_none() {
+                // `mod x;` without a body pulls in x.rs or x/mod.rs. It is the
+                // only thing that makes those files part of the crate, so without
+                // this edge they look unreachable.
+                collector.facts.imports.push(ImportFact::new(
+                    format!("self::{}", node.ident),
+                    source_span(collector.path, node.span()),
+                ));
+            }
+            syn::visit::visit_item_mod(collector, node);
+        });
     }
 
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
-        self.facts.imports.push(ImportFact::new(
+        let fact = ImportFact::new(
             use_tree_text(&node.tree),
             source_span(self.path, node.span()),
-        ));
+        );
+        if matches!(node.vis, syn::Visibility::Inherited) {
+            self.facts.imports.push(fact);
+        } else {
+            self.facts.reexports.push(fact);
+        }
         syn::visit::visit_item_use(self, node);
     }
 
@@ -213,21 +284,65 @@ impl<'ast> Visit<'ast> for Collector<'_> {
     }
 }
 
-fn callable_name(expression: &Expr) -> Option<String> {
-    match expression {
-        Expr::Path(path) => path
-            .path
+fn attributes_mark_test(attributes: &[syn::Attribute]) -> bool {
+    attributes.iter().any(|attribute| {
+        let attribute_name = attribute
+            .path()
             .segments
             .last()
-            .map(|segment| segment.ident.to_string()),
-        Expr::Field(field) => match &field.member {
-            Member::Named(name) => Some(name.to_string()),
-            Member::Unnamed(_) => None,
-        },
-        Expr::Group(group) => callable_name(&group.expr),
-        Expr::Paren(parenthesized) => callable_name(&parenthesized.expr),
-        _ => None,
+            .map(|part| part.ident.to_string());
+        if attribute_name.as_deref().is_some_and(|name| {
+            matches!(
+                name,
+                "test" | "rstest" | "proptest" | "wasm_bindgen_test" | "test_case"
+            )
+        }) {
+            return true;
+        }
+        if !attribute.path().is_ident("cfg") {
+            return false;
+        }
+        let syn::Meta::List(meta_list) = &attribute.meta else {
+            return false;
+        };
+        cfg_list_marks_test(meta_list)
+    })
+}
+
+fn cfg_list_marks_test(list: &syn::MetaList) -> bool {
+    cfg_list_marks_test_with_negation(list, false)
+}
+
+fn cfg_list_marks_test_with_negation(list: &syn::MetaList, negated: bool) -> bool {
+    let nested_negated = if list.path.is_ident("not") {
+        !negated
+    } else {
+        negated
+    };
+    list.parse_args_with(syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated)
+        .is_ok_and(|items| {
+            items
+                .iter()
+                .any(|meta| cfg_meta_marks_test(meta, nested_negated))
+        })
+}
+
+fn cfg_meta_marks_test(meta: &syn::Meta, negated: bool) -> bool {
+    match meta {
+        syn::Meta::Path(path) => path.is_ident("test") && !negated,
+        syn::Meta::List(list) => cfg_list_marks_test_with_negation(list, negated),
+        syn::Meta::NameValue(_) => false,
     }
+}
+
+fn impl_owner(ty: &syn::Type) -> Option<String> {
+    let syn::Type::Path(path) = ty else {
+        return None;
+    };
+    path.path
+        .segments
+        .last()
+        .map(|segment| segment.ident.to_string())
 }
 
 fn use_tree_text(tree: &UseTree) -> String {

@@ -1,5 +1,5 @@
 use proc_macro2::Span;
-use syn::{Attribute, Expr, Lit};
+use syn::{Attribute, Expr, Lit, Member};
 
 pub(super) fn route_call(node: &syn::ExprMethodCall) -> Option<(&'static str, String)> {
     let mut arguments = node.args.iter();
@@ -39,27 +39,37 @@ pub(super) fn attribute_routes(attributes: &[Attribute]) -> Vec<(&'static str, S
 }
 
 fn string_literal(expression: &Expr) -> Option<String> {
-    match expression {
+    match unwrapped(expression) {
         Expr::Lit(literal) => match &literal.lit {
             Lit::Str(value) => Some(value.value()),
             _ => None,
         },
-        Expr::Group(group) => string_literal(&group.expr),
-        Expr::Paren(parenthesized) => string_literal(&parenthesized.expr),
         _ => None,
     }
 }
 
-fn callable_name(expression: &Expr) -> Option<String> {
-    match expression {
+pub(super) fn callable_name(expression: &Expr) -> Option<String> {
+    match unwrapped(expression) {
         Expr::Path(path) => path
             .path
             .segments
             .last()
             .map(|segment| segment.ident.to_string()),
-        Expr::Group(group) => callable_name(&group.expr),
-        Expr::Paren(parenthesized) => callable_name(&parenthesized.expr),
+        Expr::Field(field) => match &field.member {
+            Member::Named(name) => Some(name.to_string()),
+            Member::Unnamed(_) => None,
+        },
         _ => None,
+    }
+}
+
+fn unwrapped(mut expression: &Expr) -> &Expr {
+    loop {
+        expression = match expression {
+            Expr::Group(group) => &group.expr,
+            Expr::Paren(parenthesized) => &parenthesized.expr,
+            _ => return expression,
+        };
     }
 }
 

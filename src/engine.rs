@@ -1,17 +1,20 @@
 use crate::{Analyzer, Result, Snapshot};
-use std::collections::BTreeSet;
+use blazingly_json::Value;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
-use weavatrix_graph::{Graph, Node, NodeIndex};
+use weavatrix_graph::{Graph, Node, NodeIndex, weakly_connected_components};
 use weavatrix_scan::ScanReport;
 
 #[derive(Debug, Clone)]
 pub struct RepositoryState {
     root: PathBuf,
     snapshot: Snapshot,
-    graph: Graph,
+    graph: Arc<Graph>,
     scan: ScanReport,
     build_time: Duration,
+    weak_components: Arc<OnceLock<Vec<Vec<NodeIndex>>>>,
 }
 
 impl RepositoryState {
@@ -19,12 +22,17 @@ impl RepositoryState {
         let started = Instant::now();
         let (snapshot, scan) = analyzer.analyze_with_report(root)?;
         let graph = Graph::try_from_sorted_parts(snapshot.nodes.clone(), snapshot.edges.clone())?;
+        let snapshot_root = PathBuf::from(&snapshot.repository);
+        let root = snapshot_root
+            .canonicalize()
+            .map_err(|source| crate::Error::io(&snapshot_root, source))?;
         Ok(Self {
-            root: PathBuf::from(&snapshot.repository),
+            root,
             snapshot,
-            graph,
+            graph: Arc::new(graph),
             scan,
             build_time: started.elapsed(),
+            weak_components: Arc::new(OnceLock::new()),
         })
     }
 
@@ -35,9 +43,10 @@ impl RepositoryState {
         Ok(Self {
             root: root.to_path_buf(),
             snapshot,
-            graph,
+            graph: Arc::new(graph),
             scan,
             build_time: started.elapsed(),
+            weak_components: Arc::new(OnceLock::new()),
         })
     }
 
@@ -52,8 +61,8 @@ impl RepositoryState {
     }
 
     #[must_use]
-    pub const fn graph(&self) -> &Graph {
-        &self.graph
+    pub fn graph(&self) -> &Graph {
+        self.graph.as_ref()
     }
 
     #[must_use]
@@ -64,6 +73,36 @@ impl RepositoryState {
     #[must_use]
     pub const fn scan_report(&self) -> &ScanReport {
         &self.scan
+    }
+
+    pub(crate) fn weak_components(&self) -> &[Vec<NodeIndex>] {
+        self.weak_components
+            .get_or_init(|| {
+                let mut components = weakly_connected_components(self.graph.as_ref());
+                components.sort_unstable_by_key(|right| std::cmp::Reverse(right.len()));
+                components
+            })
+            .as_slice()
+    }
+
+    #[cfg(feature = "mcp")]
+    pub(crate) fn prime_weak_components(&self) {
+        if self.weak_components.get().is_some() {
+            return;
+        }
+        let graph = Arc::clone(&self.graph);
+        let destination = Arc::clone(&self.weak_components);
+        std::thread::spawn(move || {
+            // Let the first MCP response leave the process before using another
+            // core. A direct first call to get_community still initializes the
+            // same OnceLock immediately and this delayed worker simply waits.
+            std::thread::sleep(Duration::from_millis(10));
+            destination.get_or_init(|| {
+                let mut components = weakly_connected_components(graph.as_ref());
+                components.sort_unstable_by_key(|right| std::cmp::Reverse(right.len()));
+                components
+            });
+        });
     }
 
     pub(crate) fn resolve_node(&self, label: &str) -> std::result::Result<NodeIndex, String> {
@@ -104,7 +143,8 @@ impl RepositoryState {
 pub struct Weavatrix {
     analyzer: Analyzer,
     state: RepositoryState,
-    known_roots: BTreeSet<PathBuf>,
+    known_states: BTreeMap<PathBuf, RepositoryState>,
+    tool_cache: BTreeMap<String, Value>,
 }
 
 impl Weavatrix {
@@ -116,12 +156,23 @@ impl Weavatrix {
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
         let analyzer = Analyzer::default();
         let state = RepositoryState::build(&analyzer, root)?;
-        let known_roots = BTreeSet::from([state.root.clone()]);
+        let known_states = BTreeMap::from([(state.root.clone(), state.clone())]);
         Ok(Self {
             analyzer,
             state,
-            known_roots,
+            known_states,
+            tool_cache: BTreeMap::new(),
         })
+    }
+
+    pub(crate) fn from_state(state: RepositoryState) -> Self {
+        let known_states = BTreeMap::from([(state.root.clone(), state.clone())]);
+        Self {
+            analyzer: Analyzer::default(),
+            state,
+            known_states,
+            tool_cache: BTreeMap::new(),
+        }
     }
 
     #[must_use]
@@ -136,6 +187,8 @@ impl Weavatrix {
     /// Returns scan, parser, or graph validation failures.
     pub fn rebuild(&mut self) -> Result<()> {
         self.state = RepositoryState::build(&self.analyzer, &self.state.root)?;
+        self.tool_cache.clear();
+        self.remember_active_state();
         Ok(())
     }
 
@@ -151,9 +204,12 @@ impl Weavatrix {
             .scan(&self.state.root, Some(&self.state.scan))?;
         if scan.revision == self.state.scan.revision {
             self.state.scan = scan;
+            self.remember_active_state();
             return Ok(false);
         }
         self.state = RepositoryState::from_scan(&self.analyzer, &self.state.root, scan)?;
+        self.tool_cache.clear();
+        self.remember_active_state();
         Ok(true)
     }
 
@@ -163,13 +219,94 @@ impl Weavatrix {
     ///
     /// Returns scan, parser, or graph validation failures.
     pub fn open_repository(&mut self, root: impl AsRef<Path>) -> Result<()> {
-        let state = RepositoryState::build(&self.analyzer, root)?;
-        self.known_roots.insert(state.root.clone());
-        self.state = state;
+        self.open_repository_with_build(root, true)?;
         Ok(())
     }
 
+    /// Retargets this process, optionally requiring a fresh graph build.
+    ///
+    /// With `build == false`, only a repository already opened by this process
+    /// can be activated. Its exact analyzed state is retained in memory, so a
+    /// no-build switch never scans or executes repository code.
+    ///
+    /// # Errors
+    ///
+    /// Returns scan/parser failures for a requested build, or a concrete
+    /// missing-cache error for a no-build request.
+    pub fn open_repository_with_build(
+        &mut self,
+        root: impl AsRef<Path>,
+        build: bool,
+    ) -> Result<bool> {
+        if build {
+            let state = RepositoryState::build(&self.analyzer, root)?;
+            self.known_states
+                .insert(self.state.root.clone(), self.state.clone());
+            self.state = state;
+            self.tool_cache.clear();
+            self.remember_active_state();
+            return Ok(true);
+        }
+
+        let requested = root
+            .as_ref()
+            .canonicalize()
+            .map_err(|source| crate::Error::io(root.as_ref(), source))?;
+        if requested == self.state.root {
+            return Ok(false);
+        }
+        let cached = self.known_states.get(&requested).cloned().ok_or_else(|| {
+            crate::Error::Analysis(format!(
+                "no in-process graph for {}; call open_repo with build:true first",
+                requested.display()
+            ))
+        })?;
+        self.known_states
+            .insert(self.state.root.clone(), self.state.clone());
+        self.state = cached;
+        self.tool_cache.clear();
+        Ok(false)
+    }
+
     pub fn known_roots(&self) -> impl Iterator<Item = &Path> {
-        self.known_roots.iter().map(PathBuf::as_path)
+        self.known_states.keys().map(PathBuf::as_path)
+    }
+
+    pub(crate) fn ensure_repository_state(&mut self, root: impl AsRef<Path>) -> Result<PathBuf> {
+        let requested = root
+            .as_ref()
+            .canonicalize()
+            .map_err(|source| crate::Error::io(root.as_ref(), source))?;
+        if requested == self.state.root || self.known_states.contains_key(&requested) {
+            return Ok(requested);
+        }
+        let state = RepositoryState::build(&self.analyzer, &requested)?;
+        self.known_states.insert(requested.clone(), state);
+        Ok(requested)
+    }
+
+    pub(crate) fn known_state(&self, root: &Path) -> Option<&RepositoryState> {
+        if root == self.state.root {
+            Some(&self.state)
+        } else {
+            self.known_states.get(root)
+        }
+    }
+
+    pub(crate) fn cached_tool_result(&self, key: &str) -> Option<Value> {
+        self.tool_cache.get(key).cloned()
+    }
+
+    pub(crate) fn remember_tool_result(&mut self, key: String, value: Value) {
+        const MAX_TOOL_CACHE_ENTRIES: usize = 32;
+        if self.tool_cache.len() >= MAX_TOOL_CACHE_ENTRIES {
+            self.tool_cache.clear();
+        }
+        self.tool_cache.insert(key, value);
+    }
+
+    fn remember_active_state(&mut self) {
+        self.known_states
+            .insert(self.state.root.clone(), self.state.clone());
     }
 }

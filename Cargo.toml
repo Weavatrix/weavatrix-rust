@@ -1,6 +1,6 @@
 ﻿[package]
 name = "weavatrix-rust"
-version = "0.2.0"
+version = "1.0.1"
 edition = "2024"
 rust-version = "1.89"
 description = "Read-only Rust repository intelligence and MCP server"
@@ -25,12 +25,13 @@ name = "repository_suite"
 harness = false
 
 [features]
-default = ["full", "lang-rust"]
+default = ["full", "lang-rust", "mcp"]
 full = ["clone", "git", "memory", "search", "semantic", "vector"]
 clone = ["dep:weavatrix-clone"]
 git = ["dep:weavatrix-git"]
 lang-rust = ["dep:proc-macro2", "dep:syn"]
 memory = ["dep:weavatrix-memory"]
+mcp = ["dep:mcport", "dep:notify"]
 search = ["dep:weavatrix-search"]
 semantic = ["dep:weavatrix-semantic"]
 vector = ["dep:weavatrix-search-vector"]
@@ -40,22 +41,25 @@ proc-macro2 = { version = "1.0.107", default-features = false, features = ["span
 serde = { version = "1.0.229", features = ["derive"] }
 blazingly-json = "0.1.0"
 syn = { version = "3.0.3", default-features = false, features = ["clone-impls", "full", "parsing", "printing", "visit"], optional = true }
-weavatrix-clone = { version = "0.1.0", path = "../weavatrix-clone", optional = true }
+weavatrix-clone = { version = "0.1.1", optional = true }
 weavatrix-git = { version = "0.2.0", optional = true }
-weavatrix-graph = "0.6.0"
-weavatrix-parse = { version = "0.1.0", path = "../weavatrix-parse" }
-mcport = "0.1.0"
+weavatrix-graph = "0.6.1"
+weavatrix-parse = "0.2.0"
+mcport = { version = "0.3.0", optional = true }
+notify = { version = "8.2.0", optional = true }
 weavatrix-memory = { version = "0.3.1", optional = true }
-weavatrix-scan = "0.4.3"
+weavatrix-scan = "0.4.5"
 weavatrix-search = { version = "0.3.0", optional = true, default-features = false }
 weavatrix-search-vector = { version = "0.3.0", optional = true }
-weavatrix-semantic = { version = "0.2.0", path = "../weavatrix-semantic", optional = true, features = ["vector-search"] }
+weavatrix-semantic = { version = "0.2.1", optional = true, features = ["vector-search"] }
 
 [dev-dependencies]
 
 [profile.release]
-lto = "thin"
+lto = "fat"
 codegen-units = 1
+panic = "abort"
+strip = "symbols"
 
 [lints.rust]
 unsafe_code = "forbid"
