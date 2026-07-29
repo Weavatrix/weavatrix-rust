@@ -114,7 +114,7 @@ features are never advertised as unavailable stubs.
   C++, Bash, SQL, Solidity, Swift, HTML, CSS-family, Terraform, XML,
   Markdown-family, GraphQL, Protobuf, YAML, and Kubernetes structures;
 - HTTP routes, GraphQL operations, gRPC services and streaming modes;
-- Kafka, RabbitMQ/AMQP, JMS, NATS, SQS, SNS, and MongoDB evidence;
+- Kafka, RabbitMQ/AMQP, JMS, NATS, SQS, SNS, and `MongoDB` evidence;
 - package manifests, lockfiles, JSON configuration, architecture contracts,
   and measured coverage artifacts.
 
