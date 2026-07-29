@@ -1,90 +1,199 @@
-# Weavatrix
+# weavatrix-rust
 
-[![CI](https://github.com/sergii-ziborov/weavatrix/actions/workflows/ci.yml/badge.svg)](https://github.com/sergii-ziborov/weavatrix/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/weavatrix.svg)](https://www.npmjs.com/package/weavatrix)
+[![CI](https://github.com/sergii-ziborov/weavatrix-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/sergii-ziborov/weavatrix-rust/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/weavatrix-rust.svg)](https://crates.io/crates/weavatrix-rust)
 [![docs.rs](https://docs.rs/weavatrix-rust/badge.svg)](https://docs.rs/weavatrix-rust)
+[![MSRV](https://img.shields.io/badge/MSRV-1.89.0-orange.svg)](https://www.rust-lang.org/)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/LICENSE)
 
-**Give your coding agent the map of the repository before it starts guessing.**
+**Build repository-aware Rust systems on evidence, not filename guesses.**
 
-Weavatrix is a native Rust repository-intelligence engine and MCP server for
-Codex, Claude Code, and other coding agents. It turns source, Git history,
-coverage, endpoints, infrastructure, clones, search, vectors, semantic links,
-and temporal memory into one always-fresh evidence graph.
+`weavatrix-rust` is the native, embeddable repository-intelligence engine
+behind Weavatrix. It builds a deterministic evidence graph from source,
+manifests, infrastructure, and API contracts, then layers bounded Git,
+coverage, clone, search, vector, semantic, and temporal-memory operations over
+that graph through typed Rust APIs.
 
-Ask what breaks, where an API is used, why a cycle exists, which code is truly
-dead, or whether a change preserved the architecture. Weavatrix answers from
-bounded graph evidence with file, line, extractor, confidence, and revision
-provenance—not from a wider grep and not from a fabricated certainty score.
+Use the crate to:
 
-| Release proof | Result |
+- embed repository analysis in a Rust application;
+- produce a serializable `Snapshot` for CI, indexing, or review systems;
+- run 39 bounded read-only operations over repository and graph evidence in
+  the default full build;
+- run the standalone `weavatrix` CLI;
+- optionally expose the same operation catalog through an MCP stdio adapter.
+
+> **This crate is not an MCP SDK.** Its core abstractions are analyzers,
+> snapshots, evidence graphs, and repository state. MCP is an optional transport
+> behind the `mcp` Cargo feature; the library and standalone CLI work without
+> it.
+
+## What the crate gives you
+
+| Surface | Purpose |
+| --- | --- |
+| `Analyzer` / `AnalyzerConfig` | Build a repository snapshot from a path or explicit source inputs. |
+| `Snapshot` | Serialize nodes, edges, diagnostics, capabilities, and provenance. |
+| `Graph`, `Node`, `Edge` | Work directly with typed evidence-carrying graph primitives. |
+| `Weavatrix` / `RepositoryState` | Keep an analyzed repository live and execute bounded operations against one revision. |
+| `tools` | Use the compiled operation contracts from Rust or the CLI (39 in the default full build). |
+| `mcp` feature | Add the optional `mcport` stdio adapter for MCP clients. |
+
+Release evidence:
+
+| Property | Result |
 | --- | ---: |
-| Read-only MCP tools | **39** |
-| Installed-package cold speed vs `weavatrix-js` | **30.34x** |
-| Warm tool-call speed vs `weavatrix-js` | **156.10x** |
-| Shared JS call targets missing or wrong | **0 / 0** |
+| Read-only analysis operations | **39** |
+| Shared JavaScript call targets missing or wrong | **0 / 0** |
 | Shared imports, methods, and re-exports covered | **100%** |
 | Rust line coverage release gate | **87.18%** |
-| Runtime downloads, install scripts, external executables | **0** |
+| Unsafe Rust in the engine | **forbidden** |
+| Network paths or application-source writes | **0** |
+| Required external executables | **0** |
 
-## Install in 30 seconds
+## Add the library
 
-Run the prebuilt native package:
-
-```sh
-npx -y weavatrix mcp .
-```
-
-Or install the Rust binary directly:
-
-```sh
-cargo install weavatrix-rust
-weavatrix mcp . --profile=all
-```
-
-### Codex
+Choose the smallest feature set your application needs:
 
 ```toml
-# ~/.codex/config.toml
-[mcp_servers.weavatrix]
-command = "npx"
-args = ["-y", "weavatrix", "mcp", "."]
+[dependencies]
+weavatrix-rust = { version = "1.0.3", default-features = false }
 ```
 
-### Claude Code
+```rust
+use std::path::Path;
+use weavatrix_rust::{Analyzer, AnalyzerConfig};
+
+let snapshot = Analyzer::new(AnalyzerConfig::default())
+    .analyze(Path::new("."))?;
+
+println!(
+    "{} nodes, {} edges, {} diagnostics",
+    snapshot.nodes.len(),
+    snapshot.edges.len(),
+    snapshot.diagnostics.len()
+);
+
+# Ok::<(), weavatrix_rust::Error>(())
+```
+
+The minimal build retains the analyzer, lossless parsing, scanner, graph,
+snapshot model, standalone `analyze`, `list-tools`, and `tool` commands:
 
 ```sh
-claude mcp add weavatrix -- npx -y weavatrix mcp .
+cargo check --no-default-features
+cargo run --no-default-features -- analyze . --pretty
 ```
 
-The npm package contains prebuilt binaries for Windows x64/arm64, macOS
-x64/arm64, and glibc-based Linux x64/arm64. It has no install script and does
-not download a binary after installation.
-
-## What your agent can ask
+## Architecture
 
 ```text
-What breaks if I change src/auth/middleware.ts?
-Trace POST /api/orders through the backend and its clients.
-Which production symbols are dead, and what evidence says so?
-Show duplicate implementations but suppress router boilerplate.
-Which service violates the intended architecture, and why?
-Find every HTTP, GraphQL, gRPC, Kafka, RabbitMQ, NATS, JMS,
-SQS or SNS contract affected by this branch.
-Build the smallest context bundle needed to edit this symbol safely.
-Suggest internal links between these pages without mixing inferred SEO
-relationships into the deterministic code graph.
+repository path or SourceInput[]
+             |
+             v
+     lossless extraction
+   code + config + contracts
+             |
+             v
+ typed evidence graph + Snapshot
+             |
+             +--> Rust API
+             +--> standalone CLI
+             +--> optional MCP adapter
 ```
 
-Weavatrix builds the graph once and projects the same revision into small,
-task-specific answers. A health result, endpoint trace, blast radius, clone
-family, architecture violation, and context bundle therefore agree about
-repository identity and evidence.
+The engine composes focused first-party crates:
 
-## The 39-tool surface
+| Crate | Responsibility |
+| --- | --- |
+| [`weavatrix-scan`](https://crates.io/crates/weavatrix-scan) | Deterministic traversal and repository manifests. |
+| [`weavatrix-parse`](https://crates.io/crates/weavatrix-parse) | Lossless tokenization and structural extraction. |
+| [`weavatrix-graph`](https://crates.io/crates/weavatrix-graph) | Typed nodes, relations, evidence, and traversal. |
+| [`weavatrix-git`](https://crates.io/crates/weavatrix-git) | Direct Git-object history and cross-repository comparison. |
+| [`weavatrix-search`](https://crates.io/crates/weavatrix-search) | Bounded local text and structure search. |
+| [`weavatrix-clone`](https://crates.io/crates/weavatrix-clone) | Type-1/2/3 clone-review evidence. |
+| [`weavatrix-search-vector`](https://crates.io/crates/weavatrix-search-vector) | Deterministic exact and approximate vector candidates. |
+| [`weavatrix-semantic`](https://crates.io/crates/weavatrix-semantic) | Exact-rescored semantic and SEO link policy. |
+| [`weavatrix-memory`](https://crates.io/crates/weavatrix-memory) | Revision-aware temporal repository memory. |
 
-| Workflow | Tools |
+## Feature selection
+
+| Feature | Adds |
+| --- | --- |
+| core, always enabled | Analyzer, scanner, lossless parser, graph, snapshots, operation contracts, CLI. |
+| `lang-rust` | Richer Rust AST extraction through `syn`; the lossless fallback remains without it. |
+| `git` | Direct Git history, diffs, and cross-repository operations. |
+| `search` | Bounded repository search. |
+| `clone` | Clone-family review. |
+| `vector` | Vector candidate search. |
+| `semantic` | Semantic and SEO link analysis. |
+| `memory` | Temporal memory context. |
+| `full` | `git`, `search`, `clone`, `vector`, `semantic`, and `memory`. |
+| `mcp` | Optional stdio transport through `mcport` and filesystem refresh notifications. |
+
+The default feature set is the complete distributable product:
+`full + lang-rust + mcp`. Embedders can disable default features and enable
+only the analysis components they use.
+
+```toml
+[dependencies]
+weavatrix-rust = {
+    version = "1.0.3",
+    default-features = false,
+    features = ["lang-rust", "git", "search"]
+}
+```
+
+Disabled capabilities disappear from the operation catalog; they are not
+advertised as unavailable stubs.
+
+## Evidence model
+
+Each relationship can carry:
+
+- extractor identity;
+- evidence class;
+- confidence;
+- source file and exact span;
+- optional extractor detail.
+
+The enclosing `Snapshot` binds the graph to a repository and revision and
+records the scan, graph, and language capabilities evaluated for that
+snapshot.
+
+Static reachability is never relabeled as measured test coverage. Ambiguous
+dynamic behavior remains bounded evidence instead of being connected to an
+arbitrary same-named symbol. Missing artifacts remain explicit rather than
+becoming reassuring zeroes.
+
+See the
+[evidence model](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/evidence-model.md)
+for the exact interpretation rules.
+
+## Repository and language surfaces
+
+The engine extracts evidence from:
+
+- Rust, JavaScript, TypeScript, Python, Go, Java, C#, C, C++, Bash, SQL,
+  Solidity, Swift, HTML, CSS-family sources, Terraform, XML, Markdown, MDX,
+  reStructuredText, and AsciiDoc;
+- HTTP routes, GraphQL operations, Protobuf/gRPC services and streaming modes;
+- Kafka, RabbitMQ/AMQP, JMS, NATS, SQS, SNS, and `MongoDB` usage;
+- JSON/JSONC, YAML, Kubernetes, package manifests, lockfiles, architecture
+  contracts, and measured coverage artifacts.
+
+The first-party lossless tokenizer preserves the complete input byte stream
+while structural facts retain exact spans. This supports diagnostics,
+round-trip validation, and future source-to-source consumers without making
+the graph depend on regex reconstruction.
+
+## The 39 default analysis operations
+
+The default full build exposes 39 operations. The public operation layer sits
+above the graph and is usable from Rust, the CLI, or the optional MCP adapter.
+Feature-minimal builds expose only operations backed by compiled capabilities.
+
+| Workflow | Operations |
 | --- | --- |
 | Graph orientation | `graph_stats`, `get_node`, `get_neighbors`, `query_graph`, `god_nodes`, `shortest_path`, `get_community`, `list_communities`, `module_map` |
 | Change impact and proof | `get_dependents`, `change_impact`, `verified_change`, `prepare_change`, `graph_diff` |
@@ -93,99 +202,47 @@ repository identity and evidence.
 | APIs and transports | `list_endpoints`, `trace_endpoint`, `trace_api_contract` |
 | Architecture | `get_architecture_contract`, `verify_architecture`, `explain_architecture_violation`, `propose_architecture_exception` |
 | Git and repositories | `git_history`, `cross_repo_git`, `open_repo`, `list_known_repos`, `rebuild_graph` |
-| Native Rust extensions | `vector_search`, `semantic_link`, `seo_link_suggestions`, `memory_context` |
+| Native extensions | `vector_search`, `semantic_link`, `seo_link_suggestions`, `memory_context` |
 
-Three profiles expose bounded views of the same read-only engine:
+## Standalone CLI
+
+Install the binary from crates.io:
 
 ```sh
-weavatrix mcp . --profile=all   # all 39 tools
-weavatrix mcp . --profile=code  # code and architecture
-weavatrix mcp . --profile=seo   # content and semantic linking
+cargo install weavatrix-rust
 ```
 
-Optional Cargo features remove capabilities from `tools/list`; disabled
-features are never advertised as unavailable stubs.
+Analyze and query without an MCP client:
 
-## More than a code graph
+```sh
+weavatrix analyze . --pretty
+weavatrix list-tools
+weavatrix tool graph_stats .
+```
 
-### Languages and repository surfaces
+The CLI calls the same engine and operation implementations as an embedded
+application.
 
-- Rust AST extraction plus JavaScript, TypeScript, Python, Go, Java, C#, C,
-  C++, Bash, SQL, Solidity, Swift, HTML, CSS-family, Terraform, XML,
-  Markdown-family, GraphQL, Protobuf, YAML, and Kubernetes structures;
-- HTTP routes, GraphQL operations, gRPC services and streaming modes;
-- Kafka, RabbitMQ/AMQP, JMS, NATS, SQS, SNS, and `MongoDB` evidence;
-- package manifests, lockfiles, JSON configuration, architecture contracts,
-  and measured coverage artifacts.
+## Optional MCP adapter
 
-### Lossless parsing
+When an MCP client is the consumer, enable the `mcp` feature or use the default
+binary build:
 
-The first-party
-[`weavatrix-parse`](https://github.com/sergii-ziborov/weavatrix-parse)
-tokenizer preserves every input byte. Structural extraction is fast, but the
-original source remains recoverable for diagnostics, exact spans, future
-compiler work, and source-to-source transformations.
+```sh
+weavatrix mcp . --profile=all
+```
 
-The parser is not a regex fallback hidden behind a Rust binary. Its release
-suite checks byte-for-byte round trips, exact facts, GraphQL/Protobuf fixtures,
-and import agreement against tree-sitter on real repositories.
+Profiles `all`, `code`, and `seo` expose bounded views of the same repository
+state. The adapter supplies stdio framing, discovery, schemas, pagination, and
+refresh; it does not define the engine architecture.
 
-### Direct Git and local-only operation
+The prebuilt npm distribution for Codex, Claude Code, and other MCP clients is
+the separate [`weavatrix`](https://www.npmjs.com/package/weavatrix) product.
 
-Weavatrix reads Git objects through
-[`weavatrix-git`](https://github.com/sergii-ziborov/weavatrix-git); it does not
-spawn `git`. Search does not spawn `rg`. The MCP server does not launch Node,
-Python, a language server, or code from the analyzed repository.
+## Performance and parity evidence
 
-Production code has no network or source-write path. Derived in-memory state
-can refresh after files change, but Weavatrix does not edit application source
-or create commits.
-
-### Evidence instead of overclaiming
-
-Every relationship records its extractor, evidence class, confidence, and
-optional source span. Static reachability is never reported as measured test
-coverage. Dynamic or ambiguous JavaScript and Python behavior remains bounded
-evidence for the agent instead of being silently connected to a same-named
-symbol.
-
-## Speed measured at the package boundary
-
-The release benchmark does not compare a Rust library function with a full
-JavaScript process. It packs and installs both npm packages into isolated
-roots, starts fresh MCP processes with empty caches, validates package and
-protocol identity, calls the same tools, and checks clean shutdown.
-
-On 2026-07-29, `weavatrix` 1.0.0 with Rust engine 1.0.1 was compared with
-`weavatrix-js` 0.3.15 using three paired fresh processes per tool and five warm
-calls per process:
-
-| Tool | Rust cold median | JavaScript cold median | Speedup |
-| --- | ---: | ---: | ---: |
-| `graph_stats` | 249.87 ms | 7,561.94 ms | **30.73x** |
-| `list_endpoints` | 321.07 ms | 7,400.17 ms | **26.15x** |
-| `find_dead_code` | 310.45 ms | 9,298.27 ms | **31.81x** |
-| `run_audit` | 378.47 ms | 11,583.83 ms | **35.62x** |
-
-The median of all 12 paired cold ratios is **30.34x**. Warm-call medians are
-3.17 ms for Rust and 494.83 ms for JavaScript, a **156.10x** speedup. Every
-selected tool was faster; the gate requires at least 24x cold overall, at
-least 30x warm, valid MCP responses, matching package identity, and no leaked
-child process.
-
-Raw report:
-[`npm-mcp-boundary-mcport-0.3.0-vs-js-0.3.15.json`](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/benchmark-results/npm-mcp-boundary-mcport-0.3.0-vs-js-0.3.15.json)
-(SHA-256
-`8224CACEA4F10B6B09BB525FCC1E4FFA0A7AF1292CD1C4EC63515A2CF99D7F5A`).
-
-The full methodology, historical same-revision repository measurements,
-component competitors, limitations, and reproduction commands are in the
-[benchmark report](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/benchmarks.md).
-
-## Quality measured against the JavaScript engine
-
-Both engines analyzed an immutable 502-file `weavatrix-js` 0.3.14 checkout.
-Paths, symbols, and relation identities were normalized before comparison.
+The native engine was checked against an immutable 502-file JavaScript-engine
+revision after normalizing paths, symbols, and relation identities:
 
 | Relation | Rust | JavaScript | JavaScript evidence covered |
 | --- | ---: | ---: | ---: |
@@ -194,99 +251,55 @@ Paths, symbols, and relation identities were normalized before comparison.
 | re-exports | 80 | 75 | **100%** |
 | calls | 3,403 | 2,323 | **100% of targets** |
 
-For calls, 2,024 edges matched exactly. The remaining 299 reached the same
-source-line target while Rust also attached the containing symbol as owner.
-There were **zero missing targets and zero wrong targets**. Rust-only edges are
-retained as evidence, not automatically declared correct merely because there
-are more of them.
+For calls, 2,024 edges matched exactly and 299 reached the same source-line
+target with an additional Rust owner. There were zero missing and zero wrong
+shared targets.
 
-Raw parity reports:
+The installed npm distribution also provides an end-to-end process-boundary
+benchmark. It measures packaging, startup, MCP initialization, catalog
+discovery, identical operations, shutdown, and process-tree memory rather than
+presenting a library microbenchmark as a product result. See
+[benchmarks](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/benchmarks.md)
+and the checked-in raw reports.
 
-- [`graph-parity-rust-1.0.0-vs-js-0.3.14.json`](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/benchmark-results/graph-parity-rust-1.0.0-vs-js-0.3.14.json)
-- [`call-audit-rust-1.0.0-vs-js-0.3.14.json`](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/benchmark-results/call-audit-rust-1.0.0-vs-js-0.3.14.json)
+## Safety boundary
 
-The release also dogfoods all 39 tools against Weavatrix itself. The verified
-self-run returned `PASS` with zero health findings, zero clone families, zero
-dead-code candidates after correct `#[cfg(test)]` inheritance, and no
-architecture cycles or dependency findings.
-
-## Library and standalone CLI
-
-The MCP transport is optional. A minimal build keeps the Rust library and
-standalone `analyze`, `list-tools`, and `tool` commands without `mcport`:
-
-```toml
-[dependencies]
-weavatrix-rust = { version = "1", default-features = false }
-```
-
-```sh
-cargo build --no-default-features
-weavatrix analyze . --pretty
-weavatrix list-tools
-weavatrix tool graph_stats .
-```
-
-Enable `mcp` only when embedding the stdio server. The default full build also
-connects the first-party scan, graph, Git, search, clone, vector, semantic, and
-memory crates.
-
-## Safety and package integrity
-
-- read-only repository analysis;
-- no install scripts or runtime downloads;
+- `#![forbid(unsafe_code)]` in the engine;
+- no network implementation;
 - no application-source writes or commit creation;
 - no execution of analyzed repository code;
-- bounded MCP results with pagination for large neighborhoods and communities;
-- source-free, credential-free evidence by default;
-- npm provenance and immutable GitHub release assets;
-- forbidden unsafe Rust in the engine.
+- no spawning `git`, `rg`, Node.js, Python, or language servers;
+- canonical-path containment for repository reads;
+- deterministic pagination and bounded results;
+- explicit evidence limitations instead of fabricated certainty.
 
-## Development and reproduction
+Source editing belongs to the separate
+[`weavatrix-refactor`](https://github.com/sergii-ziborov/weavatrix-refactor)
+package. Network workflows belong to
+[`weavatrix-online`](https://github.com/sergii-ziborov/weavatrix-online).
+
+## Development gates
 
 ```sh
 cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-features --locked
-cargo test --no-default-features --locked
-cargo llvm-cov --workspace --all-features \
-  --ignore-filename-regex '(main|error)\.rs$' \
-  --fail-under-lines 85
-
-node scripts/benchmark-npm-mcp.mjs --help
-cargo bench --bench repository_suite -- <repository>...
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo clippy --locked --all-targets --no-default-features -- -D warnings
+cargo test --locked --all-targets --all-features
+cargo test --locked --no-default-features
+RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
+cargo publish --locked --dry-run
 ```
 
-Architecture and dependency boundaries:
+## Documentation
 
 - [Getting started](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/getting-started.md)
-- [Tool reference](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/tool-reference.md)
+- [Operation reference](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/tool-reference.md)
 - [Evidence model](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/evidence-model.md)
 - [Languages and repository surfaces](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/language-support.md)
-- [MCP, CLI, and library embedding](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/mcp-and-standalone.md)
+- [Library, CLI, and optional MCP](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/mcp-and-standalone.md)
 - [Architecture](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/architecture.md)
-- [Dependencies](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/dependencies.md)
-- [Benchmarks](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/benchmarks.md)
-
-## Why the JavaScript version moved
-
-The canonical npm package moved to the native Rust engine after the Rust
-implementation covered the complete shared tool contract, found all measured
-JavaScript relation targets, added five native workflows, removed external
-runtime executables, preserved lossless parser input, and passed the installed
-package speed gate.
-
-The maintained JavaScript line remains available as
-[`weavatrix-js`](https://github.com/sergii-ziborov/weavatrix-js) for extensions
-and compatibility. `weavatrix@0.3.14` is the last JavaScript release under the
-canonical package name.
-
-Build lineage:
-
-- [`weavatrix`](https://github.com/sergii-ziborov/weavatrix) — canonical npm package;
-- [`weavatrix-rust`](https://github.com/sergii-ziborov/weavatrix-rust) — native engine and crates.io source;
-- [`weavatrix-parse`](https://github.com/sergii-ziborov/weavatrix-parse) — lossless parser;
-- [`mcport`](https://github.com/sergii-ziborov/mcport) — dependency-light MCP stdio runtime.
+- [Dependencies and feature boundaries](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/dependencies.md)
+- [Benchmark methodology and evidence](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/benchmarks.md)
 
 ## License
 

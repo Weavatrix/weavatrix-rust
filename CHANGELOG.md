@@ -1,5 +1,15 @@
 ﻿# Changelog
 
+## 1.0.3 - 2026-07-30
+
+- correct the crate positioning: `weavatrix-rust` is an embeddable
+  repository-intelligence engine, not an MCP SDK;
+- lead crates.io, GitHub, and docs.rs with the typed Rust API, feature
+  boundaries, architecture, evidence model, and library-first quick start;
+- document MCP as an optional `mcp` transport over the same analysis-operation
+  catalog while retaining the standalone CLI and `--no-default-features`
+  library build.
+
 ## 1.0.2 - 2026-07-30
 
 - replace the minimal package copy with a product-first README covering all 39

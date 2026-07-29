@@ -1,7 +1,8 @@
 ﻿# npm distribution and the JavaScript fork plan
 
-Status: designed and staged in this repository; publishing requires npm
-credentials and is a manual release step.
+Status: completed. `weavatrix@1.0.0` is the canonical prebuilt npm
+distribution and currently carries the native Rust engine 1.0.2 for MCP
+clients. It is separate from the embeddable `weavatrix-rust` crate.
 
 ## Why there is no tokio, and why nothing replaces it
 
@@ -78,12 +79,12 @@ written for the JavaScript 0.3.x releases keep working after the switch.
    remains on the registry forever; users who pin keep working. New JavaScript
    releases use the explicit `weavatrix-js` package name.
 3. **`weavatrix@1.0.0`** is published as the Rust launcher with the universal
-   `weavatrix-rust@1.0.1` engine
-   package above; the engine switch is the major-version signal. Its package
+   `weavatrix-rust@1.0.2` engine package; the engine switch is the
+   major-version signal. Its package
    home is the canonical `weavatrix` repository. The MCP surface has 39 tools
    versus the JavaScript package's 34 and adds typed multi-language contracts,
    cross-repository Git, vector, semantic, SEO, and memory tools.
-4. **Order of operations for the first release:** publish and verify
+4. **Completed first-release sequence:** publish and verify
    `weavatrix-js@0.3.15`; push the immutable canonical `v1.0.0` tag; CI builds
    six binaries, assembles one universal package, runs the installed-package
    correctness, 24x end-to-end cold and 30x warm MCP gates, and publishes

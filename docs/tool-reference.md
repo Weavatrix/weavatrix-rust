@@ -1,7 +1,13 @@
-# Tool reference
+# Operation reference
 
-Weavatrix 1.0 exposes 39 read-only tools. JSON is the stable machine-facing
-output; the schemas returned by `tools/list` are authoritative.
+The default full build of `weavatrix-rust` exposes 39 bounded read-only
+analysis operations. Rust consumers use `tools::catalog` and `tools::call`;
+the standalone CLI exposes `list-tools` and `tool`. When the optional MCP
+adapter is enabled, it maps the compiled catalog to `tools/list`; MCP does not
+define the operation layer.
+
+JSON is the stable machine-facing output. The operation catalog and generated
+schemas are authoritative.
 
 ## Graph and orientation
 
@@ -31,8 +37,8 @@ output; the schemas returned by `tools/list` are authoritative.
 - `coverage_map`: measured coverage attached to graph nodes.
 - `hot_path_review`: high-connectivity/change paths for review.
 
-These tools do not auto-delete code or turn a missing artifact into a clean
-result.
+These operations do not auto-delete code or turn a missing artifact into a
+clean result.
 
 ## APIs and architecture
 
@@ -61,7 +67,9 @@ or embedding service.
 
 ## Common result rules
 
-Results identify repository and revision. Large collections expose `total`,
-`has_more`, and `next_cursor`. Evidence records carry extractor, evidence
-class, confidence, and optional source span. Ambiguous short symbol names are
-rejected instead of attached to a guessed target.
+Repository-state operations execute against an identified root and revision;
+results that cross repositories or revisions label those boundaries
+explicitly. Large collections expose `total`, `has_more`, and `next_cursor`.
+Evidence records carry extractor, evidence class, confidence, and optional
+source span. Ambiguous short symbol names are rejected instead of attached to
+a guessed target.

@@ -20,7 +20,7 @@ external runtime process.
 `Cargo.lock` pins the complete tree. The default build needs no native C/C++
 toolchain and contains no subprocess or network client. A minimal
 `--no-default-features` build retains scan, graph, lexical language/domain
-adapters, snapshot, core tools, and the standalone CLI, but omits the `mcport`
+adapters, snapshot, core operations, and the standalone CLI, but omits the `mcport`
 dependency and stdio server. Enable the independent `mcp` feature to add that
 transport.
 
