@@ -9,6 +9,7 @@ on:
     paths:
       - Cargo.toml
       - Cargo.lock
+      - .github/workflows/publish-crate.yml
   workflow_dispatch:
     inputs:
       authentication:
@@ -94,6 +95,7 @@ jobs:
         run: |
           VERSION="$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[0].version')"
           if curl --fail --silent --show-error \
+            --user-agent "weavatrix-release-verifier/1.0 (https://github.com/sergii-ziborov/weavatrix-rust)" \
             "https://crates.io/api/v1/crates/weavatrix-rust/$VERSION" |
             jq -e --arg version "$VERSION" '.version.num == $version' >/dev/null; then
             echo "published=true" >> "$GITHUB_OUTPUT"
@@ -124,6 +126,7 @@ jobs:
           VERSION="$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[0].version')"
           for attempt in $(seq 1 24); do
             if curl --fail --silent --show-error \
+              --user-agent "weavatrix-release-verifier/1.0 (https://github.com/sergii-ziborov/weavatrix-rust)" \
               "https://crates.io/api/v1/crates/weavatrix-rust/$VERSION" |
               jq -e --arg version "$VERSION" '.version.num == $version' >/dev/null; then
               exit 0
@@ -133,18 +136,22 @@ jobs:
           echo "weavatrix-rust@$VERSION did not become visible on crates.io" >&2
           exit 1
       - name: Create the immutable GitHub release
-        if: steps.registry.outputs.published != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           VERSION="$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[0].version')"
           TAG="v$VERSION"
+          gh api \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            "repos/$GITHUB_REPOSITORY/immutable-releases" |
+            jq -e '.enabled == true' >/dev/null
           if gh release view "$TAG" >/dev/null 2>&1; then
-            exit 0
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "GitHub release $TAG already exists; verifying it"
+          elif git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --verify-tag --generate-notes --title "$TAG"
           else
             gh release create "$TAG" --target "$GITHUB_SHA" --generate-notes --title "$TAG"
           fi
+          RELEASE_IMMUTABLE="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .immutable)"
+          [[ "$RELEASE_IMMUTABLE" == "true" ]] || { echo "GitHub release is not immutable" >&2; exit 1; }
