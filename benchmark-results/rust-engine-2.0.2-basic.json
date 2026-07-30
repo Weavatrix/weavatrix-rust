@@ -4,26 +4,26 @@
   "repositories": [
     {
       "cold_build_ms": {
-        "max": 100.1933,
-        "median": 87.59599999999999,
-        "min": 85.9526
+        "max": 91.2948,
+        "median": 73.2082,
+        "min": 62.801399999999994
       },
       "collections": null,
-      "edges": 7282,
+      "edges": 7287,
       "endpoints": null,
       "evidence": {
-        "parsed": 5067,
+        "parsed": 5072,
         "resolved": 2215
       },
-      "files": 190,
-      "hot_graph_stats_us": 859.7112999999999,
-      "literal_search_ms": 5.24602,
+      "files": 192,
+      "hot_graph_stats_us": 660.5803,
+      "literal_search_ms": 5.5039,
       "node_kinds": {
         "constant": 164,
         "enum": 14,
-        "file": 190,
-        "function": 645,
-        "heading": 98,
+        "file": 192,
+        "function": 646,
+        "heading": 99,
         "method": 160,
         "module": 150,
         "package": 20,
@@ -34,20 +34,20 @@
         "type_alias": 3,
         "variable": 4
       },
-      "nodes": 1527,
+      "nodes": 1531,
       "queues": null,
       "relations": {
         "calls": 2215,
-        "contains": 1506,
-        "imports": 3340,
+        "contains": 1510,
+        "imports": 3341,
         "method": 160,
         "re_exports": 61
       },
       "repository": "repository",
-      "revision": "7ab5a3b6db277c28a31129b8768f16525cad6f0b",
+      "revision": "19b37608a01af8aaaec1d3fca7784f1b5c2d2da4",
       "tables": null,
       "topics": null,
-      "unchanged_refresh_ms": 6.6231
+      "unchanged_refresh_ms": 7.4361
     }
   ],
   "samples": 3,

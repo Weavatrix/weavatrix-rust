@@ -43,9 +43,9 @@ Release evidence:
 | Shared JavaScript call targets missing or wrong | **0 / 0** |
 | Shared imports, methods, and re-exports covered | **100%** |
 | Rust line coverage | **87.71%** |
-| Committed self-analysis | **190 files / 1,527 nodes / 7,282 edges** |
-| Cold build median | **87.60 ms** |
-| Hot `graph_stats` short load | **0.860 ms/call across 1,000 calls** |
+| Committed self-analysis | **192 files / 1,531 nodes / 7,287 edges** |
+| Cold build median | **73.21 ms** |
+| Hot `graph_stats` short load | **0.661 ms/call across 1,000 calls** |
 | Unsafe Rust in the engine | **forbidden** |
 | Network paths or application-source writes | **0** |
 | Required external executables | **0** |
