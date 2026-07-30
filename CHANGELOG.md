@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.2 - 2026-07-30
+
+- rebuild clone families from the pairs that remain after test, classified,
+  and low-signal filtering, so excluded members and dangling pair identifiers
+  cannot survive in `find_duplicates` output;
+- repeat family rebuilding after `top_n` truncation to keep every returned
+  member, pair, and connected component mutually consistent;
+- delegate deterministic component clustering and stable family identities to
+  `weavatrix-clone` 0.1.3 and cover the published Semantic-repository
+  regression with focused all-feature and no-default-feature gates.
+
 ## 2.0.1 - 2026-07-30
 
 - recognize a Cargo package's sibling library target as project-local during
