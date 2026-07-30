@@ -1,0 +1,55 @@
+{
+  "engine_version": "2.0.0",
+  "profile": "release",
+  "repositories": [
+    {
+      "cold_build_ms": {
+        "max": 137.05960000000002,
+        "median": 124.6471,
+        "min": 118.13369999999999
+      },
+      "collections": null,
+      "edges": 7067,
+      "endpoints": null,
+      "evidence": {
+        "parsed": 4998,
+        "resolved": 2069
+      },
+      "files": 185,
+      "hot_graph_stats_us": 1373.3102,
+      "literal_search_ms": 9.86738,
+      "node_kinds": {
+        "constant": 164,
+        "enum": 14,
+        "file": 185,
+        "function": 636,
+        "heading": 94,
+        "method": 160,
+        "module": 147,
+        "package": 20,
+        "repository": 1,
+        "static": 4,
+        "struct": 70,
+        "trait": 1,
+        "type_alias": 3,
+        "variable": 4
+      },
+      "nodes": 1503,
+      "queues": null,
+      "relations": {
+        "calls": 2069,
+        "contains": 1482,
+        "imports": 3295,
+        "method": 160,
+        "re_exports": 61
+      },
+      "repository": "repository",
+      "revision": "4b4773ff1c3a8b25ff4319451115cab35c1b4ad8",
+      "tables": null,
+      "topics": null,
+      "unchanged_refresh_ms": 14.919233333333333
+    }
+  ],
+  "samples": 3,
+  "schema": "weavatrix.repository-benchmark.v1"
+}

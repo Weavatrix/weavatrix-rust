@@ -1,11 +1,43 @@
 ﻿# Benchmark report
 
-Current release evidence was measured on 2026-07-29 on the same Windows
-workstation. Historical component and in-process graph measurements from
-2026-07-27 remain below so changes in methodology are visible rather than
-silently replacing old numbers.
+Current release evidence was measured on 2026-07-30 on the same Windows
+workstation. Historical product, component, and in-process graph measurements
+remain below so changes in methodology are visible rather than silently
+replacing old numbers.
 
-## Installed npm MCP boundary: npm 1.0.0 / Rust engine 1.0.1 vs JavaScript 0.3.15
+## 2.0.0 engine basic and short-load gate
+
+This bounded release check analyzes the committed `weavatrix-rust` repository
+at `4b4773ff1c3a8b25ff4319451115cab35c1b4ad8` with the fat-LTO release
+profile. It intentionally replaces a long soak with three cold builds and a
+short 1,000-call hot loop:
+
+```sh
+cargo bench --locked --all-features --bench repository_suite -- .
+```
+
+| Measurement | Result |
+|---|---:|
+| Repository view | 185 files / 1,503 nodes / 7,067 edges |
+| Cold build | 118.13 ms min / **124.65 ms median** / 137.06 ms max |
+| `graph_stats`, 1,000 hot calls | **1.373 ms/call** |
+| Unchanged refresh, 3 calls | **14.919 ms/call** |
+| Literal search, 5 calls | **9.867 ms/call** |
+| Measured line coverage | **87.81%** |
+| Measured function / region coverage | 80.64% / 85.43% |
+
+The same revision passed the native architecture contract, repository audit,
+dead-code review, and production duplicate scan: zero violations, runtime
+cycles, audit findings, dead-code candidates, or clone families at the
+50-token / 92% threshold. The benchmark is a basic regression and short-load
+gate, not a claim about long-running throughput or every repository shape.
+
+Raw evidence:
+
+- `benchmark-results/rust-engine-2.0.0-basic.json`
+  (SHA-256 `50769A645BFA8668E0643D593215F7E51CF9DD5582B6FC3CE3803E8E28D2B260`).
+
+## Historical installed npm MCP boundary: npm 1.0.0 / Rust engine 1.0.1 vs JavaScript 0.3.15
 
 This is the release gate. Both local source trees were packed, installed into
 isolated npm roots, and invoked through their installed package bins. Each of
