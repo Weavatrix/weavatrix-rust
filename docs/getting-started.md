@@ -1,120 +1,99 @@
 # Getting started
 
-`weavatrix-rust` is an embeddable repository-intelligence engine. Start with
-the Rust API when another application owns the workflow, use the standalone
-CLI in scripts and CI, and enable the optional MCP adapter only when an MCP
-client is the consumer.
+Choose the smallest surface that matches your application: an immutable
+snapshot, a live repository engine, or the standalone CLI.
 
-All surfaces use the same analyzer, evidence graph, repository state, and
-bounded operation implementations.
-
-## Rust library
-
-Add the minimal engine:
+## 1. Build a snapshot
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "1.0.3", default-features = false }
+weavatrix-rust = { version = "2.0.0", default-features = false }
 ```
 
 ```rust
 use std::path::Path;
 use weavatrix_rust::{Analyzer, AnalyzerConfig};
 
-let snapshot = Analyzer::new(AnalyzerConfig::default())
-    .analyze(Path::new("."))?;
+let analyzer = Analyzer::new(AnalyzerConfig::default());
+let snapshot = analyzer.analyze(Path::new("."))?;
 
 println!(
-    "{} nodes, {} edges",
+    "{} nodes, {} edges, revision {}",
     snapshot.nodes.len(),
-    snapshot.edges.len()
+    snapshot.edges.len(),
+    snapshot.revision
 );
 
 # Ok::<(), weavatrix_rust::Error>(())
 ```
 
-The minimal build includes scanning, lossless parsing, evidence graphs,
-snapshots, operation contracts, and the standalone CLI. Select optional
-capabilities explicitly:
+The minimal build includes deterministic scanning, the lossless parser,
+language adapters, graph construction, snapshots, core operations, and the
+CLI. It has no network implementation or external executable dependency.
+
+## 2. Enable only the capabilities you need
 
 ```toml
 [dependencies]
 weavatrix-rust = {
-    version = "1.0.3",
+    version = "2.0.0",
     default-features = false,
     features = ["lang-rust", "git", "search"]
 }
 ```
 
-## Standalone CLI
+Available features are `lang-rust`, `git`, `search`, `clone`, `vector`,
+`semantic`, and `memory`. `full` enables every optional analysis capability.
+Disabled operations disappear from the catalog instead of returning
+advertised-but-unavailable stubs.
+
+## 3. Query a repository session
+
+```rust
+use blazingly_json::json;
+use weavatrix_rust::{Weavatrix, operations};
+
+let mut engine = Weavatrix::open(".")?;
+let impact = operations::call(
+    &mut engine,
+    "change_impact",
+    json!({"files": ["src/lib.rs"], "depth": 3}),
+)?;
+println!("{}", blazingly_json::to_string_pretty(&impact)?);
+
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Use the typed `Analyzer`, `Snapshot`, `Graph`, `RepositoryState`, and
+`Weavatrix` APIs when JSON operation contracts are unnecessary.
+
+## 4. Use the CLI
 
 ```sh
 cargo install weavatrix-rust
-weavatrix analyze /absolute/path/to/repository --pretty
-weavatrix list-tools
-weavatrix tool graph_stats /absolute/path/to/repository
+weavatrix-rust analyze /absolute/path/to/repository --pretty
+weavatrix-rust list-tools
+weavatrix-rust tool graph_stats /absolute/path/to/repository
 ```
 
-The CLI does not require an MCP client. `analyze` emits the canonical
-`Snapshot`; `tool` executes one of the bounded read-only analysis operations
-available to embedded consumers. The default full build provides 39; smaller
-feature sets expose only their compiled capabilities.
+`analyze` emits the native snapshot. Add `--format=legacy` for the historical
+JavaScript-compatible graph shape.
 
-## First operations
+## 5. Verify architecture
 
-1. `graph_stats` confirms the root, revision, freshness, and evidence counts.
-2. `module_map` shows production territories.
-3. `list_endpoints` inventories the API surface.
-4. `run_audit` returns a bounded health queue.
-5. `context_bundle` or `change_impact` creates a task-specific workset.
-
-Large results are deterministic and paginated. Follow `next_cursor` rather
-than requesting an unbounded repository dump.
-
-## Repository switching and freshness
-
-`open_repo` retargets a live `Weavatrix` state to another local root;
-`list_known_repos` lists process-local states. `Snapshot` and
-`RepositoryState` retain repository and revision identity so evidence from two
-roots is not mixed.
-
-`refresh_if_stale` performs an incremental check and `rebuild_graph` remains
-the explicit full refresh. The optional MCP adapter additionally starts a
-filesystem watcher after its first request.
-
-## Optional MCP adapter
-
-The `mcp` Cargo feature adds the `mcport` stdio transport:
+Create `.weavatrix/architecture.json`, then call:
 
 ```sh
-weavatrix mcp /absolute/path/to/repository --profile=all
+weavatrix-rust tool verify_architecture .
 ```
 
-Profiles are `all`, `code`, and `seo`. They filter the compiled operation
-catalog; they do not define separate engines. Disabled capabilities disappear
-from discovery instead of appearing as unavailable stubs.
+The verifier checks dependency rules, runtime cycles, file size, and function
+size. Missing contracts remain `NOT_CONFIGURED`; malformed budgets fail
+closed.
 
-For MCP clients that prefer a prebuilt binary, use the separate npm
-distribution:
+## Product adapters
 
-```sh
-npx -y weavatrix mcp /absolute/path/to/repository
-```
-
-The npm package contains native binaries for Windows, macOS, and glibc-based
-Linux on x64 and arm64. Installation runs no scripts and downloads nothing.
-
-## Read-only boundary
-
-Weavatrix reads source, manifests, coverage artifacts, and Git objects. It does
-not edit application source, create commits, run project code, invoke `git` or
-`rg`, or make network requests. Editing belongs in `weavatrix-refactor`;
-network operations belong in `weavatrix-online`.
-
-## Troubleshooting
-
-- Empty graph: verify the root and `.weavatrixignore`, then rebuild.
-- Ambiguous symbol: pass an exact graph label or source position.
-- No coverage: provide LCOV, Istanbul, Tarpaulin JSON, or LLVM coverage;
-  static reachability is not substituted for measured data.
-- Large neighborhood: lower result limits, filter relation kinds, and paginate.
+This crate deliberately contains no MCP or npm runtime. For prebuilt coding
+agent integration use the separate
+[`weavatrix`](https://www.npmjs.com/package/weavatrix) product. It wraps this
+engine without moving protocol concerns into the core.

@@ -1,6 +1,5 @@
-use crate::error::{Error, Result};
 use crate::language::{Language, LanguageRegistry, SymbolFact};
-use crate::snapshot::{Capability, CapabilityState};
+use crate::model::{Capability, CapabilityState, Error, Result};
 use std::path::{Component, Path, PathBuf};
 use weavatrix_graph::{Confidence, EvidenceKind, NodeKind, Provenance, SourceSpan};
 

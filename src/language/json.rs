@@ -5,8 +5,7 @@
 //! malformed JSON at the exact location instead of silently omitting the file.
 
 use super::{FileFacts, Language, LanguageAdapter, SourceFile};
-use crate::Result;
-use crate::snapshot::Diagnostic;
+use crate::model::{Diagnostic, Result};
 use weavatrix_graph::{SourcePosition, SourceSpan};
 
 #[derive(Debug, Clone, Copy)]

@@ -10,14 +10,14 @@ use std::path::Path;
 use support::GitFixture;
 #[cfg(feature = "git")]
 use weavatrix_rust::Weavatrix;
-use weavatrix_rust::tools;
+use weavatrix_rust::operations;
 
 #[test]
-fn production_tool_sources_and_catalog_schemas_have_no_unknown_state_literal() {
-    let tools_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tools");
-    assert_sources_have_no_unknown_state_literal(&tools_root);
+fn production_operation_sources_and_catalog_schemas_have_no_unknown_state_literal() {
+    let operations_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/operations");
+    assert_sources_have_no_unknown_state_literal(&operations_root);
 
-    for definition in tools::catalog() {
+    for definition in operations::catalog() {
         assert_ne!(definition.name, "UNKNOWN");
         assert_ne!(definition.description, "UNKNOWN");
         assert_no_unknown_value(
@@ -46,7 +46,7 @@ fn workflow_and_trace_results_use_explicit_evidence_states() {
     client.commit("client");
 
     let mut engine = Weavatrix::open(&backend.root).unwrap();
-    let endpoint = tools::call(
+    let endpoint = operations::call(
         &mut engine,
         "trace_endpoint",
         json!({"path": "/api/items", "method": "GET"}),
@@ -55,7 +55,7 @@ fn workflow_and_trace_results_use_explicit_evidence_states() {
     assert_eq!(endpoint["dynamic_dispatch"]["evaluated"], true);
     assert_no_incomplete_value(&endpoint, "trace_endpoint result");
 
-    let contract = tools::call(
+    let contract = operations::call(
         &mut engine,
         "trace_api_contract",
         json!({
@@ -68,7 +68,7 @@ fn workflow_and_trace_results_use_explicit_evidence_states() {
     assert_eq!(contract["dynamic_contracts"]["evaluated"], true);
     assert_no_incomplete_value(&contract, "trace_api_contract result");
 
-    let plan = tools::call(
+    let plan = operations::call(
         &mut engine,
         "verified_change",
         json!({"task": "update the endpoint", "phase": "plan", "base_ref": "HEAD"}),
@@ -78,7 +78,7 @@ fn workflow_and_trace_results_use_explicit_evidence_states() {
     assert_eq!(plan["verdict"], "PLANNED");
     assert_no_incomplete_value(&plan, "verified_change plan result");
 
-    let verification = tools::call(
+    let verification = operations::call(
         &mut engine,
         "verified_change",
         json!({"task": "update the endpoint", "phase": "verify", "base_ref": "HEAD"}),
@@ -86,7 +86,7 @@ fn workflow_and_trace_results_use_explicit_evidence_states() {
     .unwrap();
     assert_no_incomplete_value(&verification, "verified_change verify result");
 
-    let cursor_error = tools::call(
+    let cursor_error = operations::call(
         &mut engine,
         "trace_api_contract",
         json!({
@@ -99,7 +99,7 @@ fn workflow_and_trace_results_use_explicit_evidence_states() {
     .unwrap_err();
     assert!(cursor_error.contains("cursor format is invalid"));
 
-    let execution_error = tools::call(
+    let execution_error = operations::call(
         &mut engine,
         "verified_change",
         json!({
@@ -122,7 +122,7 @@ fn absent_external_evidence_is_structured_and_malformed_evidence_is_an_error() {
     fixture.commit("baseline");
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
 
-    let audit = tools::call(&mut engine, "run_audit", json!({})).unwrap();
+    let audit = operations::call(&mut engine, "run_audit", json!({})).unwrap();
     assert_eq!(audit["execution"]["status"], "COMPLETE");
     assert_eq!(
         audit["coverage_report"]["measured_coverage"]["present"],
@@ -141,7 +141,7 @@ fn absent_external_evidence_is_structured_and_malformed_evidence_is_an_error() {
     assert_eq!(audit["debt"]["comparison"]["present"], false);
     assert_no_incomplete_value(&audit, "run_audit result");
 
-    let history = tools::call(
+    let history = operations::call(
         &mut engine,
         "git_history",
         json!({"max_commits": 10, "months": 1200}),
@@ -158,14 +158,14 @@ fn absent_external_evidence_is_structured_and_malformed_evidence_is_an_error() {
     assert_no_incomplete_value(&history, "git_history result");
 
     let argument_error =
-        tools::call(&mut engine, "run_audit", json!({"max_findings": "many"})).unwrap_err();
+        operations::call(&mut engine, "run_audit", json!({"max_findings": "many"})).unwrap_err();
     assert!(argument_error.contains("max_findings must be a non-negative integer"));
     let history_argument_error =
-        tools::call(&mut engine, "git_history", json!({"months": "six"})).unwrap_err();
+        operations::call(&mut engine, "git_history", json!({"months": "six"})).unwrap_err();
     assert!(history_argument_error.contains("months must be a non-negative integer"));
 
     fixture.write("lcov.info", "this is not lcov\n");
-    let coverage_error = tools::call(&mut engine, "coverage_map", json!({})).unwrap_err();
+    let coverage_error = operations::call(&mut engine, "coverage_map", json!({})).unwrap_err();
     assert!(coverage_error.contains("LCOV contains no complete source records"));
 }
 

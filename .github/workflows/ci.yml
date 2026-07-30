@@ -25,13 +25,15 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --locked --all-targets --all-features -- -D warnings
       - run: cargo clippy --locked --all-targets --no-default-features -- -D warnings
-      - name: Prove the standalone core excludes the MCP runtime
+      - name: Prove the engine excludes product transport
         shell: bash
         run: |
-          if cargo tree --locked --no-default-features | grep -q '^mcport '; then
-            echo "mcport leaked into the standalone core dependency tree" >&2
+          if cargo tree --locked --all-features | grep -Eq '^(mcport|notify) '; then
+            echo "product transport leaked into the evidence engine" >&2
             exit 1
           fi
+      - name: Enforce the repository architecture contract
+        run: cargo test --locked --all-features --test architecture_self
 
   test:
     strategy:

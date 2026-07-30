@@ -3,7 +3,7 @@ use std::env;
 use std::hint::black_box;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use weavatrix_rust::{Weavatrix, tools};
+use weavatrix_rust::{Weavatrix, operations};
 
 fn main() {
     let repositories = repositories();
@@ -25,6 +25,7 @@ fn main() {
         .collect::<Vec<_>>();
     let output = blazingly_json::to_string_pretty(&json!({
         "schema": "weavatrix.repository-benchmark.v1",
+        "engine_version": env!("CARGO_PKG_VERSION"),
         "profile": "release",
         "samples": 3,
         "repositories": results
@@ -62,16 +63,16 @@ fn benchmark(path: &Path) -> Value {
         last = Some(engine);
     }
     let mut engine = last.unwrap();
-    let stats = tools::call(&mut engine, "graph_stats", json!({})).unwrap();
+    let stats = operations::call(&mut engine, "graph_stats", json!({})).unwrap();
     let stats_time = repeated(1_000, || {
-        black_box(tools::call(&mut engine, "graph_stats", json!({})).unwrap());
+        black_box(operations::call(&mut engine, "graph_stats", json!({})).unwrap());
     });
     let refresh_time = repeated(3, || {
         assert!(!black_box(engine.refresh_if_stale().unwrap()));
     });
     let search_time = repeated(5, || {
         black_box(
-            tools::call(
+            operations::call(
                 &mut engine,
                 "search_code",
                 json!({"query": "TODO", "max_results": 100}),

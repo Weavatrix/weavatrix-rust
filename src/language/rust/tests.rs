@@ -32,6 +32,30 @@ fn helper() {}
 }
 
 #[test]
+fn expands_grouped_imports_into_resolvable_targets() {
+    let facts = RustAdapter
+        .parse(SourceFile {
+            path: "src/lib.rs",
+            text: "use {super::worker::{run, Job}, crate::config as settings};",
+        })
+        .unwrap();
+    let targets = facts
+        .imports
+        .iter()
+        .map(|item| item.target.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        targets,
+        [
+            "super::worker::run",
+            "super::worker::Job",
+            "crate::config as settings"
+        ]
+    );
+}
+
+#[test]
 fn declaration_locations_start_at_the_identifier() {
     let source = r"
 #[derive(Debug)]

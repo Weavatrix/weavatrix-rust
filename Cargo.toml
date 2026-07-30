@@ -1,9 +1,9 @@
 ﻿[package]
 name = "weavatrix-rust"
-version = "1.0.3"
+version = "2.0.0"
 edition = "2024"
 rust-version = "1.89"
-description = "Composable Rust repository-intelligence engine for evidence graphs, lossless parsing, impact analysis, APIs, architecture, Git, search, semantics, and temporal memory"
+description = "Evidence-first Rust engine powering Weavatrix MCP: typed repository graphs, impact, architecture, APIs, Git, search, semantics, and temporal memory"
 license = "MIT"
 authors = ["Sergii Ziborov <sergii.ziborov@gmail.com>"]
 homepage = "https://weavatrix.com"
@@ -21,7 +21,7 @@ name = "weavatrix_rust"
 path = "src/lib.rs"
 
 [[bin]]
-name = "weavatrix"
+name = "weavatrix-rust"
 path = "src/main.rs"
 
 [[bench]]
@@ -29,13 +29,12 @@ name = "repository_suite"
 harness = false
 
 [features]
-default = ["full", "lang-rust", "mcp"]
+default = ["full", "lang-rust"]
 full = ["clone", "git", "memory", "search", "semantic", "vector"]
 clone = ["dep:weavatrix-clone"]
 git = ["dep:weavatrix-git"]
 lang-rust = ["dep:proc-macro2", "dep:syn"]
 memory = ["dep:weavatrix-memory"]
-mcp = ["dep:mcport", "dep:notify"]
 search = ["dep:weavatrix-search"]
 semantic = ["dep:weavatrix-semantic"]
 vector = ["dep:weavatrix-search-vector"]
@@ -45,17 +44,15 @@ proc-macro2 = { version = "1.0.107", default-features = false, features = ["span
 serde = { version = "1.0.229", features = ["derive"] }
 blazingly-json = "0.1.0"
 syn = { version = "3.0.3", default-features = false, features = ["clone-impls", "full", "parsing", "printing", "visit"], optional = true }
-weavatrix-clone = { version = "0.1.1", optional = true }
-weavatrix-git = { version = "0.2.0", optional = true }
-weavatrix-graph = "0.6.1"
-weavatrix-parse = "0.2.0"
-mcport = { version = "0.3.0", optional = true }
-notify = { version = "8.2.0", optional = true }
-weavatrix-memory = { version = "0.3.1", optional = true }
-weavatrix-scan = "0.4.5"
-weavatrix-search = { version = "0.3.0", optional = true, default-features = false }
-weavatrix-search-vector = { version = "0.3.0", optional = true }
-weavatrix-semantic = { version = "0.2.1", optional = true, features = ["vector-search"] }
+weavatrix-clone = { version = "0.1.2", optional = true }
+weavatrix-git = { version = "0.3.1", optional = true }
+weavatrix-graph = "0.6.3"
+weavatrix-parse = "0.2.1"
+weavatrix-memory = { version = "0.3.2", optional = true }
+weavatrix-scan = "0.4.6"
+weavatrix-search = { version = "0.3.1", optional = true, default-features = false }
+weavatrix-search-vector = { version = "0.3.1", optional = true }
+weavatrix-semantic = { version = "0.2.2", optional = true, features = ["vector-search"] }
 
 [dev-dependencies]
 

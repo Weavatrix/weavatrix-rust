@@ -1,7 +1,7 @@
 //! Shared, lossless mapping from typed parser facts into graph facts.
 
 use super::{FileFacts, SymbolFact, SymbolLocator};
-use crate::snapshot::Diagnostic;
+use crate::model::Diagnostic;
 use std::collections::BTreeMap;
 use weavatrix_graph::{EdgeKind, NodeKind, SourcePosition, SourceSpan};
 use weavatrix_parse::{ParseDiagnostic, Span};

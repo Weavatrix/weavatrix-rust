@@ -1,0 +1,107 @@
+{
+  "architectureContractV": 1,
+  "name": "Weavatrix Rust hexagonal repository intelligence",
+  "style": "ports-and-adapters",
+  "enforcement": "strict",
+  "components": [
+    {
+      "id": "model",
+      "name": "Evidence model",
+      "paths": ["src/model"]
+    },
+    {
+      "id": "language",
+      "name": "Language and contract adapters",
+      "paths": ["src/language"]
+    },
+    {
+      "id": "analysis",
+      "name": "Analysis pipeline",
+      "paths": ["src/analyzer"]
+    },
+    {
+      "id": "engine",
+      "name": "Repository engine",
+      "paths": ["src/engine"]
+    },
+    {
+      "id": "operations",
+      "name": "Read-only application operations",
+      "paths": ["src/operations"]
+    },
+    {
+      "id": "facade",
+      "name": "Public Rust facade",
+      "paths": ["src/lib.rs"]
+    },
+    {
+      "id": "cli",
+      "name": "Standalone CLI adapter",
+      "paths": ["src/main.rs"]
+    },
+    {
+      "id": "integration-tests",
+      "name": "Integration tests",
+      "paths": ["tests"]
+    },
+    {
+      "id": "benchmarks",
+      "name": "Benchmarks",
+      "paths": ["benches"]
+    },
+    {
+      "id": "automation",
+      "name": "Repository automation",
+      "paths": ["scripts"]
+    }
+  ],
+  "dependencyRules": [
+    {
+      "id": "model-is-inward",
+      "action": "forbid",
+      "from": ["model"],
+      "to": ["language", "analysis", "engine", "operations", "facade", "cli"],
+      "kinds": ["imports", "re_exports", "depends_on"]
+    },
+    {
+      "id": "language-adapters-do-not-orchestrate",
+      "action": "forbid",
+      "from": ["language"],
+      "to": ["analysis", "engine", "operations", "facade", "cli"],
+      "kinds": ["imports", "re_exports", "depends_on"]
+    },
+    {
+      "id": "analysis-does-not-own-runtime",
+      "action": "forbid",
+      "from": ["analysis"],
+      "to": ["engine", "operations", "facade", "cli"],
+      "kinds": ["imports", "re_exports", "depends_on"]
+    },
+    {
+      "id": "engine-does-not-call-use-cases",
+      "action": "forbid",
+      "from": ["engine"],
+      "to": ["operations", "facade", "cli"],
+      "kinds": ["imports", "re_exports", "depends_on"]
+    },
+    {
+      "id": "operations-are-transport-independent",
+      "action": "forbid",
+      "from": ["operations"],
+      "to": ["facade", "cli"],
+      "kinds": ["imports", "re_exports", "depends_on"]
+    }
+  ],
+  "budgets": {
+    "runtimeCycles": 0,
+    "maxFileLoc": 300,
+    "maxFunctionLoc": 100
+  },
+  "exceptions": [],
+  "ratchet": {
+    "baseline": {
+      "fingerprints": [],
+      "metrics": {}
+    }
+  }
+}

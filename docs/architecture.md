@@ -1,88 +1,115 @@
 # Architecture
 
-## Boundary
-
-Weavatrix Rust is a local, read-only application boundary:
+`weavatrix-rust` is the evidence engine in the Weavatrix family. Its
+architecture is a ports-and-adapters pipeline with an inward-only dependency
+direction.
 
 ```text
-weavatrix-scan manifest ----+
-language/domain adapters ---+--> normalized facts --> weavatrix-graph
-weavatrix-git objects ------+          |                    |
-coverage reports -----------+          +--> snapshot/query -+
-weavatrix-search/clone -----+                               |
-vector/semantic/memory -----+-------------------------------+
-                                                             |
-                                         Rust API / CLI
-                                              |
-                                      optional stdio MCP
-                                      all | code | seo view
+repository path / SourceInput[]
+              |
+              v
+ language + contract adapters
+              |
+              v
+     analysis and resolution
+              |
+              v
+ typed evidence model + Snapshot
+              |
+              v
+ repository engine and revision state
+              |
+              v
+ read-only application operations
+              |
+       +------+------+
+       |             |
+   Rust facade   standalone CLI
 ```
 
-The analyzer reads repository files and derived configuration. It does not edit
-source, execute repository code, start language servers, invoke command-line
-Git or ripgrep, or access the network.
+## Internal components
 
-## Independent packages
+| Component | Path | Responsibility |
+| --- | --- | --- |
+| model | `src/model` | Errors, capabilities, diagnostics, snapshots, and compatibility serialization. |
+| language | `src/language` | Language, manifest, API-contract, and infrastructure adapters. |
+| analysis | `src/analyzer` | Scan, parse, normalize, resolve, and construct the evidence graph. |
+| engine | `src/engine` | Repository identity, immutable snapshot state, refresh, and retargetable sessions. |
+| operations | `src/operations` | Bounded graph, impact, source, health, architecture, history, API, search, semantic, and memory use cases. |
+| facade | `src/lib.rs` | Stable public types and re-exports. |
+| CLI | `src/main.rs` | Thin command-line adapter over the public engine. |
 
-- `weavatrix-scan` owns walking, ignore rules, skip evidence, hashes, and
-  incremental manifests.
-- `weavatrix-graph` owns graph models, validation, canonical ordering,
-  algorithms, topology, and serialization.
-- `weavatrix-git` owns direct object-database, commit-graph, MIDX, diff, and
-  cross-repository reads.
-- `weavatrix-search` and `weavatrix-search-vector` own lexical and vector
-  retrieval.
-- `weavatrix-clone` owns Type-1/2/3 detection and stable report formats.
-- `weavatrix-semantic` owns inferred semantic edges and SEO policy.
-- `weavatrix-memory` owns append-only events, temporal projections, and bounded
-  context compilation.
+The dependency direction is:
 
-This crate composes those packages behind typed analyzer, snapshot, graph,
-repository-state, and operation APIs. The optional MCP adapter only projects
-those APIs through a protocol boundary.
+```text
+model <- language <- analysis <- engine <- operations
+```
 
-## Stable seam
+The facade may expose every layer. The CLI consumes the public facade.
+Lower-level components may not import orchestration or adapters above them.
+
+## First-party crate boundaries
+
+Heavy capabilities remain independently versioned crates rather than becoming
+hidden submodules:
+
+- `weavatrix-scan`: deterministic traversal, ignore rules, manifests, and
+  incremental file identity;
+- `weavatrix-parse`: lossless tokenization and structural facts;
+- `weavatrix-graph`: evidence types, validation, topology, and traversal;
+- `weavatrix-git`: direct object-database history, diffs, and cross-repository
+  comparison;
+- `weavatrix-search` and `weavatrix-search-vector`: bounded lexical and vector
+  retrieval;
+- `weavatrix-clone`: Type-1/2/3 clone evidence;
+- `weavatrix-semantic`: exact-rescored semantic and SEO policy;
+- `weavatrix-memory`: revision-aware temporal memory.
+
+This crate composes them. It does not duplicate their algorithms.
+
+## Enforced contract
+
+The checked-in `.weavatrix/architecture.json` is executable, not descriptive
+decoration. `verify_architecture` and `tests/architecture_self.rs` enforce:
+
+- no forbidden inward-to-outward imports;
+- no runtime dependency cycles;
+- at most 300 physical lines per governed source or verification file;
+- at most 100 physical lines per function;
+- no accepted exceptions or debt baseline in the release contract.
+
+Rust modules use one unambiguous layout: a nested module is represented by
+`name/mod.rs`; `name.rs` and `name/` never coexist.
+
+## Evidence boundary
 
 Language adapters return normalized symbols, imports, references, domains,
-diagnostics, and source spans. The analyzer owns repository identity and
-reference resolution. The graph package owns deduplication, validation, and
-canonical ordering.
+diagnostics, and exact spans. The analyzer owns repository identity and
+cross-file resolution. `weavatrix-graph` owns canonical graph ordering and
+validation. Operations consume the immutable repository state and return
+bounded JSON evidence.
 
-The native snapshot is deterministic. A compatibility projection emits the
-JavaScript Weavatrix `{ nodes, links }` shape so existing consumers can migrate
-without contaminating the graph model.
+Parsed, resolved, measured, and inferred evidence remain distinct. Static
+reachability is never relabeled as measured test coverage. Missing artifacts
+remain explicit rather than becoming reassuring zeroes.
 
-## Consumers and bounded adapter profiles
+## Read-only boundary
 
-The Rust API and CLI consume the engine directly. When the MCP adapter is
-enabled, code and SEO profiles use the same repository identity and evidence
-graph in one process to avoid duplicate scans and divergent revisions.
-`McpProfile` filters the visible operation catalog:
+The engine reads repository files and derived local artifacts. It does not:
 
-- `all`: every compiled capability;
-- `code`: repository intelligence without SEO-specific suggestions;
-- `seo`: content, graph, search, semantic, vector, and memory tools.
+- edit application source;
+- execute repository code;
+- spawn Git, ripgrep, language servers, Node.js, or Python;
+- access the network;
+- own protocol transport or npm packaging.
 
-SEO links are inferred evidence supplied by `weavatrix-semantic`. They never
-become deterministic code edges merely because they share a server.
-
-## Evidence model
-
-Every relationship records extractor identity, evidence kind, confidence, and
-an optional source span. Consumers must distinguish parsed/resolved evidence,
-measured coverage, and inferred semantic links. Every operation either
-completes its declared evaluation or returns an error. Optional external
-evidence that is not present is represented as
-`{ "present": false, "reason": "..." }`; it is not reported as an incomplete
-capability and it never invents a clean measured result.
+The CLI calls the same public Rust API as an embedded consumer. The separate
+`weavatrix` product owns MCP/npm transport, `weavatrix-refactor` owns source
+editing, and `weavatrix-online` owns licensed network workflows.
 
 ## Refresh model
 
-The active repository stores its last scan report. Library consumers use
-explicit `refresh_if_stale` and `rebuild` calls and have no watcher or MCP
-dependency. The optional adapter performs an incremental catch-up after its
-first request, then starts a native recursive filesystem watcher in the
-background. Later unchanged calls are constant-time at the freshness
-boundary. After a real filesystem event, an incremental scan compares source
-identity and hashes; a changed repository gets a fresh immutable snapshot.
-Git history and cross-repository reads stay independent of worktree mutation.
+`RepositoryState` binds a graph to one repository revision and scan report.
+Library consumers explicitly call refresh or rebuild operations. Changed
+repositories produce a new immutable snapshot; unchanged repositories retain
+their current state. No background watcher is hidden inside the core crate.

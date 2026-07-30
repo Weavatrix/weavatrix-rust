@@ -5,7 +5,7 @@
 //! only when both `kind` and the following metadata `name` are literal.
 
 use super::{DomainFact, FileFacts, Language, LanguageAdapter, SourceFile};
-use crate::Result;
+use crate::model::Result;
 use weavatrix_graph::{EdgeKind, NodeKind, SourcePosition, SourceSpan};
 
 pub struct YamlAdapter;

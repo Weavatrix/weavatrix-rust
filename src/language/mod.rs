@@ -1,5 +1,4 @@
-use crate::error::Result;
-use crate::snapshot::Diagnostic;
+use crate::model::{Diagnostic, Result};
 use std::fmt::{Display, Formatter};
 use weavatrix_graph::{EdgeKind, NodeKind, SourceSpan};
 
@@ -9,8 +8,6 @@ mod json;
 mod protobuf;
 #[cfg(feature = "lang-rust")]
 mod rust;
-#[cfg(feature = "lang-rust")]
-mod rust_endpoint;
 pub mod tokenized;
 mod yaml;
 

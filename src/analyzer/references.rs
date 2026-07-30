@@ -1,6 +1,6 @@
 use super::imports::ImportScopes;
-use crate::Result;
 use crate::language::{Language, ReferenceFact};
+use crate::model::Result;
 use std::collections::{BTreeSet, HashMap};
 use weavatrix_graph::{Confidence, Edge, EdgeKind, EvidenceKind, GraphBuilder, NodeId, Provenance};
 
@@ -83,57 +83,14 @@ fn resolve_name(
     //    exported by this specific module. This resolves
     //    `import { original as local }` without guessing that some unrelated
     //    repository declaration named `local` was intended.
-    let bindings = visible_imports.bindings(&item.source_path, name);
-    let direct_bindings = binding_targets(
-        bindings,
-        false,
-        item,
-        per_file,
-        item.reference.kind == EdgeKind::Calls,
-    );
-    if direct_bindings.len() == 1 {
-        return Some(Resolution {
-            target: direct_bindings.into_iter().next()?,
-            detail: "resolved through an exact imported-name binding",
-        });
-    }
-    // If the directly imported barrel does not define the name, preserve the
-    // exact binding while following that barrel's re-export surface. This
-    // keeps an unrelated same-named function imported elsewhere in the file
-    // from making the call appear ambiguous.
-    if direct_bindings.is_empty() {
-        let forwarded_bindings = binding_targets(
-            bindings,
-            true,
-            item,
-            per_file,
-            item.reference.kind == EdgeKind::Calls,
-        );
-        if forwarded_bindings.len() == 1 {
-            return Some(Resolution {
-                target: forwarded_bindings.into_iter().next()?,
-                detail: "resolved through an exact imported-name binding",
-            });
-        }
+    if let Some(resolution) = import_binding_resolution(item, name, per_file, visible_imports) {
+        return Some(resolution);
     }
     // 3. Exactly one imported file defines the name. This is the fallback for
     //    older facts and re-export barrels that do not expose an exact pair.
     //    repository-wide lookup used to call ambiguous.
-    let mut from_imports = visible_imports
-        .files(&item.source_path)
-        .into_iter()
-        .flatten()
-        .filter_map(|path| {
-            unique_in_file(path, name, per_file, item.reference.kind == EdgeKind::Calls)
-        })
-        .filter(|target| *target != item.source);
-    if let Some(target) = from_imports.next()
-        && from_imports.next().is_none()
-    {
-        return Some(Resolution {
-            target,
-            detail: "resolved through an import of the defining module",
-        });
+    if let Some(resolution) = imported_file_resolution(item, name, per_file, visible_imports) {
+        return Some(resolution);
     }
     // A script call not found in its lexical/import scope has no evidence for
     // a repository-wide binding. This also covers complex receivers whose
@@ -155,6 +112,55 @@ fn resolve_name(
     repository_wide.next().is_none().then(|| Resolution {
         target: only.clone(),
         detail: "unique repository symbol match",
+    })
+}
+
+fn import_binding_resolution(
+    item: &PendingReference,
+    name: &str,
+    per_file: &HashMap<String, HashMap<String, Vec<NodeId>>>,
+    visible_imports: &ImportScopes,
+) -> Option<Resolution> {
+    let bindings = visible_imports.bindings(&item.source_path, name);
+    let prefer_callable = item.reference.kind == EdgeKind::Calls;
+    let direct = binding_targets(bindings, false, item, per_file, prefer_callable);
+    if direct.len() == 1 {
+        return Some(Resolution {
+            target: direct.into_iter().next()?,
+            detail: "resolved through an exact imported-name binding",
+        });
+    }
+    if !direct.is_empty() {
+        return None;
+    }
+    let forwarded = binding_targets(bindings, true, item, per_file, prefer_callable);
+    if forwarded.len() != 1 {
+        return None;
+    }
+    Some(Resolution {
+        target: forwarded.into_iter().next()?,
+        detail: "resolved through an exact imported-name binding",
+    })
+}
+
+fn imported_file_resolution(
+    item: &PendingReference,
+    name: &str,
+    per_file: &HashMap<String, HashMap<String, Vec<NodeId>>>,
+    visible_imports: &ImportScopes,
+) -> Option<Resolution> {
+    let mut targets = visible_imports
+        .files(&item.source_path)
+        .into_iter()
+        .flatten()
+        .filter_map(|path| {
+            unique_in_file(path, name, per_file, item.reference.kind == EdgeKind::Calls)
+        })
+        .filter(|target| *target != item.source);
+    let target = targets.next()?;
+    targets.next().is_none().then_some(Resolution {
+        target,
+        detail: "resolved through an import of the defining module",
     })
 }
 

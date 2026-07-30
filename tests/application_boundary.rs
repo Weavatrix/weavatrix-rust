@@ -99,8 +99,12 @@ fn collect_rust_sources(directory: &Path, output: &mut Vec<PathBuf>) {
     for entry in entries {
         let path = entry.path();
         if path.is_dir() {
-            collect_rust_sources(&path, output);
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            if path.file_name().is_none_or(|name| name != "tests") {
+                collect_rust_sources(&path, output);
+            }
+        } else if path.extension().is_some_and(|extension| extension == "rs")
+            && path.file_stem().is_none_or(|stem| stem != "tests")
+        {
             output.push(path);
         }
     }

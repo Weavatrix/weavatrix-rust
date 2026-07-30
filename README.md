@@ -6,13 +6,12 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.89.0-orange.svg)](https://www.rust-lang.org/)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/LICENSE)
 
-**Build repository-aware Rust systems on evidence, not filename guesses.**
+**Turn a repository into evidence your Rust code can trust.**
 
-`weavatrix-rust` is the native, embeddable repository-intelligence engine
-behind Weavatrix. It builds a deterministic evidence graph from source,
-manifests, infrastructure, and API contracts, then layers bounded Git,
-coverage, clone, search, vector, semantic, and temporal-memory operations over
-that graph through typed Rust APIs.
+`weavatrix-rust` maps a codebase into a deterministic, typed evidence graph
+with exact source provenance. It then answers impact, architecture, API,
+health, history, search, semantic, and temporal-memory questions without
+executing the repository it analyzes.
 
 Use the crate to:
 
@@ -20,13 +19,11 @@ Use the crate to:
 - produce a serializable `Snapshot` for CI, indexing, or review systems;
 - run 39 bounded read-only operations over repository and graph evidence in
   the default full build;
-- run the standalone `weavatrix` CLI;
-- optionally expose the same operation catalog through an MCP stdio adapter.
+- run the standalone `weavatrix-rust` CLI.
 
-> **This crate is not an MCP SDK.** Its core abstractions are analyzers,
-> snapshots, evidence graphs, and repository state. MCP is an optional transport
-> behind the `mcp` Cargo feature; the library and standalone CLI work without
-> it.
+> **This crate is an engine, not an MCP server.** Protocol transport, npm
+> packaging, client profiles, and filesystem watching belong to the separate
+> [`weavatrix`](https://github.com/sergii-ziborov/weavatrix) product.
 
 ## What the crate gives you
 
@@ -36,8 +33,7 @@ Use the crate to:
 | `Snapshot` | Serialize nodes, edges, diagnostics, capabilities, and provenance. |
 | `Graph`, `Node`, `Edge` | Work directly with typed evidence-carrying graph primitives. |
 | `Weavatrix` / `RepositoryState` | Keep an analyzed repository live and execute bounded operations against one revision. |
-| `tools` | Use the compiled operation contracts from Rust or the CLI (39 in the default full build). |
-| `mcp` feature | Add the optional `mcport` stdio adapter for MCP clients. |
+| `operations` | Call the compiled read-only use cases from Rust or the CLI (39 in the default full build). |
 
 Release evidence:
 
@@ -46,18 +42,54 @@ Release evidence:
 | Read-only analysis operations | **39** |
 | Shared JavaScript call targets missing or wrong | **0 / 0** |
 | Shared imports, methods, and re-exports covered | **100%** |
-| Rust line coverage release gate | **87.18%** |
+| Rust line coverage release gate | **87.81%** |
 | Unsafe Rust in the engine | **forbidden** |
 | Network paths or application-source writes | **0** |
 | Required external executables | **0** |
 
-## Add the library
+## Use this engine through MCP
+
+The canonical [`weavatrix`](https://www.npmjs.com/package/weavatrix) product
+wraps this crate with MCP stdio, profile discovery, incremental refresh, and
+native filesystem watching:
+
+```sh
+npx -y weavatrix mcp .
+```
+
+Or compile the same adapter from crates.io:
+
+```sh
+cargo install weavatrix
+weavatrix mcp .
+```
+
+Codex configuration:
+
+```toml
+[mcp_servers.weavatrix]
+command = "npx"
+args = ["-y", "weavatrix", "mcp", ".", "--profile=code"]
+```
+
+Claude Code:
+
+```sh
+claude mcp add weavatrix -- \
+  npx -y weavatrix mcp . --profile=code
+```
+
+The MCP product delegates its catalog and every operation call to this engine.
+The `weavatrix-rust` crate itself remains protocol-independent and does not
+open stdio or start a watcher.
+
+## Embed it as a Rust library
 
 Choose the smallest feature set your application needs:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "1.0.3", default-features = false }
+weavatrix-rust = { version = "2.0.0", default-features = false }
 ```
 
 ```rust
@@ -77,12 +109,29 @@ println!(
 # Ok::<(), weavatrix_rust::Error>(())
 ```
 
+Call the same bounded operation catalog used by the MCP product:
+
+```rust
+use weavatrix_rust::{Weavatrix, operations};
+
+let mut engine = Weavatrix::open(".")?;
+let result = operations::call(
+    &mut engine,
+    "graph_stats",
+    blazingly_json::json!({}),
+)?;
+
+println!("{}", blazingly_json::to_string_pretty(&result)?);
+
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
 The minimal build retains the analyzer, lossless parsing, scanner, graph,
 snapshot model, standalone `analyze`, `list-tools`, and `tool` commands:
 
 ```sh
 cargo check --no-default-features
-cargo run --no-default-features -- analyze . --pretty
+cargo run --no-default-features --bin weavatrix-rust -- analyze . --pretty
 ```
 
 ## Architecture
@@ -91,15 +140,20 @@ cargo run --no-default-features -- analyze . --pretty
 repository path or SourceInput[]
              |
              v
-     lossless extraction
-   code + config + contracts
+ language + contract adapters
              |
              v
- typed evidence graph + Snapshot
+      analysis pipeline
              |
-             +--> Rust API
-             +--> standalone CLI
-             +--> optional MCP adapter
+             v
+ evidence model + Snapshot
+             |
+             v
+      repository engine
+             |
+             v
+ read-only operations --> Rust facade
+                     \--> standalone CLI
 ```
 
 The engine composes focused first-party crates:
@@ -129,16 +183,15 @@ The engine composes focused first-party crates:
 | `semantic` | Semantic and SEO link analysis. |
 | `memory` | Temporal memory context. |
 | `full` | `git`, `search`, `clone`, `vector`, `semantic`, and `memory`. |
-| `mcp` | Optional stdio transport through `mcport` and filesystem refresh notifications. |
 
-The default feature set is the complete distributable product:
-`full + lang-rust + mcp`. Embedders can disable default features and enable
-only the analysis components they use.
+The default feature set is the complete native engine: `full + lang-rust`.
+Embedders can disable default features and enable only the analysis components
+they use.
 
 ```toml
 [dependencies]
 weavatrix-rust = {
-    version = "1.0.3",
+    version = "2.0.0",
     default-features = false,
     features = ["lang-rust", "git", "search"]
 }
@@ -189,9 +242,9 @@ the graph depend on regex reconstruction.
 
 ## The 39 default analysis operations
 
-The default full build exposes 39 operations. The public operation layer sits
-above the graph and is usable from Rust, the CLI, or the optional MCP adapter.
-Feature-minimal builds expose only operations backed by compiled capabilities.
+The default full build exposes 39 operations. The public `operations` layer
+sits above the engine and is usable from Rust or the CLI. Feature-minimal
+builds expose only operations backed by compiled capabilities.
 
 | Workflow | Operations |
 | --- | --- |
@@ -215,29 +268,23 @@ cargo install weavatrix-rust
 Analyze and query without an MCP client:
 
 ```sh
-weavatrix analyze . --pretty
-weavatrix list-tools
-weavatrix tool graph_stats .
+weavatrix-rust analyze . --pretty
+weavatrix-rust list-tools
+weavatrix-rust tool graph_stats .
 ```
 
 The CLI calls the same engine and operation implementations as an embedded
 application.
 
-## Optional MCP adapter
+## Product boundary
 
-When an MCP client is the consumer, enable the `mcp` feature or use the default
-binary build:
-
-```sh
-weavatrix mcp . --profile=all
-```
-
-Profiles `all`, `code`, and `seo` expose bounded views of the same repository
-state. The adapter supplies stdio framing, discovery, schemas, pagination, and
-refresh; it does not define the engine architecture.
-
-The prebuilt npm distribution for Codex, Claude Code, and other MCP clients is
-the separate [`weavatrix`](https://www.npmjs.com/package/weavatrix) product.
+This repository owns analysis, evidence, repository state, and read-only
+operations. The prebuilt npm/MCP distribution for Codex, Claude Code, and
+other clients is [`weavatrix`](https://www.npmjs.com/package/weavatrix). Source
+editing belongs to
+[`weavatrix-refactor`](https://github.com/sergii-ziborov/weavatrix-refactor);
+licensed network workflows belong to
+[`weavatrix-online`](https://github.com/sergii-ziborov/weavatrix-online).
 
 ## Performance and parity evidence
 
@@ -255,12 +302,10 @@ For calls, 2,024 edges matched exactly and 299 reached the same source-line
 target with an additional Rust owner. There were zero missing and zero wrong
 shared targets.
 
-The installed npm distribution also provides an end-to-end process-boundary
-benchmark. It measures packaging, startup, MCP initialization, catalog
-discovery, identical operations, shutdown, and process-tree memory rather than
-presenting a library microbenchmark as a product result. See
-[benchmarks](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/benchmarks.md)
-and the checked-in raw reports.
+Repository and operation benchmarks measure this engine directly. The
+separate npm product additionally measures packaging, startup, protocol
+initialization, discovery, calls, shutdown, and process-tree memory. See the
+[methodology and raw evidence](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/benchmarks.md).
 
 ## Safety boundary
 
@@ -273,11 +318,6 @@ and the checked-in raw reports.
 - deterministic pagination and bounded results;
 - explicit evidence limitations instead of fabricated certainty.
 
-Source editing belongs to the separate
-[`weavatrix-refactor`](https://github.com/sergii-ziborov/weavatrix-refactor)
-package. Network workflows belong to
-[`weavatrix-online`](https://github.com/sergii-ziborov/weavatrix-online).
-
 ## Development gates
 
 ```sh
@@ -286,6 +326,7 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo clippy --locked --all-targets --no-default-features -- -D warnings
 cargo test --locked --all-targets --all-features
 cargo test --locked --no-default-features
+cargo test --locked --test architecture_self
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
 cargo publish --locked --dry-run
 ```
@@ -296,7 +337,7 @@ cargo publish --locked --dry-run
 - [Operation reference](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/tool-reference.md)
 - [Evidence model](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/evidence-model.md)
 - [Languages and repository surfaces](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/language-support.md)
-- [Library, CLI, and optional MCP](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/mcp-and-standalone.md)
+- [Library, CLI, and product boundary](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/engine-and-cli.md)
 - [Architecture](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/architecture.md)
 - [Dependencies and feature boundaries](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/dependencies.md)
 - [Benchmark methodology and evidence](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/docs/benchmarks.md)

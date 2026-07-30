@@ -1,10 +1,9 @@
 # Operation reference
 
 The default full build of `weavatrix-rust` exposes 39 bounded read-only
-analysis operations. Rust consumers use `tools::catalog` and `tools::call`;
-the standalone CLI exposes `list-tools` and `tool`. When the optional MCP
-adapter is enabled, it maps the compiled catalog to `tools/list`; MCP does not
-define the operation layer.
+analysis operations. Rust consumers use `operations::catalog` and
+`operations::call`; the standalone CLI exposes `list-tools` and `tool`.
+`tools` remains a backward-compatible Rust re-export.
 
 JSON is the stable machine-facing output. The operation catalog and generated
 schemas are authoritative.

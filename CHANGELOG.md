@@ -1,4 +1,19 @@
-﻿# Changelog
+# Changelog
+
+## 2.0.0 - 2026-07-30
+
+- establish `weavatrix-rust` as the protocol-independent repository-
+  intelligence engine; move MCP transport, filesystem watching, and npm
+  distribution to the canonical `weavatrix` product;
+- expose the 39 read-only capabilities through the `operations` module while
+  retaining `tools` as a source-compatibility re-export;
+- enforce a ports-and-adapters dependency contract with 300-line file,
+  100-line function, and zero-runtime-cycle release gates;
+- split analysis, language, engine, graph, health, history, workflow,
+  architecture, catalog, and transport-contract logic into focused domain
+  modules with one unambiguous Rust module layout;
+- rename the standalone diagnostic binary to `weavatrix-rust` so its identity
+  cannot be confused with the MCP/npm product.
 
 ## 1.0.3 - 2026-07-30
 

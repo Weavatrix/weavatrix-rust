@@ -1,15 +1,13 @@
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
-#[cfg(feature = "mcp")]
-use weavatrix_rust::mcp;
-use weavatrix_rust::{Analyzer, Weavatrix, tools};
+use weavatrix_rust::{Analyzer, Weavatrix, operations};
 
 fn main() -> ExitCode {
     match run(env::args().skip(1).collect()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
-            eprintln!("weavatrix: {message}");
+            eprintln!("weavatrix-rust: {message}");
             ExitCode::FAILURE
         }
     }
@@ -28,32 +26,10 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         return Ok(());
     }
     match arguments.first().map(String::as_str) {
-        Some("mcp") => {
-            #[cfg(not(feature = "mcp"))]
-            return Err(
-                "this build excludes the MCP transport; rebuild with --features mcp".into(),
-            );
-            #[cfg(feature = "mcp")]
-            {
-                let mut repository = ".";
-                let mut profile = mcp::McpProfile::All;
-                for argument in arguments.iter().skip(1) {
-                    if let Some(value) = argument.strip_prefix("--profile=") {
-                        profile = value.parse()?;
-                    } else if argument.starts_with('-') {
-                        return Err(format!("unknown MCP option: {argument}"));
-                    } else {
-                        repository = argument;
-                    }
-                }
-                return mcp::serve_with_profile(repository, profile)
-                    .map_err(|error| error.to_string());
-            }
-        }
         Some("list-tools") => {
             println!(
                 "{}",
-                blazingly_json::to_string_pretty(&tools::catalog())
+                blazingly_json::to_string_pretty(&operations::catalog())
                     .map_err(|error| error.to_string())?
             );
             return Ok(());
@@ -71,7 +47,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
                 )
                 .map_err(|error| format!("invalid tool JSON: {error}"))?;
             let mut engine = Weavatrix::open(repository).map_err(|error| error.to_string())?;
-            let output = tools::call(&mut engine, name, input)?;
+            let output = operations::call(&mut engine, name, input)?;
             println!(
                 "{}",
                 blazingly_json::to_string_pretty(&output).map_err(|error| error.to_string())?
@@ -81,7 +57,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
         Some("analyze") => {}
         _ => {
             print_help();
-            return Err("expected the `analyze`, `mcp`, `tool`, or `list-tools` command".into());
+            return Err("expected the `analyze`, `tool`, or `list-tools` command".into());
         }
     }
 
@@ -130,10 +106,10 @@ impl OutputFormat {
 
 fn print_help() {
     println!(
-        "Weavatrix Rust repository intelligence\n\n\
-Usage:\n  weavatrix analyze [REPOSITORY] [--pretty] [--format=snapshot|legacy]\n  weavatrix --version\n\n\
-  weavatrix mcp [REPOSITORY] [--profile=all|code|seo]\n  weavatrix list-tools\n\n\
-  weavatrix tool NAME [REPOSITORY] ['{{\"argument\":\"value\"}}']\n\n\
+        "weavatrix-rust repository intelligence engine\n\n\
+Usage:\n  weavatrix-rust analyze [REPOSITORY] [--pretty] [--format=snapshot|legacy]\n  weavatrix-rust --version\n\n\
+  weavatrix-rust list-tools\n\n\
+  weavatrix-rust tool NAME [REPOSITORY] ['{{\"argument\":\"value\"}}']\n\n\
 Formats:\n  snapshot  Canonical weavatrix-rust snapshot (default)\n  legacy    JavaScript Weavatrix-compatible {{ nodes, links }} graph"
     );
 }
