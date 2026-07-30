@@ -5,6 +5,32 @@ workstation. Historical product, component, and in-process graph measurements
 remain below so changes in methodology are visible rather than silently
 replacing old numbers.
 
+## 2.0.1 patch engine basic and short-load gate
+
+The patch release was measured at
+`2ee6052bed059a086763d5728a4026ff5f9a9319`. It uses the same bounded
+three-cold-build and 1,000-hot-call harness as 2.0.0; no long soak or
+competitor run is part of this patch gate.
+
+| Measurement | Result |
+|---|---:|
+| Repository view | 187 files / 1,516 nodes / 7,223 edges |
+| Cold build | 127.85 ms min / **168.35 ms median** / 170.81 ms max |
+| `graph_stats`, 1,000 hot calls | **1.134 ms/call** |
+| Unchanged refresh, 3 calls | **11.620 ms/call** |
+| Literal search, 5 calls | **7.542 ms/call** |
+| Coverage | 2.0.1 is re-gated at **>=85%** in CI; 2.0.0 measured **87.81%** |
+
+The same revision passed the enforceable architecture contract and the
+production self-health gates: zero architecture violations, dependency or
+runtime findings, cycles, dead-code candidates, and duplicate families at the
+50-token / 92% threshold.
+
+Raw evidence:
+
+- `benchmark-results/rust-engine-2.0.1-basic.json`
+  (SHA-256 `C25D39627049683F41B8E71EA6DBD04563AD4807AB0D70C45D5E05F5F60DE458`).
+
 ## 2.0.0 engine basic and short-load gate
 
 This bounded release check analyzes the committed `weavatrix-rust` repository
