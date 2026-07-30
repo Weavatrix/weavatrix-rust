@@ -15,6 +15,8 @@ use {
 };
 
 #[cfg(feature = "clone")]
+mod families;
+#[cfg(feature = "clone")]
 mod render;
 #[cfg(feature = "clone")]
 mod threshold;
@@ -32,6 +34,7 @@ pub(in crate::operations) fn duplicates(
         pairs: raw_pairs,
         statistics,
     } = report;
+    let raw_family_count = raw_families.len();
     let top = usize::try_from(optional_u64(args, "top_n")?.unwrap_or(15))
         .map_err(|_| "top_n is too large".to_owned())?;
     let visibility = Visibility {
@@ -42,14 +45,16 @@ pub(in crate::operations) fn duplicates(
     let mut visible = |path: &str, start: u32, end: u32| {
         clone_location_visible(state, path, start, end, visibility, &mut test_lines)
     };
-    let (families, suppressed_families) = visible_families(raw_families, &mut visible);
     let (mut pairs, suppressed_pairs) = visible_pairs(raw_pairs, &mut visible);
+    let families = families::rebuild(&pairs);
+    let suppressed_families = raw_family_count.saturating_sub(families.len());
     let (families, low_signal) = suppress_low_signal(state, args, families)?;
     let visible_pair_ids = families
         .iter()
         .flat_map(|family| family.pair_ids.iter().cloned())
         .collect::<BTreeSet<_>>();
     pairs.retain(|pair| visible_pair_ids.contains(&pair.id));
+    let (families, pairs) = families::limit(families, pairs, top);
     Ok(render::report(
         &statistics,
         &families,
@@ -82,42 +87,6 @@ fn clone_detector(args: &Value) -> Result<CloneDetector, String> {
         ..CloneConfig::default()
     })
     .map_err(|error| error.to_string())
-}
-
-#[cfg(feature = "clone")]
-fn visible_families(
-    families: Vec<CloneFamily>,
-    visible: &mut impl FnMut(&str, u32, u32) -> bool,
-) -> (Vec<CloneFamily>, usize) {
-    let before = families.len();
-    let mut families = families
-        .into_iter()
-        .filter(|family| {
-            family
-                .members
-                .iter()
-                .filter(|member| {
-                    visible(&member.path, member.span.start_line, member.span.end_line)
-                })
-                .count()
-                >= 2
-        })
-        .collect::<Vec<_>>();
-    let suppressed = before.saturating_sub(families.len());
-    families.sort_by_key(|family| {
-        core::cmp::Reverse(
-            family
-                .members
-                .iter()
-                .map(|member| {
-                    usize::try_from(member.span.end_line.saturating_sub(member.span.start_line))
-                        .unwrap_or(0)
-                        + 1
-                })
-                .sum::<usize>(),
-        )
-    });
-    (families, suppressed)
 }
 
 #[cfg(feature = "clone")]

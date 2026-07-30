@@ -269,9 +269,9 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "weavatrix-clone"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d14b55fa95c63689f063b9463569fe2f67bf62ccedc82397efef9404d4c8d514"
+checksum = "95997d636a5773feb1b80bdd56c11d9317fcd3406b6d596d1fa697e66d48b94a"
 dependencies = [
  "weavatrix-scan",
 ]
