@@ -1,7 +1,11 @@
+#[cfg(feature = "clone")]
 mod tool_fixture;
 
+#[cfg(feature = "clone")]
 use blazingly_json::json;
+#[cfg(feature = "clone")]
 use tool_fixture::Fixture;
+#[cfg(feature = "clone")]
 use weavatrix_rust::{Weavatrix, tools};
 
 #[test]
