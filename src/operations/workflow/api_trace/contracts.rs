@@ -23,20 +23,12 @@ pub(super) fn analyze(
     let http = if matches!(transport, "all" | "http") {
         http_contracts(backend, clients, args)?
     } else {
-        json!({
-            "status": "NOT_APPLICABLE",
-            "totals": {"endpoints": 0, "matches": 0, "method_mismatches": 0},
-            "contracts": []
-        })
+        empty_contracts(&json!({"endpoints": 0, "matches": 0, "method_mismatches": 0}))
     };
     let events = if matches!(transport, "all" | "event") {
         event_contracts(backend, clients, args)?
     } else {
-        json!({
-            "status": "NOT_APPLICABLE",
-            "totals": {"contracts": 0, "matches": 0},
-            "contracts": []
-        })
+        empty_contracts(&json!({"contracts": 0, "matches": 0}))
     };
     let graphql = typed_contract(transport, "graphql", backend, clients, args)?;
     let grpc = typed_contract(transport, "grpc", backend, clients, args)?;
@@ -46,6 +38,14 @@ pub(super) fn analyze(
         events,
         graphql,
         grpc,
+    })
+}
+
+fn empty_contracts(totals: &Value) -> Value {
+    json!({
+        "status": "NOT_APPLICABLE",
+        "totals": totals,
+        "contracts": []
     })
 }
 

@@ -9,6 +9,7 @@ mod entry_points;
 mod hot_paths;
 mod manifests;
 mod paths;
+mod project_identity;
 pub(super) mod runtime;
 mod scc;
 

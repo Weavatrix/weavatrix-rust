@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.1 - 2026-07-30
+
+- recognize a Cargo package's sibling library target as project-local during
+  dependency audits, so binaries importing their own crate never appear as a
+  missing external dependency;
+- remove a near-duplicate fallback in API-contract tracing while preserving
+  the exact structured `NOT_APPLICABLE` result;
+- add a regression test for hyphenated Cargo package-to-library imports and
+  repeat the architecture, audit, dead-code, duplicate, test, and Clippy
+  release gates.
+
 ## 2.0.0 - 2026-07-30
 
 - establish `weavatrix-rust` as the protocol-independent repository-

@@ -2,6 +2,7 @@ use super::{
     audit::severity_at_least,
     manifests::{Declaration, duplicates, normalize, parse},
     paths::is_non_product,
+    project_identity,
     runtime::rust_cfg_test_lines,
 };
 use crate::engine::RepositoryState;
@@ -30,6 +31,7 @@ pub(super) fn report(state: &RepositoryState, max: usize, filter: (bool, u8)) ->
         let ecosystem = ecosystem(language);
         for package in packages {
             if builtin(language, package)
+                || project_identity::contains(state, ecosystem, package)
                 || declarations
                     .iter()
                     .any(|item| matches_declaration(item, ecosystem, package))

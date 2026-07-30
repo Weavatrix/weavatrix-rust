@@ -143,6 +143,32 @@ fn audit_matches_hyphenated_cargo_dependencies_to_grouped_rust_uses() {
 
 #[test]
 #[cfg(feature = "lang-rust")]
+fn audit_treats_the_package_library_as_a_local_dependency() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"fixture-core\"\nversion = \"0.1.0\"\n",
+    );
+    fixture.write("src/lib.rs", "pub fn value() -> usize { 1 }\n");
+    fixture.write(
+        "src/main.rs",
+        "use fixture_core::value;\nfn main() { let _ = value(); }\n",
+    );
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let audit = tools::call(&mut engine, "run_audit", json!({})).unwrap();
+    let findings = audit["dependency_report"]["findings"].as_array().unwrap();
+
+    assert!(
+        !findings
+            .iter()
+            .any(|finding| finding["package"] == "fixture_core"),
+        "a Cargo target may import its sibling library: {findings:?}"
+    );
+}
+
+#[test]
+#[cfg(feature = "lang-rust")]
 fn audit_uses_only_production_import_evidence() {
     let fixture = Fixture::new();
     fixture.write(

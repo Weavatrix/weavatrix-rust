@@ -309,7 +309,7 @@ checksum = "0cf7fedfa96c39719e662076136d0aaa17e06cadcb1b60c2396891ce2038852e"
 
 [[package]]
 name = "weavatrix-rust"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "blazingly-json",
  "proc-macro2",
