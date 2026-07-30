@@ -5,6 +5,34 @@ workstation. Historical product, component, and in-process graph measurements
 remain below so changes in methodology are visible rather than silently
 replacing old numbers.
 
+## 2.0.2 duplicate-integrity patch basic and short-load gate
+
+The patch release was measured at
+`7ab5a3b6db277c28a31129b8768f16525cad6f0b`. It repeats the bounded
+three-cold-build and 1,000-hot-call harness after fixing filtered clone-family
+integrity. No long soak or competitor run is part of this patch gate.
+
+| Measurement | Result |
+|---|---:|
+| Repository view | 190 files / 1,527 nodes / 7,282 edges |
+| Cold build | 85.95 ms min / **87.60 ms median** / 100.19 ms max |
+| `graph_stats`, 1,000 hot calls | **0.860 ms/call** |
+| Unchanged refresh, 3 calls | **6.623 ms/call** |
+| Literal search, 5 calls | **5.246 ms/call** |
+| Measured line coverage | **87.71%** |
+| Measured function / region coverage | 80.57% / 85.30% |
+
+The same code passed 122 all-feature tests, 85 no-default-feature tests,
+strict Clippy in both feature modes, rustdoc, dependency audit, package dry
+run, the enforceable architecture contract, and a regression against the
+Semantic repository. With tests excluded, every returned clone-family member
+is visible and every family pair identifier resolves to a returned pair.
+
+Raw evidence:
+
+- `benchmark-results/rust-engine-2.0.2-basic.json`
+  (SHA-256 `97B96014085F290932815E2E79155F5277213766E1E5C080DCE5F3B78B504445`).
+
 ## 2.0.1 patch engine basic and short-load gate
 
 The patch release was measured at

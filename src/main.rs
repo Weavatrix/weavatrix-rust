@@ -15,7 +15,7 @@ fn main() -> ExitCode {
 
 fn run(arguments: Vec<String>) -> Result<(), String> {
     if arguments.first().is_some_and(|value| value == "--version") {
-        println!("weavatrix {}", env!("CARGO_PKG_VERSION"));
+        println!("weavatrix-rust {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
     if arguments

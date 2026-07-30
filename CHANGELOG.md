@@ -9,7 +9,9 @@
   member, pair, and connected component mutually consistent;
 - delegate deterministic component clustering and stable family identities to
   `weavatrix-clone` 0.1.3 and cover the published Semantic-repository
-  regression with focused all-feature and no-default-feature gates.
+  regression with focused all-feature and no-default-feature gates;
+- make the standalone binary report the unambiguous `weavatrix-rust` engine
+  identity from `--version`, rather than the separate MCP product name.
 
 ## 2.0.1 - 2026-07-30
 
