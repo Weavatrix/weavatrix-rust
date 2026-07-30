@@ -3,8 +3,11 @@
 use blazingly_json::Value;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use weavatrix_rust::{Analyzer, EdgeKind, NodeKind};
+
+static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn analyzes_a_rust_repository_without_external_processes() {
@@ -256,8 +259,9 @@ impl Fixture {
             .unwrap()
             .as_nanos();
         let root = std::env::temp_dir().join(format!(
-            "weavatrix-rust-test-{}-{nonce}",
-            std::process::id()
+            "weavatrix-rust-test-{}-{nonce}-{}",
+            std::process::id(),
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir_all(&root).unwrap();
         Self { root }

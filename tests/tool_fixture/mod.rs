@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) struct Fixture {
     pub(crate) root: PathBuf,
@@ -12,8 +15,11 @@ impl Fixture {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root =
-            std::env::temp_dir().join(format!("weavatrix-tools-{}-{nonce}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "weavatrix-tools-{}-{nonce}-{}",
+            std::process::id(),
+            FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
         fs::create_dir_all(&root).unwrap();
         Self { root }
     }
