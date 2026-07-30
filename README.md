@@ -42,7 +42,7 @@ Release evidence:
 | Read-only analysis operations | **39** |
 | Shared JavaScript call targets missing or wrong | **0 / 0** |
 | Shared imports, methods, and re-exports covered | **100%** |
-| Rust line coverage | **87.81%** on 2.0.0; 2.0.1 is re-gated at **>=85%** in CI |
+| Rust line coverage | **87.69%** |
 | Committed self-analysis | **187 files / 1,516 nodes / 7,223 edges** |
 | Cold build median | **168.35 ms** |
 | Hot `graph_stats` short load | **1.134 ms/call across 1,000 calls** |

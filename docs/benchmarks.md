@@ -19,7 +19,8 @@ competitor run is part of this patch gate.
 | `graph_stats`, 1,000 hot calls | **1.134 ms/call** |
 | Unchanged refresh, 3 calls | **11.620 ms/call** |
 | Literal search, 5 calls | **7.542 ms/call** |
-| Coverage | 2.0.1 is re-gated at **>=85%** in CI; 2.0.0 measured **87.81%** |
+| Measured line coverage | **87.69%** |
+| Measured function / region coverage | 80.47% / 85.27% |
 
 The same revision passed the enforceable architecture contract and the
 production self-health gates: zero architecture violations, dependency or
