@@ -1,6 +1,6 @@
 use super::{neighbors, pagination::page_offset};
 use crate::engine::RepositoryState;
-use crate::operations::{arg_bool, arg_str, arg_u64};
+use crate::operations::{arg_bool, arg_str, arg_u64, optional_bool, optional_u64};
 use blazingly_json::{Value, json};
 use std::collections::BTreeMap;
 use weavatrix_graph::NodeKind;
@@ -48,8 +48,10 @@ pub fn communities(state: &RepositoryState, args: &Value) -> Result<Value, Strin
     )
 }
 
-pub fn module_map(state: &RepositoryState, args: &Value) -> Value {
-    let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(25)).unwrap_or(25);
+pub fn module_map(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    let top = usize::try_from(optional_u64(args, "top_n")?.unwrap_or(25))
+        .map_err(|_| "top_n is too large")?;
+    let include_non_product = optional_bool(args, "include_non_product")?.unwrap_or(false);
     let mut modules = BTreeMap::<String, (u64, u64)>::new();
     for node in state.graph().nodes() {
         let Some(path) = node
@@ -60,6 +62,9 @@ pub fn module_map(state: &RepositoryState, args: &Value) -> Value {
         else {
             continue;
         };
+        if !include_non_product && crate::operations::health::is_non_product(path) {
+            continue;
+        }
         let module = path.split('/').next().unwrap_or("(root)").to_owned();
         let entry = modules.entry(module).or_default();
         if node.kind == NodeKind::File {
@@ -74,9 +79,11 @@ pub fn module_map(state: &RepositoryState, args: &Value) -> Value {
             .cmp(&(left.1.0 + left.1.1))
             .then_with(|| left.0.cmp(&right.0))
     });
-    json!({"modules": modules.into_iter().take(top).map(|(path, (files, symbols))| {
+    Ok(
+        json!({"modules": modules.into_iter().take(top).map(|(path, (files, symbols))| {
         json!({"path": path, "files": files, "symbols": symbols})
-    }).collect::<Vec<_>>()})
+    }).collect::<Vec<_>>() }),
+    )
 }
 
 pub fn endpoints(state: &RepositoryState, args: &Value) -> Result<Value, String> {

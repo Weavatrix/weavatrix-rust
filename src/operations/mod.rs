@@ -50,7 +50,7 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
         "run_audit" => health::audit(state, &arguments),
         "coverage_map" => health::coverage(state, &arguments),
         "hot_path_review" => health::hot_paths(state, &arguments),
-        "module_map" => Ok(graph::module_map(state, &arguments)),
+        "module_map" => graph::module_map(state, &arguments),
         "list_endpoints" => graph::endpoints(state, &arguments),
         "trace_endpoint" => graph::trace_endpoint(state, &arguments),
         "graph_diff" => history::graph_diff(state, &arguments),

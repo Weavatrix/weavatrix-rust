@@ -100,7 +100,7 @@ pub(super) fn path_class(path: &str) -> PathClass {
 }
 
 /// Whether a path's evidence is test or otherwise non-product.
-pub(super) fn is_non_product(path: &str) -> bool {
+pub(in crate::operations) fn is_non_product(path: &str) -> bool {
     path_class(path) != PathClass::Product
 }
 
