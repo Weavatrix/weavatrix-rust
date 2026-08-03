@@ -136,6 +136,11 @@ pub(super) const SPECS: &[ToolSpec] = &[
         required: &[],
     },
     ToolSpec {
+        name: "build_graph",
+        description: "Workspace, target and runner topology from manifest evidence.",
+        required: &[],
+    },
+    ToolSpec {
         name: "list_endpoints",
         description: "Inventory statically extracted HTTP endpoints.",
         required: &[],

@@ -41,6 +41,7 @@ fn graph_fields(tool: &str) -> Option<&'static [&'static str]> {
         "shortest_path" => Some(&["max_hops"]),
         "get_community" => Some(&["max_nodes", "cursor"]),
         "list_communities" | "module_map" => Some(&["top_n", "include_non_product"]),
+        "build_graph" => Some(&["max_members"]),
         _ => None,
     }
 }

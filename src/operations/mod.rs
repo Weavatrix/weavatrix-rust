@@ -1,4 +1,5 @@
 mod architecture;
+mod build;
 mod catalog;
 mod graph;
 mod health;
@@ -54,6 +55,7 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
         "coverage_map" => health::coverage(state, &arguments),
         "hot_path_review" => health::hot_paths(state, &arguments),
         "module_map" => graph::module_map(state, &arguments),
+        "build_graph" => build::build_graph(state, &arguments),
         "list_endpoints" => graph::endpoints(state, &arguments),
         "trace_endpoint" => graph::trace_endpoint(state, &arguments),
         "graph_diff" => history::graph_diff(state, &arguments),
