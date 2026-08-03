@@ -39,6 +39,7 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
         "get_dependents" => graph::dependents(state, &arguments),
         "change_impact" => workflow::change_impact(state, &arguments),
         "map_stacktrace" => workflow::map_stacktrace(state, &arguments),
+        "select_tests" => workflow::select_tests(state, &arguments),
         "git_history" => history::history(state, &arguments),
         "cross_repo_git" => history::cross_repo(state, &arguments),
         "verified_change" => workflow::verified_change(state, &arguments),

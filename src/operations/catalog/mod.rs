@@ -39,7 +39,12 @@ fn capability_is_compiled(tool: &str) -> bool {
         cfg!(feature = "clone")
     } else if matches!(
         tool,
-        "change_impact" | "git_history" | "cross_repo_git" | "verified_change" | "graph_diff"
+        "change_impact"
+            | "git_history"
+            | "cross_repo_git"
+            | "verified_change"
+            | "graph_diff"
+            | "select_tests"
     ) {
         cfg!(feature = "git")
     } else if tool == "search_code" {

@@ -189,34 +189,10 @@ fn static_test_reachability(state: &RepositoryState) -> Value {
         .graph()
         .nodes()
         .iter()
-        .filter(|node| node.kind == NodeKind::File && is_test_suite(&node.label))
+        .filter(|node| node.kind == NodeKind::File && super::paths::is_test_suite(&node.label))
         .count();
     json!({
         "test_files": tests,
         "model": "language and test-runner suite naming over the static file graph"
     })
-}
-
-fn is_test_suite(path: &str) -> bool {
-    let normalized = path.replace('\\', "/").to_ascii_lowercase();
-    let file = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
-    let extension = Path::new(file)
-        .extension()
-        .and_then(|value| value.to_str())
-        .unwrap_or_default();
-    let script_test = matches!(
-        extension,
-        "js" | "jsx" | "mjs" | "cjs" | "ts" | "tsx" | "mts" | "cts"
-    ) && (file.contains(".test.")
-        || file.contains(".spec.")
-        || normalized.contains("/__tests__/"));
-    let rust_test = extension == "rs"
-        && (normalized.starts_with("tests/")
-            || normalized.contains("/tests/")
-            || file.ends_with("_test.rs"));
-    let go_test = file.ends_with("_test.go");
-    let python_test = matches!(extension, "py" | "pyi")
-        && (file.starts_with("test_") || file.ends_with("_test.py"));
-
-    script_test || rust_test || go_test || python_test
 }

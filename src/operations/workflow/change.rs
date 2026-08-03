@@ -58,7 +58,7 @@ pub(in crate::operations) fn change_impact(
     }))
 }
 
-fn worktree_changes(
+pub(super) fn worktree_changes(
     state: &RepositoryState,
     args: &Value,
     requested: Option<Vec<String>>,
@@ -80,7 +80,7 @@ fn worktree_changes(
     Ok((git, files))
 }
 
-fn explicit_changed_files(args: &Value) -> Result<Option<Vec<String>>, String> {
+pub(super) fn explicit_changed_files(args: &Value) -> Result<Option<Vec<String>>, String> {
     if let Some(value) = args.get("files") {
         let files = value
             .as_array()

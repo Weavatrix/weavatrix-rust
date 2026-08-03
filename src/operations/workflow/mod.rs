@@ -1,9 +1,11 @@
 mod api_trace;
 mod change;
+mod select_tests;
 mod stacktrace;
 mod verified;
 
 pub(super) use api_trace::{trace_api, trace_api_cached};
 pub(super) use change::change_impact;
+pub(super) use select_tests::select_tests;
 pub(super) use stacktrace::map_stacktrace;
 pub(super) use verified::verified_change;

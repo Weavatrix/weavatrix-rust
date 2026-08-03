@@ -51,6 +51,11 @@ pub(super) const SPECS: &[ToolSpec] = &[
         required: &["text"],
     },
     ToolSpec {
+        name: "select_tests",
+        description: "Select the test suites a change most plausibly needs to run.",
+        required: &[],
+    },
+    ToolSpec {
         name: "git_history",
         description: "Bounded direct Git history without launching git.",
         required: &[],
