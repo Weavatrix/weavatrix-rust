@@ -137,6 +137,7 @@ fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str]> {
             "per_item_limit",
             "cursor",
         ]),
+        "map_stacktrace" => Some(&["max_frames"]),
         "search_code" => Some(&["is_regex", "glob", "before", "after", "max_results"]),
         "read_source" => Some(&["label", "path", "start_line", "before", "after"]),
         "inspect_symbol" => Some(&[

@@ -46,6 +46,11 @@ pub(super) const SPECS: &[ToolSpec] = &[
         required: &[],
     },
     ToolSpec {
+        name: "map_stacktrace",
+        description: "Map stack-trace text onto repository files and symbols.",
+        required: &["text"],
+    },
+    ToolSpec {
         name: "git_history",
         description: "Bounded direct Git history without launching git.",
         required: &[],
