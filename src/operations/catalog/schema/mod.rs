@@ -138,8 +138,15 @@ fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str]> {
             "cursor",
         ]),
         "map_stacktrace" => Some(&["max_frames"]),
-        "search_code" => Some(&["is_regex", "glob", "before", "after", "max_results"]),
-        "read_source" => Some(&["label", "path", "start_line", "before", "after"]),
+        "search_code" => Some(&[
+            "is_regex",
+            "glob",
+            "before",
+            "after",
+            "max_results",
+            "token_budget",
+        ]),
+        "read_source" => Some(&["label", "path", "start_line", "before", "after", "token_budget"]),
         "inspect_symbol" => Some(&[
             "precision",
             "max_references",
@@ -156,6 +163,7 @@ fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str]> {
             "context_lines",
             "include_classified",
             "timeout_ms",
+            "token_budget",
         ]),
         "list_endpoints" => Some(&["method", "path", "max_results", "include_classified"]),
         "trace_endpoint" => Some(&[
@@ -172,6 +180,13 @@ fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str]> {
 }
 
 pub(super) fn field_schema(tool: &str, name: &str) -> Value {
+    if name == "token_budget" {
+        return json!({
+            "type": "integer",
+            "minimum": 1,
+            "description": "Approximate output ceiling in tokens (serialized bytes / 4); result arrays are trimmed from the tail to fit and the report states what was dropped"
+        });
+    }
     if name == "relation_filter" {
         return json!({
             "oneOf": [

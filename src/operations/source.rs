@@ -35,12 +35,25 @@ pub fn read_source(state: &RepositoryState, args: &Value) -> Result<Value, Strin
             (number >= first && number <= last).then(|| json!({"line": number, "text": line}))
         })
         .collect::<Vec<_>>();
-    Ok(json!({
+    let budget = super::token_budget::requested(args)?;
+    let mut report = json!({
         "path": relative.replace('\\', "/"),
         "start_line": first,
         "end_line": lines.last().and_then(|line| line["line"].as_u64()).unwrap_or(0),
         "lines": lines
-    }))
+    });
+    super::token_budget::fit(&mut report, budget, &["/lines"]);
+    if budget.is_some() {
+        let end = report["lines"]
+            .as_array()
+            .and_then(|lines| lines.last())
+            .and_then(|line| line["line"].as_u64())
+            .unwrap_or(0);
+        if let Some(object) = report.as_object_mut() {
+            object.insert("end_line".to_owned(), json!(end));
+        }
+    }
+    Ok(report)
 }
 
 #[cfg(feature = "search")]
@@ -66,6 +79,7 @@ pub fn search(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         scan.override_rules.push(glob.to_owned());
         searcher = searcher.scan_options(scan);
     }
+    let budget = super::token_budget::requested(args)?;
     let report = searcher.search().map_err(|error| error.to_string())?;
     let total_matching_lines = report.matching_lines;
     let total_occurrences = report.occurrences;
@@ -73,7 +87,7 @@ pub fn search(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let retained_matches = report.matches.len();
     let returned_matches = retained_matches.min(max);
     let truncated = report.truncated || retained_matches > max;
-    Ok(json!({
+    let mut rendered = json!({
         "backend": format!("{:?}", report.backend).to_ascii_lowercase(),
         "matches": report.matches.into_iter().take(max).map(|item| json!({
             "path": item.path,
@@ -103,7 +117,22 @@ pub fn search(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             "kind": format!("{:?}", warning.kind).to_ascii_lowercase(),
             "message": warning.message
         })).collect::<Vec<_>>()
-    }))
+    });
+    super::token_budget::fit(&mut rendered, budget, &["/matches"]);
+    if budget.is_some() {
+        let kept = rendered["matches"].as_array().map_or(0, Vec::len);
+        if kept < returned_matches {
+            for pointer in ["/returned_matches", "/totals/returned_matches"] {
+                if let Some(value) = rendered.pointer_mut(pointer) {
+                    *value = json!(kept);
+                }
+            }
+            if let Some(value) = rendered.pointer_mut("/truncated") {
+                *value = json!(true);
+            }
+        }
+    }
+    Ok(rendered)
 }
 
 #[cfg(not(feature = "search"))]
@@ -168,11 +197,18 @@ pub fn context(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             sources.push(source);
         }
     }
-    Ok(json!({
+    let budget = super::token_budget::requested(args)?;
+    let mut report = json!({
         "inspection": inspection,
         "related_source": sources,
         "bounded": true
-    }))
+    });
+    super::token_budget::fit(
+        &mut report,
+        budget,
+        &["/related_source", "/inspection/source/lines"],
+    );
+    Ok(report)
 }
 
 fn secure_path(root: &Path, relative: &str) -> Result<PathBuf, String> {

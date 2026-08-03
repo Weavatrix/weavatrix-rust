@@ -154,7 +154,16 @@ pub fn query(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         .into_iter()
         .filter_map(|index| state.graph().edge_at(index))
         .collect::<Vec<_>>();
-    Ok(json!({"nodes": nodes, "edges": edges, "truncated": nodes.len() == max_nodes}))
+    let budget = crate::operations::token_budget::requested(args)?;
+    let mut report = json!({"nodes": nodes, "edges": edges, "truncated": nodes.len() == max_nodes});
+    crate::operations::token_budget::fit(&mut report, budget, &["/edges", "/nodes"]);
+    let dropped = report["token_budget"]["dropped_items"].as_u64().unwrap_or(0);
+    if dropped > 0
+        && let Some(value) = report.pointer_mut("/truncated")
+    {
+        *value = json!(true);
+    }
+    Ok(report)
 }
 
 pub fn hubs(state: &RepositoryState, args: &Value) -> Value {

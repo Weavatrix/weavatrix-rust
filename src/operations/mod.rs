@@ -7,6 +7,7 @@ mod memory;
 mod semantic;
 mod source;
 mod syntax;
+mod token_budget;
 mod transport_contracts;
 mod vector;
 mod workflow;
