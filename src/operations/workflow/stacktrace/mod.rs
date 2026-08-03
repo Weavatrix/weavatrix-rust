@@ -171,7 +171,11 @@ fn suffix_overlap(label: &[String], candidate: &[String]) -> usize {
         .zip(candidate.iter().rev())
         .take_while(|(left, right)| left == right)
         .count();
-    (count > 0 && label.last() == candidate.last()).then_some(count).unwrap_or(0)
+    if count > 0 && label.last() == candidate.last() {
+        count
+    } else {
+        0
+    }
 }
 
 /// `com.example.Type.method(Type.java:8)` implies the file lives under
@@ -217,7 +221,10 @@ fn resolve_symbol(
         if let Some(line) = frame.line
             && span.start.line <= line
             && nearest.is_none_or(|current| {
-                current.span.as_ref().is_some_and(|s| s.start.line < span.start.line)
+                current
+                    .span
+                    .as_ref()
+                    .is_some_and(|s| s.start.line < span.start.line)
             })
         {
             nearest = Some(node);
@@ -240,9 +247,8 @@ fn preferred_by_line(
     let Some(line) = line else {
         return false;
     };
-    let start = |node: &weavatrix_graph::Node| {
-        node.span.as_ref().map_or(u32::MAX, |span| span.start.line)
-    };
+    let start =
+        |node: &weavatrix_graph::Node| node.span.as_ref().map_or(u32::MAX, |span| span.start.line);
     let distance = |node: &weavatrix_graph::Node| start(node).abs_diff(line);
     distance(candidate) < distance(current)
 }

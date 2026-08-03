@@ -42,7 +42,7 @@ pub(super) fn parse(text: &str, max_frames: usize) -> Vec<ParsedFrame> {
     frames
 }
 
-/// `File "path", line N, in name` - the CPython traceback frame.
+/// `File "path", line N, in name` - the `CPython` traceback frame.
 fn python_frame(line: &str) -> Option<ParsedFrame> {
     let rest = line.strip_prefix("File \"")?;
     let (path, rest) = rest.split_once('"')?;
@@ -162,9 +162,6 @@ fn parse_u32(text: &str) -> Option<u32> {
 }
 
 fn numeric_prefix(text: &str) -> Option<u32> {
-    let digits = text
-        .bytes()
-        .take_while(u8::is_ascii_digit)
-        .count();
+    let digits = text.bytes().take_while(u8::is_ascii_digit).count();
     (digits > 0).then(|| text[..digits].parse().ok()).flatten()
 }

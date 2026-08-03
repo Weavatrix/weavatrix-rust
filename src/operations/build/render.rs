@@ -31,7 +31,7 @@ pub(super) fn report(
                 "ecosystem": workspace.ecosystem,
                 "aggregator": workspace.aggregator,
                 "members_total": workspace.members.len(),
-                "members": workspace.members.into_iter().take(take).map(member).collect::<Vec<_>>()
+                "members": workspace.members.iter().take(take).map(member).collect::<Vec<_>>()
             })
         })
         .collect::<Vec<_>>();
@@ -47,7 +47,7 @@ pub(super) fn report(
     }))
 }
 
-fn member(member: Member) -> Value {
+fn member(member: &Member) -> Value {
     json!({
         "name": member.name,
         "path": member.dir,
@@ -114,9 +114,7 @@ fn runner_configs(index: &ManifestIndex) -> Vec<Value> {
     index
         .labels()
         .iter()
-        .filter_map(|path| {
-            runner_kind(path).map(|kind| json!({"path": path, "kind": kind}))
-        })
+        .filter_map(|path| runner_kind(path).map(|kind| json!({"path": path, "kind": kind})))
         .take(MAX_RUNNERS)
         .collect()
 }
@@ -124,9 +122,11 @@ fn runner_configs(index: &ManifestIndex) -> Vec<Value> {
 fn runner_kind(path: &str) -> Option<&'static str> {
     let normalized = path.to_ascii_lowercase();
     let file = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
-    if normalized.contains(".github/workflows/")
-        && (file.ends_with(".yml") || file.ends_with(".yaml"))
-    {
+    let extension = std::path::Path::new(file)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if normalized.contains(".github/workflows/") && matches!(extension, "yml" | "yaml") {
         return Some("github-actions");
     }
     let prefixed = [
@@ -147,7 +147,7 @@ fn runner_kind(path: &str) -> Option<&'static str> {
             return Some(kind);
         }
     }
-    if file.starts_with("tsconfig") && file.ends_with(".json") {
+    if file.starts_with("tsconfig") && extension == "json" {
         return Some("typescript");
     }
     match file {

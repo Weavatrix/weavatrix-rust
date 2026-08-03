@@ -157,7 +157,9 @@ pub fn query(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let budget = crate::operations::token_budget::requested(args)?;
     let mut report = json!({"nodes": nodes, "edges": edges, "truncated": nodes.len() == max_nodes});
     crate::operations::token_budget::fit(&mut report, budget, &["/edges", "/nodes"]);
-    let dropped = report["token_budget"]["dropped_items"].as_u64().unwrap_or(0);
+    let dropped = report["token_budget"]["dropped_items"]
+        .as_u64()
+        .unwrap_or(0);
     if dropped > 0
         && let Some(value) = report.pointer_mut("/truncated")
     {

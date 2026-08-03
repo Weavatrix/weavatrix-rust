@@ -15,9 +15,9 @@ pub(super) fn npm_package(text: &str) -> NpmPackage {
         .as_object()
         .into_iter()
         .flat_map(|scripts| {
-            scripts.iter().filter_map(|(name, command)| {
-                Some((name.clone(), command.as_str()?.to_owned()))
-            })
+            scripts
+                .iter()
+                .filter_map(|(name, command)| Some((name.clone(), command.as_str()?.to_owned())))
         })
         .collect();
     let mut dependencies = Vec::new();
@@ -208,7 +208,8 @@ fn inline_path_value(value: &str) -> Option<String> {
 fn quoted_strings(text: &str) -> Vec<String> {
     text.split('"')
         .enumerate()
-        .filter_map(|(index, part)| (index % 2 == 1).then(|| part.to_owned()))
+        .filter(|(index, _)| index % 2 == 1)
+        .map(|(_, part)| part.to_owned())
         .collect()
 }
 
@@ -252,8 +253,7 @@ pub(super) fn glob_matches(pattern: &str, path: &str) -> bool {
         match (pattern.first(), path.first()) {
             (None, None) => true,
             (Some(&"**"), _) => {
-                matches(&pattern[1..], path)
-                    || (!path.is_empty() && matches(pattern, &path[1..]))
+                matches(&pattern[1..], path) || (!path.is_empty() && matches(pattern, &path[1..]))
             }
             (Some(&"*"), Some(_)) => matches(&pattern[1..], &path[1..]),
             (Some(literal), Some(segment)) if literal.eq_ignore_ascii_case(segment) => {

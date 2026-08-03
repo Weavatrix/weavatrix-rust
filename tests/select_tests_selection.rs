@@ -1,3 +1,5 @@
+#![cfg(feature = "git")]
+
 mod language_fixture;
 
 use blazingly_json::json;
@@ -5,13 +7,9 @@ use language_fixture::Fixture;
 use weavatrix_rust::{Weavatrix, tools};
 
 #[test]
-#[cfg(feature = "git")]
 fn changed_files_select_dependent_and_name_convention_suites() {
     let fixture = Fixture::new();
-    fixture.write(
-        "services/init.js",
-        "export function init(){ return 1; }\n",
-    );
+    fixture.write("services/init.js", "export function init(){ return 1; }\n");
     fixture.write(
         "services/consumer.js",
         "import { init } from './init.js';\nexport const start = () => init();\n",
@@ -24,10 +22,7 @@ fn changed_files_select_dependent_and_name_convention_suites() {
         "tests/integration/consumer.spec.js",
         "import { start } from '../../services/consumer.js';\ntest('start', () => start());\n",
     );
-    fixture.write(
-        "tests/unrelated.test.js",
-        "test('unrelated', () => 1);\n",
-    );
+    fixture.write("tests/unrelated.test.js", "test('unrelated', () => 1);\n");
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
 
     let report = tools::call(
@@ -59,7 +54,6 @@ fn changed_files_select_dependent_and_name_convention_suites() {
 }
 
 #[test]
-#[cfg(feature = "git")]
 fn changed_test_files_select_themselves_and_ranking_prefers_proximity() {
     let fixture = Fixture::new();
     fixture.write("src/lib.js", "export const value = 1;\n");
@@ -111,7 +105,6 @@ fn changed_test_files_select_themselves_and_ranking_prefers_proximity() {
 }
 
 #[test]
-#[cfg(feature = "git")]
 fn python_and_go_conventions_select_by_name() {
     let fixture = Fixture::new();
     fixture.write("app/report.py", "def build():\n    return 1\n");
@@ -119,7 +112,10 @@ fn python_and_go_conventions_select_by_name() {
         "tests/test_report.py",
         "from app.report import build\n\ndef test_build():\n    assert build() == 1\n",
     );
-    fixture.write("pkg/parser.go", "package pkg\n\nfunc Parse() int { return 1 }\n");
+    fixture.write(
+        "pkg/parser.go",
+        "package pkg\n\nfunc Parse() int { return 1 }\n",
+    );
     fixture.write(
         "pkg/parser_test.go",
         "package pkg\n\nimport \"testing\"\n\nfunc TestParse(t *testing.T) { Parse() }\n",
@@ -138,6 +134,12 @@ fn python_and_go_conventions_select_by_name() {
         .iter()
         .map(|test| test["path"].as_str().unwrap().to_owned())
         .collect::<Vec<_>>();
-    assert!(paths.contains(&"tests/test_report.py".to_owned()), "{report:?}");
-    assert!(paths.contains(&"pkg/parser_test.go".to_owned()), "{report:?}");
+    assert!(
+        paths.contains(&"tests/test_report.py".to_owned()),
+        "{report:?}"
+    );
+    assert!(
+        paths.contains(&"pkg/parser_test.go".to_owned()),
+        "{report:?}"
+    );
 }

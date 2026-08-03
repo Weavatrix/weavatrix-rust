@@ -52,7 +52,11 @@ fn npm_workspaces_expose_members_targets_and_internal_dependencies() {
         "scripts are build targets: {api:?}"
     );
     let internal = api["internal_dependencies"].as_array().unwrap();
-    assert_eq!(internal.len(), 1, "express is not a workspace member: {api:?}");
+    assert_eq!(
+        internal.len(),
+        1,
+        "express is not a workspace member: {api:?}"
+    );
     assert_eq!(internal[0]["name"], "@x/lib");
     assert_eq!(internal[0]["member"], "packages/lib");
 }

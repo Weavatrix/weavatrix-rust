@@ -1,3 +1,5 @@
+﻿#![cfg(feature = "lang-rust")]
+
 mod language_fixture;
 
 use blazingly_json::json;
@@ -5,7 +7,6 @@ use language_fixture::Fixture;
 use weavatrix_rust::{Weavatrix, tools};
 
 #[test]
-#[cfg(feature = "lang-rust")]
 fn audit_counts_local_path_crate_imports_from_nested_packages() {
     let fixture = Fixture::new();
     fixture.write(
@@ -37,7 +38,6 @@ fn audit_counts_local_path_crate_imports_from_nested_packages() {
 }
 
 #[test]
-#[cfg(feature = "lang-rust")]
 fn audit_excludes_named_benchmark_packages_but_not_generic_tools() {
     let fixture = Fixture::new();
     fixture.write(
@@ -70,7 +70,6 @@ fn audit_excludes_named_benchmark_packages_but_not_generic_tools() {
 }
 
 #[test]
-#[cfg(feature = "lang-rust")]
 fn dead_code_starts_from_nested_cargo_default_targets() {
     let fixture = Fixture::new();
     fixture.write(

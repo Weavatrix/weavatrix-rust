@@ -100,9 +100,7 @@ pub(super) fn locate(state: &RepositoryState, index: &ManifestIndex, name: &str)
         {
             continue;
         }
-        if index.labels.contains(&candidate)
-            || state.root().join(&candidate).is_file()
-        {
+        if index.labels.contains(&candidate) || state.root().join(&candidate).is_file() {
             found.insert(candidate);
         }
     }

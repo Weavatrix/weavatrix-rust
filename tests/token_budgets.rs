@@ -5,9 +5,11 @@ use language_fixture::Fixture;
 use weavatrix_rust::{Weavatrix, tools};
 
 fn long_module() -> String {
-    (1..=200)
-        .map(|index| format!("export const value{index} = {index};\n"))
-        .collect()
+    use std::fmt::Write;
+    (1..=200).fold(String::new(), |mut module, index| {
+        let _ = writeln!(module, "export const value{index} = {index};");
+        module
+    })
 }
 
 #[test]
@@ -35,7 +37,10 @@ fn read_source_trims_lines_to_the_requested_token_budget() {
     )
     .unwrap();
     let kept = budgeted["lines"].as_array().unwrap().len();
-    assert!(kept < full_lines, "the budget must trim: {kept} vs {full_lines}");
+    assert!(
+        kept < full_lines,
+        "the budget must trim: {kept} vs {full_lines}"
+    );
     assert!(kept > 0, "a 300-token budget holds some lines");
     assert_eq!(budgeted["token_budget"]["fit"], true);
     assert!(budgeted["token_budget"]["dropped_items"].as_u64().unwrap() > 0);

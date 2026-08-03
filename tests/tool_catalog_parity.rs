@@ -24,6 +24,9 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "shortest_path",
         "get_dependents",
         "change_impact",
+        "map_stacktrace",
+        "select_tests",
+        "build_graph",
         "git_history",
         "cross_repo_git",
         "verified_change",
@@ -117,8 +120,12 @@ fn catalog_does_not_advertise_unavailable_lsp_precision() {
     use weavatrix_rust::tools;
 
     let catalog = tools::catalog();
-    for name in ["get_dependents", "change_impact"] {
-        let definition = catalog.iter().find(|tool| tool.name == name).unwrap();
+    for name in ["get_dependents", "change_impact", "select_tests"] {
+        // Feature-minimal builds compile only part of the catalog; a tool
+        // that is absent cannot advertise a precision at all.
+        let Some(definition) = catalog.iter().find(|tool| tool.name == name) else {
+            continue;
+        };
         assert_eq!(
             definition.input_schema["properties"]["precision"]["enum"],
             json!(["graph"]),

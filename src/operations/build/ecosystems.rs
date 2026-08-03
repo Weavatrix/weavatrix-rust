@@ -179,8 +179,8 @@ pub(super) fn go_workspaces(
                 } else {
                     format!("{dir}/go.mod")
                 };
-                let exists = index.contains_file(&manifest)
-                    || state.root().join(&manifest).is_file();
+                let exists =
+                    index.contains_file(&manifest) || state.root().join(&manifest).is_file();
                 exists.then(|| {
                     claimed.insert(format!("go:{manifest}"));
                     let name = read_manifest(state, &manifest)

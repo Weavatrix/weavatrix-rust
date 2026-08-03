@@ -158,7 +158,14 @@ fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str]> {
             "max_results",
             "token_budget",
         ]),
-        "read_source" => Some(&["label", "path", "start_line", "before", "after", "token_budget"]),
+        "read_source" => Some(&[
+            "label",
+            "path",
+            "start_line",
+            "before",
+            "after",
+            "token_budget",
+        ]),
         "inspect_symbol" => Some(&[
             "precision",
             "max_references",

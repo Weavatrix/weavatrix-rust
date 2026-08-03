@@ -1,6 +1,6 @@
 ﻿[package]
 name = "weavatrix-rust"
-version = "2.0.2"
+version = "2.1.0"
 edition = "2024"
 rust-version = "1.89"
 description = "Protocol-independent Rust repository intelligence: typed evidence graphs for impact, architecture, APIs, Git, search, and memory"
@@ -47,7 +47,7 @@ syn = { version = "3.0.3", default-features = false, features = ["clone-impls", 
 weavatrix-clone = { version = "0.1.3", optional = true }
 weavatrix-git = { version = "0.3.1", optional = true }
 weavatrix-graph = "0.6.3"
-weavatrix-parse = "0.2.1"
+weavatrix-parse = "0.3.0"
 weavatrix-memory = { version = "0.3.2", optional = true }
 weavatrix-scan = "0.4.6"
 weavatrix-search = { version = "0.3.1", optional = true, default-features = false }

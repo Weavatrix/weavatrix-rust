@@ -1,5 +1,36 @@
 # Changelog
 
+## 2.1.0 - 2026-08-03
+
+Three new operations, token budgets, dependency-injection graph evidence,
+and grounded health verdicts.
+
+- `map_stacktrace`: V8/Node, JVM, CPython and Rust panic/backtrace frames from
+  supplied text are mapped onto repository files and the nearest graph symbol;
+  runtime and dependency frames classify from their own text and nothing is
+  executed;
+- `select_tests`: static suite selection for a change - changed suites, runner
+  naming conventions in reverse, and suites reached through bounded reverse
+  dependencies, ranked by graph distance;
+- `build_graph`: npm/pnpm/lerna, Cargo and go.work workspace topology from
+  manifest evidence - aggregators, members, script and Cargo targets,
+  workspace-internal dependency edges, and a runner-configuration inventory;
+- `token_budget` on `read_source`, `search_code`, `context_bundle` and
+  `query_graph`: results trim from the tail to fit an approximate token
+  ceiling and the report states exactly what was dropped;
+- dependency-injection wiring is graph evidence through `weavatrix-parse`
+  0.3.0: Spring `@Autowired` field and constructor injection and NestJS
+  constructor injection appear in blast-radius, impact and dead-code answers;
+- health verdicts are grounded in scoped, evidence-bound analysis:
+  `find_dead_code`/`hot_path_review` honor a `path` scope, tool configuration
+  is classified inventory, callback name arguments count as references, bare
+  Node builtins are recognized, installed required peer dependencies count as
+  npm usage evidence, dotted module stems resolve, `change_impact` populates
+  `impacted_nodes` again, unsupported `precision` values are explicit errors,
+  duplicate families keep model/schema/contract clones visible by default,
+  and `run_audit` accepts revision-bound external test evidence with teardown
+  and open-handle findings.
+
 ## 2.0.2 - 2026-07-30
 
 - rebuild clone families from the pairs that remain after test, classified,

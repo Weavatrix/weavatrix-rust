@@ -61,10 +61,7 @@ fn jvm_frames_use_the_package_convention_to_disambiguate_short_names() {
 #[test]
 fn rust_panics_and_backtraces_map_to_files_and_symbols() {
     let fixture = Fixture::new();
-    fixture.write(
-        "src/lib.rs",
-        "pub fn boom() {\n    panic!(\"boom\");\n}\n",
-    );
+    fixture.write("src/lib.rs", "pub fn boom() {\n    panic!(\"boom\");\n}\n");
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
     let trace = "thread 'main' panicked at src/lib.rs:2:5:\nboom\n\
         stack backtrace:\n\
@@ -110,7 +107,11 @@ fn python_tracebacks_resolve_and_the_text_contract_is_enforced() {
             .contains("text"),
         "text is a required argument"
     );
-    let empty = tools::call(&mut engine, "map_stacktrace", json!({"text": "no frames here"}))
-        .unwrap();
+    let empty = tools::call(
+        &mut engine,
+        "map_stacktrace",
+        json!({"text": "no frames here"}),
+    )
+    .unwrap();
     assert_eq!(empty["total_frames"], 0);
 }

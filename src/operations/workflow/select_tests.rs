@@ -31,7 +31,9 @@ pub(in crate::operations) fn select_tests(
         change::worktree_changes(state, args, requested)?
     };
     let depth = optional_u64(args, "depth")?.unwrap_or(3).clamp(1, 6);
-    let max_nodes = optional_u64(args, "max_nodes")?.unwrap_or(200).clamp(1, 2_000);
+    let max_nodes = optional_u64(args, "max_nodes")?
+        .unwrap_or(200)
+        .clamp(1, 2_000);
     let max_tests = usize::try_from(optional_u64(args, "max_tests")?.unwrap_or(100))
         .unwrap_or(100)
         .clamp(1, 500);
@@ -39,7 +41,12 @@ pub(in crate::operations) fn select_tests(
     let mut selected = BTreeMap::<String, Selection>::new();
     for file in &files {
         if is_test_suite(file) {
-            record(&mut selected, file, json!({"kind": "changed_test", "via": file}), 0);
+            record(
+                &mut selected,
+                file,
+                json!({"kind": "changed_test", "via": file}),
+                0,
+            );
             continue;
         }
         select_by_name(state, &mut selected, file);

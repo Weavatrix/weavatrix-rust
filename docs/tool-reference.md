@@ -1,6 +1,6 @@
 # Operation reference
 
-The default full build of `weavatrix-rust` exposes 39 bounded read-only
+The default full build of `weavatrix-rust` exposes 42 bounded read-only
 analysis operations. Rust consumers use `operations::catalog` and
 `operations::call`; the standalone CLI exposes `list-tools` and `tool`.
 `tools` remains a backward-compatible Rust re-export.
@@ -15,6 +15,8 @@ schemas are authoritative.
 - `query_graph`: bounded BFS/DFS around exact file or symbol seeds.
 - `god_nodes`, `shortest_path`: connectivity review and typed paths.
 - `get_community`, `list_communities`, `module_map`: deterministic territories.
+- `build_graph`: workspace aggregators, members, targets and runner
+  configurations from manifest evidence; no build tool is executed.
 
 ## Change impact and exact context
 
@@ -23,9 +25,16 @@ schemas are authoritative.
 - `verified_change`: impact, architecture, duplicate, API, and optional test
   evidence for plan/verify phases.
 - `prepare_change`, `graph_diff`: relevant rules and structural change.
-- `search_code`, `read_source`: bounded search and verified excerpts.
+- `select_tests`: the suites a change most plausibly needs to run - changed
+  suites, runner naming conventions in reverse, and suites reached through
+  bounded reverse dependencies.
+- `search_code`, `read_source`: bounded search and verified excerpts; both
+  accept `token_budget`, as do `context_bundle` and `query_graph`.
 - `inspect_symbol`, `context_bundle`: exact declarations and compact task
   worksets with ranked inbound/outbound evidence.
+- `map_stacktrace`: V8/Node, JVM, CPython and Rust panic frames from supplied
+  text mapped onto repository files and the nearest graph symbol; runtime and
+  dependency frames are classified from their own text.
 
 ## Health and quality
 

@@ -17,7 +17,7 @@ Use the crate to:
 
 - embed repository analysis in a Rust application;
 - produce a serializable `Snapshot` for CI, indexing, or review systems;
-- run 39 bounded read-only operations over repository and graph evidence in
+- run 42 bounded read-only operations over repository and graph evidence in
   the default full build;
 - run the standalone `weavatrix-rust` CLI.
 
@@ -33,13 +33,13 @@ Use the crate to:
 | `Snapshot` | Serialize nodes, edges, diagnostics, capabilities, and provenance. |
 | `Graph`, `Node`, `Edge` | Work directly with typed evidence-carrying graph primitives. |
 | `Weavatrix` / `RepositoryState` | Keep an analyzed repository live and execute bounded operations against one revision. |
-| `operations` | Call the compiled read-only use cases from Rust or the CLI (39 in the default full build). |
+| `operations` | Call the compiled read-only use cases from Rust or the CLI (42 in the default full build). |
 
 Release evidence:
 
 | Property | Result |
 | --- | ---: |
-| Read-only analysis operations | **39** |
+| Read-only analysis operations | **42** |
 | Shared JavaScript call targets missing or wrong | **0 / 0** |
 | Shared imports, methods, and re-exports covered | **100%** |
 | Rust line coverage | **87.71%** |
@@ -243,17 +243,17 @@ while structural facts retain exact spans. This supports diagnostics,
 round-trip validation, and future source-to-source consumers without making
 the graph depend on regex reconstruction.
 
-## The 39 default analysis operations
+## The 42 default analysis operations
 
-The default full build exposes 39 operations. The public `operations` layer
+The default full build exposes 42 operations. The public `operations` layer
 sits above the engine and is usable from Rust or the CLI. Feature-minimal
 builds expose only operations backed by compiled capabilities.
 
 | Workflow | Operations |
 | --- | --- |
-| Graph orientation | `graph_stats`, `get_node`, `get_neighbors`, `query_graph`, `god_nodes`, `shortest_path`, `get_community`, `list_communities`, `module_map` |
-| Change impact and proof | `get_dependents`, `change_impact`, `verified_change`, `prepare_change`, `graph_diff` |
-| Exact source context | `search_code`, `read_source`, `inspect_symbol`, `context_bundle` |
+| Graph orientation | `graph_stats`, `get_node`, `get_neighbors`, `query_graph`, `god_nodes`, `shortest_path`, `get_community`, `list_communities`, `module_map`, `build_graph` |
+| Change impact and proof | `get_dependents`, `change_impact`, `select_tests`, `verified_change`, `prepare_change`, `graph_diff` |
+| Exact source context | `search_code`, `read_source`, `inspect_symbol`, `context_bundle`, `map_stacktrace` |
 | Health and quality | `find_duplicates`, `find_dead_code`, `run_audit`, `coverage_map`, `hot_path_review` |
 | APIs and transports | `list_endpoints`, `trace_endpoint`, `trace_api_contract` |
 | Architecture | `get_architecture_contract`, `verify_architecture`, `explain_architecture_violation`, `propose_architecture_exception` |
