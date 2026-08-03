@@ -1,4 +1,5 @@
 use blazingly_json::Value;
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum PathClass {
@@ -31,6 +32,12 @@ pub(super) fn path_class(path: &str) -> PathClass {
     .any(|marker| file.contains(marker))
     {
         return PathClass::Test;
+    }
+    // Editors, language services and test/build tools load these files by
+    // convention. They remain part of the lossless repository inventory, but
+    // the application never imports them as production modules.
+    if is_tool_configuration(&segments, file) {
+        return PathClass::Classified;
     }
     // CI and packaging descriptors are executed by a platform, never imported.
     if segments.first() == Some(&".github")
@@ -78,7 +85,11 @@ pub(super) fn path_class(path: &str) -> PathClass {
         "temp",
         "dist",
         "build",
-    ]) || matches!(file, "test.rs" | "tests.rs" | "spec.rs" | "specs.rs")
+    ]) || segments.iter().any(|segment| {
+        ["-bench", "_bench", "-benchmark", "_benchmark"]
+            .iter()
+            .any(|suffix| segment.ends_with(suffix))
+    }) || matches!(file, "test.rs" | "tests.rs" | "spec.rs" | "specs.rs")
         || [
             ".md",
             ".markdown",
@@ -99,8 +110,70 @@ pub(super) fn path_class(path: &str) -> PathClass {
     PathClass::Product
 }
 
+fn is_tool_configuration(segments: &[&str], file: &str) -> bool {
+    if segments.contains(&".vscode") {
+        return true;
+    }
+    let path = Path::new(file);
+    let extension = path.extension().and_then(|value| value.to_str());
+    let stem = path.file_stem().and_then(|value| value.to_str());
+    let is_json = extension.is_some_and(|value| value.eq_ignore_ascii_case("json"));
+    let is_language_config = is_json
+        && (matches!(file, "jsconfig.json" | "tsconfig.json")
+            || ["jsconfig.", "tsconfig."]
+                .iter()
+                .any(|prefix| file.starts_with(prefix)));
+    let is_script_config = extension.is_some_and(|value| {
+        ["js", "cjs", "mjs", "ts", "cts", "mts"]
+            .iter()
+            .any(|candidate| value.eq_ignore_ascii_case(candidate))
+    }) && stem.is_some_and(|value| value.ends_with(".config"));
+    is_language_config || is_script_config
+}
+
+/// One optional repository-relative file or directory supplied by a tool.
+///
+/// The returned scope uses graph-path separators and can therefore be shared
+/// by tools without platform-specific prefix behaviour.
+pub(super) fn requested_path_scope(args: &Value) -> Result<Option<String>, String> {
+    let Some(value) = args.get("path") else {
+        return Ok(None);
+    };
+    let Some(raw) = value.as_str() else {
+        return Err("path must be a string".to_owned());
+    };
+    let raw = raw.trim();
+    if raw.is_empty() || Path::new(raw).is_absolute() {
+        return Err("path must be a non-empty repository-relative file or directory".to_owned());
+    }
+    let mut normalized = raw.replace('\\', "/");
+    while let Some(stripped) = normalized.strip_prefix("./") {
+        normalized = stripped.to_owned();
+    }
+    normalized = normalized.trim_end_matches('/').to_owned();
+    if normalized == "." {
+        return Ok(None);
+    }
+    if normalized.is_empty() || normalized.split('/').any(|segment| segment == "..") {
+        return Err("path must stay within the repository".to_owned());
+    }
+    Ok(Some(normalized))
+}
+
+/// Exact-file or directory-subtree matching over normalized graph paths.
+pub(super) fn path_is_in_scope(path: &str, scope: Option<&str>) -> bool {
+    let Some(scope) = scope else {
+        return true;
+    };
+    let normalized = path.replace('\\', "/");
+    normalized == scope
+        || normalized
+            .strip_prefix(scope)
+            .is_some_and(|remainder| remainder.starts_with('/'))
+}
+
 /// Whether a path's evidence is test or otherwise non-product.
-pub(super) fn is_non_product(path: &str) -> bool {
+pub(in crate::operations) fn is_non_product(path: &str) -> bool {
     path_class(path) != PathClass::Product
 }
 

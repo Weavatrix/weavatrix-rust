@@ -103,6 +103,77 @@ fn change_impact_uses_the_active_worktree_by_default() {
 }
 
 #[test]
+fn change_impact_returns_flat_dependent_nodes() {
+    let root = fixture();
+    fs::create_dir_all(root.join("services")).unwrap();
+    fs::create_dir_all(root.join("tests")).unwrap();
+    fs::write(
+        root.join("services/init.js"),
+        "export function initialize() {}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("services/consumer.js"),
+        "import { initialize } from './init.js';\nexport function start() { initialize(); }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("tests/consumer.test.js"),
+        "import { start } from '../services/consumer.js';\ntest('start', () => start());\n",
+    )
+    .unwrap();
+
+    let mut engine = Weavatrix::open(&root).unwrap();
+    let result = tools::call(
+        &mut engine,
+        "change_impact",
+        json!({"files": ["services/init.js"], "depth": 2, "max_nodes": 20}),
+    )
+    .unwrap();
+    let impacted = result["impacted_nodes"].as_array().unwrap();
+    let ids = impacted
+        .iter()
+        .filter_map(|node| node["id"].as_str())
+        .collect::<Vec<_>>();
+
+    assert!(ids.contains(&"file:services/consumer.js"), "{impacted:?}");
+    assert!(ids.contains(&"file:tests/consumer.test.js"), "{impacted:?}");
+    assert!(
+        impacted
+            .iter()
+            .all(|node| node.get("node").is_none() && node.get("id").is_some()),
+        "change impact must expose the same flat node shape consumed by verified_change: {impacted:?}"
+    );
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
+fn bounded_static_tools_reject_unavailable_lsp_precision() {
+    let root = fixture();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/value.js"), "export const value = 1;\n").unwrap();
+    let mut engine = Weavatrix::open(&root).unwrap();
+
+    for (tool, arguments) in [
+        (
+            "get_dependents",
+            json!({"label": "file:src/value.js", "precision": "lsp"}),
+        ),
+        (
+            "change_impact",
+            json!({"files": ["src/value.js"], "precision": "lsp"}),
+        ),
+    ] {
+        let error = tools::call(&mut engine, tool, arguments).unwrap_err();
+        assert!(
+            error.contains("supports only 'graph' bounded static precision"),
+            "{tool} must fail instead of silently downgrading lsp: {error}"
+        );
+    }
+    fs::remove_dir_all(root).ok();
+}
+
+#[test]
 fn verified_change_passes_an_unchanged_worktree_without_running_processes() {
     let root = fixture();
     fs::create_dir_all(root.join("src")).unwrap();

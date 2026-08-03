@@ -3,6 +3,7 @@ use super::kinds::{edge_kind, node_kind, span};
 use crate::language::{
     FileFacts, ImportBindingFact, ImportFact, ReferenceFact, SymbolFact, SymbolLocator,
 };
+use weavatrix_graph::EdgeKind;
 use weavatrix_parse::Facts;
 
 /// Converts parser facts into the language-neutral graph-builder contract.
@@ -43,6 +44,17 @@ pub(super) fn convert(facts: &Facts, path: &str) -> FileFacts {
     }
 
     for reference in &facts.references {
+        let owner = reference.owner.as_ref().and_then(|name| {
+            facts
+                .declarations
+                .iter()
+                .find(|declaration| declaration.name == *name)
+                .map(|declaration| SymbolLocator {
+                    name: declaration.name.clone(),
+                    kind: node_kind(declaration.kind),
+                    span: span(&declaration.span, path),
+                })
+        });
         domain(
             reference,
             path,
@@ -56,18 +68,23 @@ pub(super) fn convert(facts: &Facts, path: &str) -> FileFacts {
             receiver: reference.receiver.clone(),
             qualified: reference.receiver.is_some(),
             span: span(&reference.span, path),
-            owner: reference.owner.as_ref().and_then(|name| {
-                facts
-                    .declarations
-                    .iter()
-                    .find(|declaration| declaration.name == *name)
-                    .map(|declaration| SymbolLocator {
-                        name: declaration.name.clone(),
-                        kind: node_kind(declaration.kind),
-                        span: span(&declaration.span, path),
-                    })
-            }),
+            owner: owner.clone(),
         });
+        // A bare name passed to another call is runtime use even though the
+        // callee, rather than this call site, may invoke it. The lossless
+        // parser preserves these bindings (`register(handler)`,
+        // `router.get(path, handler)`); keep them as reference evidence rather
+        // than incorrectly classifying the supplied function as dead code.
+        converted
+            .references
+            .extend(reference.name_arguments.iter().map(|name| ReferenceFact {
+                name: name.clone(),
+                kind: EdgeKind::References,
+                receiver: None,
+                qualified: false,
+                span: span(&reference.span, path),
+                owner: owner.clone(),
+            }));
     }
 
     converted

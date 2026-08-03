@@ -1,3 +1,4 @@
+use super::syntax::scoped_use_target;
 use super::*;
 
 #[test]
@@ -52,6 +53,50 @@ fn expands_grouped_imports_into_resolvable_targets() {
             "super::worker::Job",
             "crate::config as settings"
         ]
+    );
+}
+
+#[test]
+fn inline_module_uses_cancel_only_inline_super_segments() {
+    assert_eq!(
+        scoped_use_target("super::LineIndex", &["tests".to_owned()]),
+        "self::LineIndex"
+    );
+    assert_eq!(
+        scoped_use_target("super::super::worker::run", &["tests".to_owned()]),
+        "super::worker::run"
+    );
+    assert_eq!(
+        scoped_use_target(
+            "super::worker::run",
+            &["outer".to_owned(), "tests".to_owned()]
+        ),
+        "self::outer::worker::run"
+    );
+    assert_eq!(
+        scoped_use_target(
+            "super::super::LineIndex",
+            &["outer".to_owned(), "tests".to_owned()]
+        ),
+        "self::LineIndex"
+    );
+    assert_eq!(
+        scoped_use_target(
+            "super::super::super::root_sibling::RootType",
+            &["outer".to_owned(), "tests".to_owned()]
+        ),
+        "super::root_sibling::RootType"
+    );
+    assert_eq!(
+        scoped_use_target(
+            "self::worker::run",
+            &["outer".to_owned(), "tests".to_owned()]
+        ),
+        "self::outer::tests::worker::run"
+    );
+    assert_eq!(
+        scoped_use_target("crate::worker::run", &["tests".to_owned()]),
+        "crate::worker::run"
     );
 }
 

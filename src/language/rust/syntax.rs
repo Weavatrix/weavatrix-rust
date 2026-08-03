@@ -67,6 +67,44 @@ pub(super) fn use_tree_targets(tree: &UseTree) -> Vec<String> {
     use_tree_targets_with_prefix(tree, "")
 }
 
+/// Makes `self` and `super` paths relative to the source file. The file-level
+/// resolver knows the module represented by that file, but cannot infer the
+/// lexical path of modules whose bodies live inside it.
+pub(super) fn scoped_use_target(target: &str, inline_modules: &[String]) -> String {
+    if inline_modules.is_empty() {
+        return target.to_owned();
+    }
+    let segments = target.split("::").collect::<Vec<_>>();
+    if segments.first() == Some(&"self") {
+        return std::iter::once("self")
+            .chain(inline_modules.iter().map(String::as_str))
+            .chain(segments[1..].iter().copied())
+            .collect::<Vec<_>>()
+            .join("::");
+    }
+    let super_count = segments
+        .iter()
+        .take_while(|segment| **segment == "super")
+        .count();
+    if super_count == 0 {
+        return target.to_owned();
+    }
+    let remaining_supers = super_count.saturating_sub(inline_modules.len());
+    let mut resolved = if remaining_supers == 0 {
+        std::iter::once("self")
+            .chain(
+                inline_modules[..inline_modules.len() - super_count]
+                    .iter()
+                    .map(String::as_str),
+            )
+            .collect::<Vec<_>>()
+    } else {
+        vec!["super"; remaining_supers]
+    };
+    resolved.extend_from_slice(&segments[super_count..]);
+    resolved.join("::")
+}
+
 fn use_tree_targets_with_prefix(tree: &UseTree, prefix: &str) -> Vec<String> {
     match tree {
         UseTree::Path(path) => {

@@ -9,9 +9,11 @@ use syn::visit::Visit;
 use weavatrix_graph::{EdgeKind, NodeKind};
 
 use endpoints::{attribute_routes, callable_name, route_call};
+use module_scope::{ModuleScope, OwnerScope, OwnerUpdate, sort_facts};
 use syntax::{attributes_mark_test, impl_owner, source_span, use_tree_targets};
 
 mod endpoints;
+mod module_scope;
 mod syntax;
 
 #[derive(Debug, Clone, Copy)]
@@ -50,20 +52,10 @@ impl LanguageAdapter for RustAdapter {
             facts: FileFacts::default(),
             owner: OwnerScope::default(),
             test_context: false,
+            module_scope: ModuleScope::default(),
         };
         collector.visit_file(&syntax);
-        collector
-            .facts
-            .symbols
-            .sort_by(|left, right| left.span.cmp(&right.span));
-        collector
-            .facts
-            .references
-            .sort_by(|left, right| left.span.cmp(&right.span));
-        collector
-            .facts
-            .imports
-            .sort_by(|left, right| left.span.cmp(&right.span));
+        sort_facts(&mut collector.facts);
         Ok(collector.facts)
     }
 }
@@ -73,17 +65,7 @@ struct Collector<'source> {
     facts: FileFacts,
     owner: OwnerScope,
     test_context: bool,
-}
-
-#[derive(Clone, Default)]
-struct OwnerScope {
-    symbol: Option<SymbolLocator>,
-    type_name: Option<String>,
-}
-
-enum OwnerUpdate {
-    Symbol(SymbolLocator),
-    Type(String),
+    module_scope: ModuleScope,
 }
 
 impl Collector<'_> {
@@ -106,11 +88,7 @@ impl Collector<'_> {
     }
 
     fn with_owner(&mut self, update: OwnerUpdate, visit: impl FnOnce(&mut Self)) {
-        let previous = self.owner.clone();
-        match update {
-            OwnerUpdate::Symbol(owner) => self.owner.symbol = Some(owner),
-            OwnerUpdate::Type(owner) => self.owner.type_name = Some(owner),
-        }
+        let previous = self.owner.apply(update);
         visit(self);
         self.owner = previous;
     }
@@ -242,21 +220,29 @@ impl<'ast> Visit<'ast> for Collector<'_> {
     fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
         self.with_test_context(&node.attrs, |collector| {
             collector.add_symbol(&node.ident, NodeKind::Module, node.ident.span());
-            if node.content.is_none() {
-                // `mod x;` without a body pulls in x.rs or x/mod.rs. It is the
-                // only thing that makes those files part of the crate, so without
-                // this edge they look unreachable.
+            if node.content.is_some() {
+                collector.module_scope.enter(node.ident.to_string());
+            } else {
+                // `mod x;` pulls in x.rs or x/mod.rs. Without this edge those
+                // files look unreachable.
+                let target = collector
+                    .module_scope
+                    .target(&format!("self::{}", node.ident));
                 collector.facts.imports.push(ImportFact::new(
-                    format!("self::{}", node.ident),
+                    target,
                     source_span(collector.path, node.span()),
                 ));
             }
             syn::visit::visit_item_mod(collector, node);
+            if node.content.is_some() {
+                collector.module_scope.leave();
+            }
         });
     }
 
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
         for target in use_tree_targets(&node.tree) {
+            let target = self.module_scope.target(&target);
             let fact = ImportFact::new(target, source_span(self.path, node.span()));
             if matches!(node.vis, syn::Visibility::Inherited) {
                 self.facts.imports.push(fact);

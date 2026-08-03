@@ -19,4 +19,4 @@ pub(super) use coverage::coverage;
 pub(super) use cycles::runtime_dependency_cycles;
 pub(super) use dead_code::dead_code;
 pub(super) use hot_paths::hot_paths;
-pub(super) use paths::path_is_visible;
+pub(super) use paths::{is_non_product, path_is_visible};

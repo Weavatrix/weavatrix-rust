@@ -179,6 +179,13 @@ pub(super) fn field_schema(tool: &str, name: &str) -> Value {
             ]
         });
     }
+    if tool == "find_duplicates" && name == "include_declarative" {
+        return json!({
+            "type": "boolean",
+            "default": true,
+            "description": "High-recall by default; false suppresses data-only catalogs but retains model, schema, and contract clones"
+        });
+    }
     if matches!(
         name,
         "clients"

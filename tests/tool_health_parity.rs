@@ -95,151 +95,28 @@ fn rust_tarpaulin_coverage_is_measured_not_static_reachability() {
 }
 
 #[test]
-fn audit_compares_external_imports_with_supported_manifests() {
+fn static_coverage_counts_test_suites_without_counting_jest_support_files() {
     let fixture = Fixture::new();
-    fixture.write("package.json", r#"{"dependencies":{"lodash":"1.0.0"}}"#);
+    fixture.write("src/index.js", "export const value = 1;\n");
+    fixture.write("tests/unit/alpha.test.js", "test('alpha', () => {});\n");
+    fixture.write("tests/unit/beta.spec.js", "test('beta', () => {});\n");
+    fixture.write("tests/__tests__/gamma.js", "test('gamma', () => {});\n");
     fixture.write(
-        "src/server.ts",
-        "import express from \"express\";\nexport const app = express();\n",
-    );
-    let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let audit = tools::call(&mut engine, "run_audit", json!({})).unwrap();
-    let findings = audit["dependency_report"]["findings"].as_array().unwrap();
-    assert!(
-        findings
-            .iter()
-            .any(|finding| finding["id"] == "dependency.missing:typescript:express")
-    );
-    assert!(findings.iter().any(|finding| {
-        finding["rule"] == "dependency.unused_declaration" && finding["package"] == "lodash"
-    }));
-}
-
-#[test]
-#[cfg(feature = "lang-rust")]
-fn audit_matches_hyphenated_cargo_dependencies_to_grouped_rust_uses() {
-    let fixture = Fixture::new();
-    fixture.write(
-        "Cargo.toml",
-        "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\n\n[dependencies]\nblazingly-json = \"0.1.0\"\n",
+        "tests/configurations/testSetup.js",
+        "export const setup = true;\n",
     );
     fixture.write(
-        "src/lib.rs",
-        "use blazingly_json::{Value, json};\npub fn value() -> Value { json!({\"ok\": true}) }\n",
+        "tests/configurations/testTeardown.js",
+        "export const teardown = true;\n",
     );
+    fixture.write("tests/helpers.js", "export const helper = true;\n");
 
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let audit = tools::call(&mut engine, "run_audit", json!({})).unwrap();
-    let findings = audit["dependency_report"]["findings"].as_array().unwrap();
+    let coverage = tools::call(&mut engine, "coverage_map", json!({})).unwrap();
 
-    assert!(
-        !findings.iter().any(|finding| {
-            finding["rule"] == "dependency.unused_declaration"
-                && finding["package"] == "blazingly-json"
-        }),
-        "grouped use must count as exact Cargo import evidence, got {findings:?}"
+    assert_eq!(coverage["measured_coverage"]["present"], false);
+    assert_eq!(
+        coverage["static_reachability"]["test_files"], 3,
+        "only Jest suites, not setup, teardown, or helper modules, are test files"
     );
-}
-
-#[test]
-#[cfg(feature = "lang-rust")]
-fn audit_treats_the_package_library_as_a_local_dependency() {
-    let fixture = Fixture::new();
-    fixture.write(
-        "Cargo.toml",
-        "[package]\nname = \"fixture-core\"\nversion = \"0.1.0\"\n",
-    );
-    fixture.write("src/lib.rs", "pub fn value() -> usize { 1 }\n");
-    fixture.write(
-        "src/main.rs",
-        "use fixture_core::value;\nfn main() { let _ = value(); }\n",
-    );
-
-    let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let audit = tools::call(&mut engine, "run_audit", json!({})).unwrap();
-    let findings = audit["dependency_report"]["findings"].as_array().unwrap();
-
-    assert!(
-        !findings
-            .iter()
-            .any(|finding| finding["package"] == "fixture_core"),
-        "a Cargo target may import its sibling library: {findings:?}"
-    );
-}
-
-#[test]
-#[cfg(feature = "lang-rust")]
-fn audit_uses_only_production_import_evidence() {
-    let fixture = Fixture::new();
-    fixture.write(
-        "Cargo.toml",
-        "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\n\n[dev-dependencies]\ndev-only = \"1\"\nbench-only = \"1\"\nfuzz-only = \"1\"\ninline-dev = \"1\"\n",
-    );
-    fixture.write(
-        "src/lib.rs",
-        "use missing_prod::item;\npub fn value() { let _ = item(); }\n\
-         #[cfg(test)]\nmod tests {\n    use inline_dev::helper;\n    #[test]\n    fn check() { helper(); }\n}\n",
-    );
-    fixture.write(
-        "tests/integration.rs",
-        "use dev_only::helper;\n#[test]\nfn check() { helper(); }\n",
-    );
-    fixture.write(
-        "benches/load.rs",
-        "#[path = \"support/scale_harness.rs\"]\nmod scale_harness;\n\
-         use bench_only::run;\nuse scale_harness::measure;\nfn main() { run(); measure(); }\n",
-    );
-    fixture.write("benches/support/scale_harness.rs", "pub fn measure() {}\n");
-    fixture.write(
-        "fuzz/fuzz_targets/parser.rs",
-        "use fuzz_only::run;\nfn main() { run(); }\n",
-    );
-    fixture.write(
-        "fuzz/Cargo.toml",
-        "[package]\nname = \"fixture-fuzz\"\nversion = \"0.1.0\"\n\n[dependencies]\nlibfuzzer-sys = \"0.4\"\nfuzz-only = \"1\"\n",
-    );
-
-    let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let packages = engine
-        .state()
-        .graph()
-        .nodes()
-        .iter()
-        .filter(|node| node.kind == weavatrix_graph::NodeKind::Package)
-        .map(|node| node.label.as_str())
-        .collect::<std::collections::BTreeSet<_>>();
-    for expected in [
-        "missing_prod",
-        "inline_dev",
-        "dev_only",
-        "bench_only",
-        "scale_harness",
-        "fuzz_only",
-    ] {
-        assert!(
-            packages.contains(expected),
-            "fixture must exercise package evidence for {expected}: {packages:?}"
-        );
-    }
-
-    let audit = tools::call(&mut engine, "run_audit", json!({})).unwrap();
-    let findings = audit["dependency_report"]["findings"].as_array().unwrap();
-    assert!(findings.iter().any(|finding| {
-        finding["rule"] == "dependency.missing_declaration" && finding["package"] == "missing_prod"
-    }));
-    for excluded in [
-        "inline_dev",
-        "dev_only",
-        "bench_only",
-        "scale_harness",
-        "fuzz_only",
-        "libfuzzer-sys",
-    ] {
-        assert!(
-            !findings
-                .iter()
-                .any(|finding| finding["package"] == excluded),
-            "{excluded} is non-production dependency evidence: {findings:?}"
-        );
-    }
 }

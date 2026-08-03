@@ -13,7 +13,19 @@ pub(super) fn expand(bases: Vec<String>, extensions: &[&str]) -> Vec<String> {
         if !result.contains(&base) {
             result.push(base.clone());
         }
-        if Path::new(&base).extension().is_none() {
+        // A dot in a module stem is not necessarily a source extension.
+        // JavaScript projects commonly use names such as `user.model` or
+        // `common.actions` and import them without the final `.js`. Only an
+        // extension understood by this language makes the candidate explicit.
+        let has_known_extension = Path::new(&base)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|candidate| {
+                extensions
+                    .iter()
+                    .any(|extension| candidate.eq_ignore_ascii_case(extension))
+            });
+        if !has_known_extension {
             for extension in extensions {
                 for candidate in [
                     format!("{base}.{extension}"),

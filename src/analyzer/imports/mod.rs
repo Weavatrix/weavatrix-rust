@@ -113,6 +113,15 @@ fn resolve_imports(
     let mut scopes = ImportScopes::new();
     let mut diagnostics = Vec::new();
     for item in imports {
+        // A `use` inside an inline Rust module can resolve to an item owned by
+        // this same source file. It changes lexical scope, not file coupling.
+        if item.language == Language::Rust
+            && context
+                .local_path(&item)
+                .is_some_and(|path| path == item.source_path)
+        {
+            continue;
+        }
         let locals = context.local_targets(&item);
         let is_local = !locals.is_empty();
         // A specifier that points inside the repository but resolves to

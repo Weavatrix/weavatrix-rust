@@ -141,3 +141,57 @@ export function transform(value) {
         "excluded pair survived: {report:?}"
     );
 }
+
+#[test]
+#[cfg(feature = "clone")]
+fn model_schema_clones_remain_visible_in_high_recall_and_explicit_filtered_modes() {
+    let fixture = Fixture::new();
+    let schema = "\
+export const archiveSchema = connection.createSchema({
+  id: String,
+  externalId: String,
+  packetsPerSecond: Number,
+  bitsPerSecond: Number,
+  maximumPackets: Number,
+  maximumBits: Number,
+  severity: String,
+  active: Boolean,
+  protectedObjectId: String,
+  attackId: String,
+});
+";
+    fixture.write("models/detection.model.js", schema);
+    fixture.write("contracts/detection.schema.js", schema);
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    for arguments in [
+        json!({
+            "mode": "strict",
+            "min_tokens": 12,
+            "top_n": 100
+        }),
+        json!({
+            "mode": "strict",
+            "min_tokens": 12,
+            "top_n": 100,
+            "include_declarative": false
+        }),
+    ] {
+        let report = tools::call(&mut engine, "find_duplicates", arguments).unwrap();
+        assert!(
+            report["families"].as_array().is_some_and(|families| {
+                families.iter().any(|family| {
+                    let paths = family["members"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|member| member["path"].as_str())
+                        .collect::<std::collections::BTreeSet<_>>();
+                    paths.contains("models/detection.model.js")
+                        && paths.contains("contracts/detection.schema.js")
+                })
+            }),
+            "model/schema clone was hidden: {report:?}"
+        );
+    }
+}

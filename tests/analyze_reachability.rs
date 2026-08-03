@@ -113,6 +113,43 @@ fn dead_code_applies_kind_and_confidence_filters() {
 }
 
 #[test]
+fn callback_use_is_incoming_evidence_even_outside_entry_point_reachability() {
+    use blazingly_json::json;
+    use weavatrix_rust::{Weavatrix, tools};
+
+    let fixture = Fixture::new();
+    fixture.write("src/main.js", "export function main(){ return 1; }\n");
+    fixture.write(
+        "src/humanize.js",
+        "export function getReadableTraffic2Fixed(value){ return String(value); }\nexport function getReadableTrafficArrow(value){ return String(value); }\n",
+    );
+    fixture.write(
+        "src/chart.js",
+        "import { getReadableTraffic2Fixed, getReadableTrafficArrow } from './humanize.js';\nexport function configure(register){ register(getReadableTraffic2Fixed); return {callback: (value) => getReadableTrafficArrow(value)}; }\n",
+    );
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "find_dead_code",
+        json!({"min_confidence": 50, "top_n": 100}),
+    )
+    .unwrap();
+    let labels = report["candidates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|item| item["node"]["label"].as_str())
+        .collect::<Vec<_>>();
+
+    for callback in ["getReadableTraffic2Fixed", "getReadableTrafficArrow"] {
+        assert!(
+            !labels.contains(&callback),
+            "callback use is reference evidence for {callback}: {report:?}"
+        );
+    }
+}
+
+#[test]
 fn dead_code_excludes_inline_cfg_test_modules_in_product_files() {
     use blazingly_json::json;
     use weavatrix_rust::{Weavatrix, tools};
@@ -156,88 +193,4 @@ fn dead_code_excludes_inline_cfg_test_modules_in_product_files() {
             "include_tests must reveal {test_symbol}, got {with_tests:?}"
         );
     }
-}
-
-/// Tools whose schema offers `include_tests` / `include_classified` must
-/// actually apply them: an advertised parameter that is ignored is a schema
-/// that lies about the answer.
-#[test]
-fn production_first_filters_are_applied_by_the_tools_that_advertise_them() {
-    use blazingly_json::json;
-    use weavatrix_rust::{Weavatrix, tools};
-
-    let fixture = Fixture::new();
-    fixture.write(
-        "src/service.js",
-        "export function serve(){ return 1; }\nrouter.get('/live', serve);\n",
-    );
-    fixture.write(
-        "src/__test__/service.test.js",
-        "import { serve } from '../service.js';\nrouter.get('/only-in-tests', serve);\nexport function check(){ return serve(); }\n",
-    );
-    let mut engine = Weavatrix::open(&fixture.root).unwrap();
-
-    let labels = |value: &blazingly_json::Value, pointer: &str| {
-        value
-            .pointer(pointer)
-            .and_then(|items| items.as_array())
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(|item| {
-                        item.get("node")
-                            .unwrap_or(item)
-                            .get("label")
-                            .and_then(|label| label.as_str())
-                            .map(str::to_owned)
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default()
-    };
-
-    for (tool, pointer) in [("god_nodes", "/hubs"), ("hot_path_review", "/candidates")] {
-        let production = tools::call(&mut engine, tool, json!({"top_n": 50})).unwrap();
-        let with_tests = tools::call(
-            &mut engine,
-            tool,
-            json!({"top_n": 50, "include_tests": true}),
-        )
-        .unwrap();
-        let production = labels(&production, pointer);
-        let with_tests = labels(&with_tests, pointer);
-        assert!(
-            !production.iter().any(|label| label.contains("test")),
-            "{tool} must not rank test evidence by default, got {production:?}"
-        );
-        assert!(
-            with_tests.len() >= production.len(),
-            "{tool} include_tests must widen the answer, got {with_tests:?}"
-        );
-    }
-
-    let production = tools::call(&mut engine, "list_endpoints", json!({})).unwrap();
-    let production = labels(&production, "/endpoints");
-    assert!(
-        production.iter().any(|label| label.contains("/live")),
-        "a production route stays listed, got {production:?}"
-    );
-    assert!(
-        !production
-            .iter()
-            .any(|label| label.contains("/only-in-tests")),
-        "a route declared only in a test is not a production endpoint, got {production:?}"
-    );
-    let with_tests = tools::call(
-        &mut engine,
-        "list_endpoints",
-        json!({"include_tests": true}),
-    )
-    .unwrap();
-    assert!(
-        labels(&with_tests, "/endpoints")
-            .iter()
-            .any(|label| label.contains("/only-in-tests")),
-        "include_tests reveals the test-only route"
-    );
 }

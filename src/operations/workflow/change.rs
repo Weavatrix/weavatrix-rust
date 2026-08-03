@@ -8,6 +8,7 @@ pub(in crate::operations) fn change_impact(
     state: &RepositoryState,
     args: &Value,
 ) -> Result<Value, String> {
+    crate::operations::require_graph_precision(args)?;
     let explicit_head = optional_str(args, "head_ref")?;
     let requested = explicit_changed_files(args)?;
     let (git, files) = if explicit_head.is_some() {
@@ -35,10 +36,11 @@ pub(in crate::operations) fn change_impact(
             &json!({"label": node.id.as_str(), "depth": depth, "max_nodes": max}),
         )?;
         for dependent in result["dependents"].as_array().into_iter().flatten() {
-            if let Some(id) = dependent["id"].as_str()
+            let node = &dependent["node"];
+            if let Some(id) = node["id"].as_str()
                 && seen.insert(id.to_owned())
             {
-                impacts.push(dependent.clone());
+                impacts.push(node.clone());
             }
         }
     }

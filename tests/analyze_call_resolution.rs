@@ -70,6 +70,35 @@ fn local_and_import_scoped_calls_still_resolve() {
 }
 
 #[test]
+fn a_bare_callback_argument_is_reference_evidence_for_its_import() {
+    let snapshot = analyze(&[
+        (
+            "src/formatter.js",
+            "export function getReadableTraffic2Fixed(value) { return String(value); }\n",
+        ),
+        (
+            "src/chart.js",
+            "import { getReadableTraffic2Fixed } from './formatter.js';\nexport function configure(register) { register(getReadableTraffic2Fixed); }\n",
+        ),
+    ]);
+    let callback = snapshot
+        .nodes
+        .iter()
+        .find(|node| node.label == "getReadableTraffic2Fixed")
+        .expect("callback declaration");
+
+    assert!(snapshot.edges.iter().any(|edge| {
+        edge.kind == EdgeKind::References
+            && edge.target == callback.id
+            && edge
+                .provenance
+                .span
+                .as_ref()
+                .is_some_and(|span| span.file == "src/chart.js" && span.start.line == 2)
+    }));
+}
+
+#[test]
 fn free_calls_remain_resolvable_in_go_java_and_python() {
     let go = analyze(&[
         ("main.go", "package main\nfunc main() { LoadUser() }\n"),

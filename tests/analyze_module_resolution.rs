@@ -76,6 +76,65 @@ fn resolves_the_module_aliases_a_project_declares() {
 }
 
 #[test]
+fn resolves_javascript_modules_whose_stems_contain_dots() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "jsconfig.json",
+        r##"{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {"#tests/*": ["tests/*"]}
+  }
+}"##,
+    );
+    fixture.write(
+        "tests/common/common.actions.js",
+        "export const action = true;\n",
+    );
+    fixture.write(
+        "src/data/attacks.mock.data.js",
+        "export const attacks = [];\n",
+    );
+    fixture.write("src/exact.module.js", "export const exact = true;\n");
+    fixture.write(
+        "src/entry.js",
+        "import { action } from '#tests/common/common.actions';\n\
+         import { attacks } from './data/attacks.mock.data';\n\
+         import { exact } from './exact.module.js';\n\
+         export const values = [action, attacks, exact];\n",
+    );
+
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    let targets = snapshot
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.kind == EdgeKind::Imports && edge.source.as_str() == "file:src/entry.js"
+        })
+        .map(|edge| edge.target.as_str())
+        .collect::<Vec<_>>();
+
+    for target in [
+        "file:tests/common/common.actions.js",
+        "file:src/data/attacks.mock.data.js",
+        "file:src/exact.module.js",
+    ] {
+        assert!(
+            targets.contains(&target),
+            "dotted module stem must resolve to {target}, got {targets:?}"
+        );
+    }
+    assert!(
+        snapshot
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "import.unresolved"),
+        "all dotted module imports should resolve, got {:?}",
+        snapshot.diagnostics
+    );
+}
+
+#[test]
 fn resolves_typescript_runtime_extensions_without_overriding_real_javascript() {
     let fixture = Fixture::new();
     fixture.write(

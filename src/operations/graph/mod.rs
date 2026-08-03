@@ -225,6 +225,7 @@ fn coupling_relations() -> std::collections::BTreeSet<String> {
 }
 
 pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    crate::operations::require_graph_precision(args)?;
     let seed = state.resolve_node(arg_str(args, "label")?)?;
     let depth = usize::try_from(arg_u64(args, "depth").unwrap_or(3)).unwrap_or(3);
     let max = usize::try_from(arg_u64(args, "max_nodes").unwrap_or(40)).unwrap_or(40);

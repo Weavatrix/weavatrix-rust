@@ -90,6 +90,10 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
             threshold["description"],
             "0..1 is a fraction; values above 1 through 100 are percentages"
         );
+        assert_eq!(
+            duplicates.input_schema["properties"]["include_declarative"]["default"], true,
+            "duplicate review must advertise its high-recall default"
+        );
     }
     let memory = catalog
         .iter()
@@ -105,4 +109,20 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
     let seo = tools::catalog_for_profile(tools::ToolProfile::Seo);
     assert!(seo.iter().any(|tool| tool.name == "seo_link_suggestions"));
     assert!(seo.iter().all(|tool| tool.name != "verified_change"));
+}
+
+#[test]
+fn catalog_does_not_advertise_unavailable_lsp_precision() {
+    use blazingly_json::json;
+    use weavatrix_rust::tools;
+
+    let catalog = tools::catalog();
+    for name in ["get_dependents", "change_impact"] {
+        let definition = catalog.iter().find(|tool| tool.name == name).unwrap();
+        assert_eq!(
+            definition.input_schema["properties"]["precision"]["enum"],
+            json!(["graph"]),
+            "{name} must advertise the only precision it can execute"
+        );
+    }
 }

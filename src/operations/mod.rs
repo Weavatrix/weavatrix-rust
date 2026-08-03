@@ -50,7 +50,7 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
         "run_audit" => health::audit(state, &arguments),
         "coverage_map" => health::coverage(state, &arguments),
         "hot_path_review" => health::hot_paths(state, &arguments),
-        "module_map" => Ok(graph::module_map(state, &arguments)),
+        "module_map" => graph::module_map(state, &arguments),
         "list_endpoints" => graph::endpoints(state, &arguments),
         "trace_endpoint" => graph::trace_endpoint(state, &arguments),
         "graph_diff" => history::graph_diff(state, &arguments),
@@ -141,6 +141,18 @@ pub(crate) fn optional_bool(args: &Value, key: &str) -> Result<Option<bool>, Str
                 .ok_or_else(|| format!("{key} must be a boolean"))
         })
         .transpose()
+}
+
+pub(crate) fn require_graph_precision(args: &Value) -> Result<(), String> {
+    let Some(precision) = optional_str(args, "precision")? else {
+        return Ok(());
+    };
+    if precision == "graph" {
+        return Ok(());
+    }
+    Err(format!(
+        "precision '{precision}' is unsupported; this operation supports only 'graph' bounded static precision"
+    ))
 }
 
 #[cfg(any(feature = "semantic", feature = "vector"))]

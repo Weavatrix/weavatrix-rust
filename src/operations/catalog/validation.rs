@@ -38,6 +38,7 @@ pub(super) fn enum_schema(tool: &str, name: &str) -> Option<Value> {
         }
         ("run_audit", "min_severity") => &["low", "medium", "high", "critical"],
         ("verified_change", "phase") => &["plan", "verify"],
+        ("get_dependents" | "change_impact", "precision") => &["graph"],
         ("trace_api_contract", "transport") => &["all", "http", "graphql", "grpc", "event"],
         ("trace_api_contract" | "get_neighbors", "response_detail") => &["compact", "full"],
         ("open_repo" | "rebuild_graph", "mode") => &["full", "no-tests", "tests-only"],

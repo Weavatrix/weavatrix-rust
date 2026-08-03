@@ -45,6 +45,32 @@ fn package_json(relative: &str, text: &str) -> Vec<Declaration> {
     result
 }
 
+pub(super) fn npm_required_peer_names(text: &str) -> Vec<String> {
+    let Ok(document) = blazingly_json::from_str::<Value>(text) else {
+        return Vec::new();
+    };
+    let Some(peers) = document.get("peerDependencies").and_then(Value::as_object) else {
+        return Vec::new();
+    };
+    let metadata = document
+        .get("peerDependenciesMeta")
+        .and_then(Value::as_object);
+    let mut result = peers
+        .keys()
+        .filter(|name| {
+            !metadata
+                .and_then(|entries| entries.get(*name))
+                .and_then(Value::as_object)
+                .and_then(|entry| entry.get("optional"))
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    result.sort();
+    result
+}
+
 fn sectioned(
     relative: &str,
     text: &str,

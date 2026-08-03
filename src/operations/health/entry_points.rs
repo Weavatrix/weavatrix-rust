@@ -116,6 +116,13 @@ fn collect_cargo_entries(
     text: &str,
     declared: &mut BTreeSet<String>,
 ) {
+    if text
+        .lines()
+        .any(|raw| raw.split('#').next().unwrap_or_default().trim() == "[package]")
+    {
+        declared.insert(prefix("src/main.rs"));
+        declared.insert(prefix("src/lib.rs"));
+    }
     for line in text.lines() {
         if let Some((key, rest)) = line.split_once('=')
             && key.trim() == "path"

@@ -36,7 +36,7 @@ pub(super) fn report(
             "pairs": suppressed_pairs,
             "boilerplate_families": low_signal.boilerplate,
             "declarative_families": low_signal.declarative,
-            "detail": "test/classified evidence, router/handler boilerplate and immutable declarative catalogs are suppressed by default; pass include_tests, include_classified, include_boilerplate or include_declarative to inspect them"
+            "detail": "test/classified evidence and router/handler boilerplate are suppressed by default; clone families are otherwise high-recall, while include_declarative=false explicitly suppresses data-only catalogs but keeps model/schema/contract evidence"
         },
         "statistics": {
             "source_files": statistics.source_files,

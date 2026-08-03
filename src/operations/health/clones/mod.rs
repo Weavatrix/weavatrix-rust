@@ -135,7 +135,10 @@ fn suppress_low_signal(
     families: Vec<CloneFamily>,
 ) -> Result<(Vec<CloneFamily>, LowSignalSuppression), String> {
     let include_boilerplate = optional_bool(args, "include_boilerplate")?.unwrap_or(false);
-    let include_declarative = optional_bool(args, "include_declarative")?.unwrap_or(false);
+    // Clone review is high-recall by default. Callers may explicitly suppress
+    // data-only catalogs, but absence of control flow is not enough to hide
+    // model, schema, or contract duplication.
+    let include_declarative = optional_bool(args, "include_declarative")?.unwrap_or(true);
     let mut sources = HashMap::<String, Vec<String>>::new();
     let mut suppression = LowSignalSuppression {
         boilerplate: 0,
@@ -155,13 +158,14 @@ fn suppress_low_signal(
             }
             if !include_declarative
                 && family.members.iter().all(|member| {
-                    !has_control_flow(
-                        state.root(),
-                        &member.path,
-                        member.span.start_line,
-                        member.span.end_line,
-                        &mut sources,
-                    )
+                    !is_semantic_contract_path(&member.path)
+                        && !has_control_flow(
+                            state.root(),
+                            &member.path,
+                            member.span.start_line,
+                            member.span.end_line,
+                            &mut sources,
+                        )
                 })
             {
                 suppression.declarative += 1;
@@ -210,6 +214,18 @@ fn is_boilerplate(path: &str) -> bool {
     [".router.", ".routes.", ".handlers."]
         .iter()
         .any(|marker| file.contains(marker))
+}
+
+#[cfg(feature = "clone")]
+fn is_semantic_contract_path(path: &str) -> bool {
+    path.to_ascii_lowercase()
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .any(|word| {
+            matches!(
+                word,
+                "model" | "models" | "schema" | "schemas" | "contract" | "contracts"
+            )
+        })
 }
 
 #[cfg(feature = "clone")]

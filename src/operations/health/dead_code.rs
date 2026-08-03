@@ -1,4 +1,5 @@
 use super::entry_points::entry_points;
+use super::paths::{path_is_in_scope, requested_path_scope};
 use crate::engine::RepositoryState;
 use crate::operations::{optional_bool, optional_u64};
 use blazingly_json::{Value, json};
@@ -16,6 +17,7 @@ pub(in crate::operations) fn dead_code(
         return Err("min_confidence must be between 0 and 100".to_owned());
     }
     let kinds = requested_kinds(args)?;
+    let path_scope = requested_path_scope(args)?;
     let _ = optional_bool(args, "include_tests")?;
     let _ = optional_bool(args, "include_classified")?;
     let entries = entry_points(state);
@@ -40,6 +42,12 @@ pub(in crate::operations) fn dead_code(
             kinds
                 .as_ref()
                 .is_none_or(|requested| requested.contains(node.kind.as_str()))
+        })
+        .filter(|(_, node)| {
+            path_is_in_scope(
+                crate::operations::node_path(node).unwrap_or_default(),
+                path_scope.as_deref(),
+            )
         })
         .filter(|(slot, _)| crate::operations::node_is_visible(state, *slot, args))
         .filter_map(|(slot, node)| {

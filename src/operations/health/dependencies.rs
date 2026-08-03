@@ -3,14 +3,20 @@ use super::{
     manifests::{Declaration, duplicates, normalize, parse},
     paths::is_non_product,
     project_identity,
-    runtime::rust_cfg_test_lines,
 };
 use crate::engine::RepositoryState;
 use blazingly_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use import_evidence::{ImportEvidence, installed_peer_obligations};
+use lexicon::{builtin, development_scope, ecosystem, languages, matches_declaration};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use weavatrix_graph::{Edge, EdgeKind, Node, NodeKind};
+use weavatrix_graph::NodeKind;
+
+#[path = "dependency_imports.rs"]
+mod import_evidence;
+#[path = "dependency_lexicon.rs"]
+mod lexicon;
 
 const MANIFESTS: &[&str] = &[
     "Cargo.toml",
@@ -23,11 +29,57 @@ const MANIFESTS: &[&str] = &[
 pub(super) fn report(state: &RepositoryState, max: usize, filter: (bool, u8)) -> Value {
     let (enabled, min_severity) = filter;
     let declarations = declarations(state);
-    let imports = imports(state);
+    let imports = ImportEvidence::collect(state);
+    let direct_consumers = declarations
+        .iter()
+        .filter(|declaration| declaration_has_import(declaration, &imports))
+        .collect::<Vec<_>>();
+    let peer_obligations = installed_peer_obligations(state.root(), &direct_consumers);
+    let peer_required = peer_obligations
+        .iter()
+        .map(|obligation| {
+            (
+                obligation.manifest.clone(),
+                normalize("npm", &obligation.package),
+            )
+        })
+        .collect::<BTreeSet<_>>();
     let duplicate_groups = duplicates(&declarations);
-    let mut findings = Vec::new();
+    let mut findings = missing_declaration_findings(state, &declarations, &imports);
+    findings.extend(unused_declaration_findings(
+        &declarations,
+        &imports,
+        &peer_required,
+    ));
+    findings.extend(duplicate_findings(&duplicate_groups));
+    filter_findings(&mut findings, enabled, min_severity);
+    findings.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
+    json!({
+        "status": if findings.is_empty() {"PASS"} else {"REVIEW"},
+        "execution": {"status": "COMPLETE"},
+        "declared": declarations.len(),
+        "external_imports": imports.external.values().map(BTreeSet::len).sum::<usize>(),
+        "peer_obligations": peer_obligations.iter().map(|obligation| json!({
+            "manifest": obligation.manifest,
+            "consumer": obligation.consumer,
+            "package": obligation.package,
+            "evidence": obligation.evidence,
+            "required": true
+        })).collect::<Vec<_>>(),
+        "duplicate_declarations": duplicate_groups.len(),
+        "findings_total": findings.len(),
+        "findings": findings.into_iter().take(max).collect::<Vec<_>>(),
+        "manifest_evidence": manifest_evidence(&declarations)
+    })
+}
 
-    for (language, packages) in &imports {
+fn missing_declaration_findings(
+    state: &RepositoryState,
+    declarations: &[Declaration],
+    imports: &ImportEvidence,
+) -> Vec<Value> {
+    let mut findings = Vec::new();
+    for (language, packages) in &imports.external {
         let ecosystem = ecosystem(language);
         for package in packages {
             if builtin(language, package)
@@ -49,14 +101,22 @@ pub(super) fn report(state: &RepositoryState, max: usize, filter: (bool, u8)) ->
             }));
         }
     }
-    for declaration in &declarations {
-        let used = languages(declaration.ecosystem).iter().any(|language| {
-            imports.get(*language).is_some_and(|packages| {
-                packages
-                    .iter()
-                    .any(|package| matches_declaration(declaration, declaration.ecosystem, package))
-            })
-        });
+    findings
+}
+
+fn unused_declaration_findings(
+    declarations: &[Declaration],
+    imports: &ImportEvidence,
+    peer_required: &BTreeSet<(String, String)>,
+) -> Vec<Value> {
+    let mut findings = Vec::new();
+    for declaration in declarations {
+        let used = declaration_has_import(declaration, imports)
+            || (declaration.ecosystem == "npm"
+                && peer_required.contains(&(
+                    declaration.manifest.clone(),
+                    normalize("npm", &declaration.name),
+                )));
         if !used && !development_scope(&declaration.scope) {
             findings.push(json!({
                 "id": format!(
@@ -73,49 +133,58 @@ pub(super) fn report(state: &RepositoryState, max: usize, filter: (bool, u8)) ->
             }));
         }
     }
-    for items in duplicate_groups.values() {
-        let first = items[0];
-        findings.push(json!({
-            "id": format!(
-                "dependency.duplicate:{}:{}:{}",
-                first.ecosystem, first.manifest, first.name
-            ),
-            "rule": "dependency.duplicate_declaration",
-            "category": "dependencies",
-            "severity": "medium",
-            "manifest": first.manifest,
-            "package": first.name,
-            "scopes": items.iter().map(|item| item.scope.as_str()).collect::<Vec<_>>()
-        }));
-    }
-    filter_findings(&mut findings, enabled, min_severity);
-    findings.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
+    findings
+}
+
+fn duplicate_findings(duplicate_groups: &BTreeMap<String, Vec<&Declaration>>) -> Vec<Value> {
+    duplicate_groups
+        .values()
+        .map(|items| {
+            let first = items[0];
+            json!({
+                "id": format!(
+                    "dependency.duplicate:{}:{}:{}",
+                    first.ecosystem, first.manifest, first.name
+                ),
+                "rule": "dependency.duplicate_declaration",
+                "category": "dependencies",
+                "severity": "medium",
+                "manifest": first.manifest,
+                "package": first.name,
+                "scopes": items.iter().map(|item| item.scope.as_str()).collect::<Vec<_>>()
+            })
+        })
+        .collect()
+}
+
+fn manifest_evidence(declarations: &[Declaration]) -> Value {
     json!({
-        "status": if findings.is_empty() {"PASS"} else {"REVIEW"},
-        "execution": {"status": "COMPLETE"},
-        "declared": declarations.len(),
-        "external_imports": imports.values().map(BTreeSet::len).sum::<usize>(),
-        "duplicate_declarations": duplicate_groups.len(),
-        "findings_total": findings.len(),
-        "findings": findings.into_iter().take(max).collect::<Vec<_>>(),
-        "manifest_evidence": {
-            "present": !declarations.is_empty(),
-            "reason": if declarations.is_empty() {
-                json!("no Cargo.toml, package.json, go.mod, requirements.txt, or pyproject.toml dependency declarations were found")
-            } else {
-                Value::Null
-            },
-            "formats": {
-                "cargo": {"present": true, "scope": "Cargo.toml dependency sections"},
-                "npm": {"present": true, "scope": "package.json dependency sections"},
-                "go": {"present": true, "scope": "go.mod require directives"},
-                "python": {"present": true, "scope": "requirements.txt and pyproject.toml dependency declarations"},
-                "maven_gradle": {
-                    "present": false,
-                    "reason": "Maven and Gradle manifests are not inputs to this dependency audit contract"
-                }
+        "present": !declarations.is_empty(),
+        "reason": if declarations.is_empty() {
+            json!("no Cargo.toml, package.json, go.mod, requirements.txt, or pyproject.toml dependency declarations were found")
+        } else {
+            Value::Null
+        },
+        "formats": {
+            "cargo": {"present": true, "scope": "Cargo.toml dependency sections"},
+            "npm": {"present": true, "scope": "package.json dependency sections"},
+            "go": {"present": true, "scope": "go.mod require directives"},
+            "python": {"present": true, "scope": "requirements.txt and pyproject.toml dependency declarations"},
+            "maven_gradle": {
+                "present": false,
+                "reason": "Maven and Gradle manifests are not inputs to this dependency audit contract"
             }
         }
+    })
+}
+
+fn declaration_has_import(declaration: &Declaration, imports: &ImportEvidence) -> bool {
+    languages(declaration.ecosystem).iter().any(|language| {
+        imports.all.get(*language).is_some_and(|packages| {
+            packages
+                .iter()
+                .any(|package| matches_declaration(declaration, declaration.ecosystem, package))
+        })
     })
 }
 
@@ -183,107 +252,4 @@ fn manifest_paths(state: &RepositoryState) -> BTreeSet<String> {
                 .map(move |name| directory.join(name).to_string_lossy().replace('\\', "/"))
         })
         .collect()
-}
-
-fn imports(state: &RepositoryState) -> BTreeMap<String, BTreeSet<String>> {
-    let mut result = BTreeMap::<String, BTreeSet<String>>::new();
-    let graph = state.graph();
-    let mut rust_test_lines = HashMap::<String, BTreeSet<usize>>::new();
-    for edge in graph.edges() {
-        if edge.kind != EdgeKind::Imports {
-            continue;
-        }
-        let (Some(source), Some(package)) = (
-            graph.node(edge.source.as_str()),
-            graph.node(edge.target.as_str()),
-        ) else {
-            continue;
-        };
-        if package.kind != NodeKind::Package
-            || !production_import(state, source, edge, &mut rust_test_lines)
-        {
-            continue;
-        }
-        let Some(language) = &package.language else {
-            continue;
-        };
-        result
-            .entry(language.clone())
-            .or_default()
-            .insert(package.label.clone());
-    }
-    result
-}
-
-fn production_import(
-    state: &RepositoryState,
-    source: &Node,
-    edge: &Edge,
-    rust_test_lines: &mut HashMap<String, BTreeSet<usize>>,
-) -> bool {
-    if source.kind != NodeKind::File || is_non_product(&source.label) {
-        return false;
-    }
-    if source.language.as_deref() != Some("rust") {
-        return true;
-    }
-    let Some(span) = edge.provenance.span.as_ref() else {
-        return true;
-    };
-    let lines = rust_test_lines
-        .entry(source.label.clone())
-        .or_insert_with(|| {
-            fs::read_to_string(state.root().join(&source.label))
-                .map_or_else(|_| BTreeSet::new(), |text| rust_cfg_test_lines(&text))
-        });
-    !lines.contains(&usize::try_from(span.start.line).unwrap_or(usize::MAX))
-}
-
-fn matches_declaration(item: &Declaration, ecosystem: &str, package: &str) -> bool {
-    if item.ecosystem != ecosystem {
-        return false;
-    }
-    let declared = normalize(ecosystem, &item.name);
-    let imported = normalize(ecosystem, package);
-    imported == declared || (ecosystem == "go" && imported.starts_with(&format!("{declared}/")))
-}
-
-fn ecosystem(language: &str) -> &str {
-    match language {
-        "rust" => "cargo",
-        "javascript" | "typescript" => "npm",
-        "go" => "go",
-        "python" => "python",
-        _ => language,
-    }
-}
-
-fn languages(ecosystem: &str) -> &'static [&'static str] {
-    match ecosystem {
-        "cargo" => &["rust"],
-        "npm" => &["javascript", "typescript"],
-        "go" => &["go"],
-        "python" => &["python"],
-        _ => &[],
-    }
-}
-
-fn development_scope(scope: &str) -> bool {
-    scope.to_ascii_lowercase().contains("dev")
-}
-
-fn builtin(language: &str, package: &str) -> bool {
-    match language {
-        "rust" => matches!(
-            package,
-            "std" | "core" | "alloc" | "crate" | "self" | "super"
-        ),
-        "javascript" | "typescript" => package.starts_with("node:"),
-        "go" => !package.contains('.'),
-        "python" => matches!(
-            package,
-            "os" | "sys" | "json" | "time" | "typing" | "pathlib" | "collections" | "asyncio"
-        ),
-        _ => false,
-    }
 }
