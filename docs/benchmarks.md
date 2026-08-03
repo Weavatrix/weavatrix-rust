@@ -1,9 +1,47 @@
 ﻿# Benchmark report
 
-Current release evidence was measured on 2026-07-30 on the same Windows
+Current release evidence was measured on 2026-08-03 on the same Windows
 workstation. Historical product, component, and in-process graph measurements
 remain below so changes in methodology are visible rather than silently
 replacing old numbers.
+
+## 2.1.0 minor release basic and short-load gate
+
+The minor release was measured at
+`2b4ac4ba4eb52df1ae50ec134107fdf0a1e20898`. It repeats the bounded
+three-cold-build and 1,000-hot-call harness after adding `map_stacktrace`,
+`select_tests`, `build_graph`, token budgets, and dependency-injection type
+references through `weavatrix-parse` 0.3.0. No long soak or fresh competitor
+run is part of this gate; the historical competitor tables below still apply
+to the unchanged components.
+
+| Measurement | Result |
+|---|---:|
+| Repository view | 212 files / 1,693 nodes / 8,203 edges |
+| Cold build | 75.85 ms min / **78.55 ms median** / 367.77 ms max |
+| `graph_stats`, 1,000 hot calls | **0.656 ms/call** |
+| Unchanged refresh, 3 calls | **7.091 ms/call** |
+| Literal search, 5 calls | **7.197 ms/call** |
+
+Read against 2.0.2 (192 files / 1,531 nodes / 7,287 edges): the repository
+itself grew about 13% in edges with the five new capability modules, the
+hot-call and unchanged-refresh medians are unchanged (0.656 vs 0.661 ms and
+7.09 vs 7.44 ms), and the cold-build median moved from 73.21 ms to 78.55 ms -
+proportional to the larger tree, not a per-unit regression. The cold-build
+maximum caught one straggler sample on a freshly settled machine and is
+reported rather than discarded. A first measurement taken while a fat-LTO
+build ran concurrently produced 4-12x worse numbers and was discarded as
+machine contention, consistent with the methodology note below.
+
+The same code passed fmt, strict Clippy in all-features and
+no-default-features modes, 39 all-feature integration binaries, the
+no-default-feature suite, rustdoc, and the repository's own architecture
+contract at the 300-line file and 100-line function budgets.
+
+Raw evidence:
+
+- `benchmark-results/rust-engine-2.1.0-basic.json`
+  (SHA-256 `C0A7877EF8A5C7F22FA19B7C582DF32293D4F4EDB11E11964E6B87352B9AEECA`).
 
 ## 2.0.2 duplicate-integrity patch basic and short-load gate
 
