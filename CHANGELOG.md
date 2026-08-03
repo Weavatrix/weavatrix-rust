@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.1 - 2026-08-03
+
+- manifests saved with a UTF-8 BOM parse correctly: `build_graph` workspace
+  discovery and the dependency audit no longer miss `[package]` or
+  `[dependencies]` sections behind `\u{feff}` (found by running the released
+  build against this repository's own BOM-saved Cargo.toml);
+- standalone `go.mod` modules appear in `build_graph` without a `go.work`
+  aggregator, which is the common single-module Go repository shape.
+
 ## 2.1.0 - 2026-08-03
 
 Three new operations, token budgets, dependency-injection graph evidence,

@@ -11,6 +11,9 @@ pub(super) struct Declaration {
 }
 
 pub(super) fn parse(path: &Path, relative: &str, text: &str) -> Vec<Declaration> {
+    // Editors on Windows save manifests with a UTF-8 BOM; a line parser that
+    // sees `\u{feff}[dependencies]` misses every declaration after it.
+    let text = text.trim_start_matches('\u{feff}');
     match path.file_name().and_then(|name| name.to_str()) {
         Some("package.json") => package_json(relative, text),
         Some("Cargo.toml") => sectioned(relative, text, "cargo", &["dependencies"]),

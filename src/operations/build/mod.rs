@@ -112,7 +112,11 @@ pub(super) fn read_manifest(state: &RepositoryState, relative: &str) -> Option<S
     if fs::metadata(&absolute).ok()?.len() > MAX_MANIFEST_BYTES {
         return None;
     }
-    fs::read_to_string(&absolute).ok()
+    // Editors on Windows save manifests with a UTF-8 BOM; a line parser that
+    // sees `\u{feff}[package]` misses every section after it.
+    fs::read_to_string(&absolute)
+        .ok()
+        .map(|text| text.trim_start_matches('\u{feff}').to_owned())
 }
 
 pub(super) fn parent_dir(path: &str) -> String {

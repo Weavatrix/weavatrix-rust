@@ -247,4 +247,24 @@ pub(super) fn standalone_packages(
             members: vec![member],
         });
     }
+    for manifest in locate(state, index, "go.mod") {
+        if claimed.contains(&format!("go:{manifest}")) {
+            continue;
+        }
+        let name = read_manifest(state, &manifest)
+            .as_deref()
+            .and_then(manifests::go_mod_module);
+        let dir = parent_dir(&manifest);
+        workspaces.push(Workspace {
+            ecosystem: "go",
+            aggregator: manifest.clone(),
+            members: vec![Member {
+                name,
+                dir,
+                manifest,
+                targets: Vec::new(),
+                internal: Vec::new(),
+            }],
+        });
+    }
 }

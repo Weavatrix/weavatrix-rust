@@ -122,6 +122,32 @@ fn cargo_workspaces_resolve_path_dependencies_and_implicit_targets() {
 }
 
 #[test]
+fn bom_prefixed_cargo_and_standalone_go_modules_are_reported() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "\u{feff}[package]\nname = \"bommed\"\nversion = \"0.1.0\"\n",
+    );
+    fixture.write("src/lib.rs", "pub fn value() -> usize { 1 }\n");
+    fixture.write(
+        "service/go.mod",
+        "module example.com/standalone\n\ngo 1.22\n",
+    );
+    fixture.write("service/main.go", "package main\n\nfunc main() {}\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    let report = tools::call(&mut engine, "build_graph", json!({})).unwrap();
+    let cargo = workspace(&report, "cargo");
+    assert_eq!(
+        cargo["members"][0]["name"], "bommed",
+        "a UTF-8 BOM must not hide the package section: {report:?}"
+    );
+    let go = workspace(&report, "go");
+    assert_eq!(go["aggregator"], "service/go.mod");
+    assert_eq!(go["members"][0]["name"], "example.com/standalone");
+}
+
+#[test]
 fn standalone_manifests_and_runner_configurations_are_reported() {
     let fixture = Fixture::new();
     fixture.write(
