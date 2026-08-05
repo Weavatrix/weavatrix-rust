@@ -26,6 +26,7 @@ use blazingly_json::{Value, json};
 /// failures without mutating repository source.
 #[allow(clippy::needless_pass_by_value)]
 pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<Value, String> {
+    token_budget::reject_unsupported(name, &arguments)?;
     if name == "trace_api_contract" {
         return workflow::trace_api_cached(weavatrix, &arguments);
     }

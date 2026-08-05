@@ -29,7 +29,9 @@ schemas are authoritative.
   suites, runner naming conventions in reverse, and suites reached through
   bounded reverse dependencies.
 - `search_code`, `read_source`: bounded search and verified excerpts; both
-  accept `token_budget`, as do `context_bundle` and `query_graph`.
+  accept `token_budget`, as do `context_bundle` and `query_graph`. Those four
+  are the only operations that apply a budget; any other operation refuses the
+  argument rather than answering past it in silence.
 - `inspect_symbol`, `context_bundle`: exact declarations and compact task
   worksets with ranked inbound/outbound evidence.
 - `map_stacktrace`: V8/Node, JVM, CPython and Rust panic frames from supplied

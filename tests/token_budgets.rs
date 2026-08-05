@@ -83,6 +83,76 @@ fn search_code_reports_budget_truncation_honestly() {
     assert_eq!(budgeted["token_budget"]["fit"], true);
 }
 
+/// The operations that trim their answer to `token_budget`.
+///
+/// Pinned on both sides: the catalog must offer the argument to exactly these,
+/// and every other operation must refuse it. Drift in either direction is the
+/// defect this list exists to catch - a schema that promises a bound the code
+/// does not apply.
+#[cfg(feature = "search")]
+const HONOURED: &[&str] = &[
+    "context_bundle",
+    "query_graph",
+    "read_source",
+    "search_code",
+];
+#[cfg(not(feature = "search"))]
+const HONOURED: &[&str] = &["context_bundle", "query_graph", "read_source"];
+
+#[test]
+fn the_catalog_offers_a_budget_to_exactly_the_operations_that_apply_one() {
+    use std::collections::BTreeSet;
+
+    let declared = tools::catalog()
+        .into_iter()
+        .filter(|tool| {
+            tool.input_schema["properties"]
+                .get("token_budget")
+                .is_some()
+        })
+        .map(|tool| tool.name)
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(
+        declared,
+        HONOURED.iter().copied().collect(),
+        "the declared budget surface drifted from the implemented one"
+    );
+}
+
+#[test]
+fn an_operation_that_cannot_bound_its_answer_rejects_the_budget() {
+    let fixture = Fixture::new();
+    fixture.write("src/big.js", &long_module());
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    // Accepting the argument and answering unbounded spends the very context
+    // window the caller set it to protect, with nothing to attribute the
+    // overrun to.
+    for tool in ["inspect_symbol", "get_dependents", "graph_stats"] {
+        let error = tools::call(
+            &mut engine,
+            tool,
+            json!({"label": "value1", "file": "src/big.js", "token_budget": 800}),
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("token_budget") && error.contains("read_source"),
+            "{tool} must name the operations that honour a budget: {error}"
+        );
+    }
+
+    assert!(
+        tools::call(
+            &mut engine,
+            "read_source",
+            json!({"path": "src/big.js", "after": 4}),
+        )
+        .is_ok(),
+        "an operation keeps working without a budget"
+    );
+}
+
 #[test]
 fn context_bundle_and_query_graph_fit_their_budgets() {
     let fixture = Fixture::new();

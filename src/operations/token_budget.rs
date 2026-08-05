@@ -10,6 +10,39 @@ use blazingly_json::{Value, json};
 /// deliberately conservative for ASCII-dominated source text.
 const BYTES_PER_TOKEN: usize = 4;
 
+/// Operations that trim their answer to `token_budget` and report what they
+/// dropped. The catalog offers the argument to exactly these, so the list
+/// follows the compiled capabilities rather than naming an absent operation.
+#[cfg(feature = "search")]
+const HONOURED: &[&str] = &[
+    "context_bundle",
+    "query_graph",
+    "read_source",
+    "search_code",
+];
+#[cfg(not(feature = "search"))]
+const HONOURED: &[&str] = &["context_bundle", "query_graph", "read_source"];
+
+/// Rejects a budget the named operation would silently ignore.
+///
+/// A caller sets `token_budget` to protect its context window. Accepting the
+/// argument and returning an unbounded answer spends the window it was meant
+/// to defend and leaves nothing to attribute the overrun to, so an operation
+/// that cannot honour the budget has to say so.
+///
+/// # Errors
+///
+/// Returns the operations that do honour a budget.
+pub(crate) fn reject_unsupported(tool: &str, args: &Value) -> Result<(), String> {
+    if args.get("token_budget").is_none() || HONOURED.contains(&tool) {
+        return Ok(());
+    }
+    Err(format!(
+        "{tool} does not bound its answer by token_budget; it is honoured by {}",
+        HONOURED.join(", ")
+    ))
+}
+
 pub(crate) fn requested(args: &Value) -> Result<Option<usize>, String> {
     let Some(budget) = super::optional_u64(args, "token_budget")? else {
         return Ok(None);
@@ -67,4 +100,18 @@ fn fit_array(report: &mut Value, budget: usize, pointer: &str) -> usize {
         dropped += step;
     }
     dropped
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reject_unsupported;
+    use blazingly_json::json;
+
+    #[test]
+    fn a_budget_is_rejected_by_an_operation_that_cannot_honour_it() {
+        let budgeted = json!({"label": "value", "token_budget": 800});
+        assert!(reject_unsupported("inspect_symbol", &budgeted).is_err());
+        assert!(reject_unsupported("read_source", &budgeted).is_ok());
+        assert!(reject_unsupported("inspect_symbol", &json!({"label": "value"})).is_ok());
+    }
 }

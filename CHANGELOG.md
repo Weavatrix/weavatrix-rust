@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `token_budget` is refused by the operations that cannot apply it instead of
+  being accepted and ignored. Four operations trim their answer to the budget
+  and account for what they dropped; the catalog offers the argument to those
+  four only, but every other operation still took it in silence and answered
+  unbounded - a caller that set a budget to protect its context window spent
+  several times that budget with nothing to attribute the overrun to. A parity
+  test now pins the declared budget surface to the implemented one, so the two
+  cannot drift apart again.
+
 - `find_duplicates` implements `include_strings`, which the schema accepted
   and the engine ignored. A string literal is one token to the code pass
   however much it carries, so a duplicated inline SQL statement, C# or
