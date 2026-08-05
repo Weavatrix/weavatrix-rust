@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 2.2.0 - 2026-08-05
+
+Three contract repairs found by hand-verifying the engine's own reports, and
+the clone option the schema promised.
 
 - `token_budget` is refused by the operations that cannot apply it instead of
   being accepted and ignored. Four operations trim their answer to the budget
