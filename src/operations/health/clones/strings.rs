@@ -1,8 +1,8 @@
 //! Opt-in clone evidence for embedded string payloads.
 //!
 //! The code pass compares tokens, and a string literal is one token however
-//! much it carries: an inline SQL statement, a C# or PowerShell template, a
-//! shell script pasted into a constant. Such a payload never reaches
+//! much it carries: an inline SQL statement, a C# or shell template, a
+//! provisioning script pasted into a constant. Such a payload never reaches
 //! `min_tokens` on its own, so duplicated templates stay invisible to clone
 //! review. `include_strings` lifts every multi-line literal out as its own
 //! fragment and tokenizes the content, because there the content is the code.
