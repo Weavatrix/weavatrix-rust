@@ -1,4 +1,4 @@
-use super::LowSignalSuppression;
+use super::low_signal::LowSignalSuppression;
 use blazingly_json::{Value, json};
 use weavatrix_clone::{CloneFamily, CloneLocation, ClonePair, CloneStatistics};
 

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `find_duplicates` implements `include_strings`, which the schema accepted
+  and the engine ignored. A string literal is one token to the code pass
+  however much it carries, so a duplicated inline SQL statement, C# or
+  PowerShell template, or embedded script never reached `min_tokens` and was
+  invisible to clone review. The opt-in lifts every multi-line literal out as
+  its own fragment, strips the host language's delimiters so the same payload
+  matches across languages, and compares long literals in blocks so a shared
+  section is not diluted by the rest.
 - `find_duplicates` reports only the lines a clone covers completely, and
   carries the matching `start_byte`/`end_byte` so the evidence can be
   reproduced directly. Token windows start and end mid-line, so the reported

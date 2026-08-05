@@ -9,17 +9,21 @@ use {
     crate::operations::{optional_bool, optional_str, optional_u64},
     std::collections::{BTreeSet, HashMap},
     weavatrix_clone::{
-        CloneConfig, CloneDetector, CloneFamily, ClonePair, CloneReport, DetectionMode,
-        RepositoryCloneDetector, Similarity,
+        CloneConfig, CloneDetector, ClonePair, CloneReport, DetectionMode, RepositoryCloneDetector,
+        Similarity,
     },
 };
 
 #[cfg(feature = "clone")]
 mod families;
 #[cfg(feature = "clone")]
+mod low_signal;
+#[cfg(feature = "clone")]
 mod render;
 #[cfg(feature = "clone")]
 mod spans;
+#[cfg(feature = "clone")]
+mod strings;
 #[cfg(feature = "clone")]
 mod threshold;
 
@@ -28,9 +32,13 @@ pub(in crate::operations) fn duplicates(
     state: &RepositoryState,
     args: &Value,
 ) -> Result<Value, String> {
-    let report = RepositoryCloneDetector::new(clone_detector(args)?)
+    let detector = clone_detector(args)?;
+    let mut report = RepositoryCloneDetector::new(detector)
         .detect(state.root())
         .map_err(|error| error.to_string())?;
+    if optional_bool(args, "include_strings")?.unwrap_or(false) {
+        merge(&mut report, string_payloads(state, detector)?);
+    }
     let CloneReport {
         families: raw_families,
         pairs: mut raw_pairs,
@@ -57,7 +65,7 @@ pub(in crate::operations) fn duplicates(
     let (mut pairs, suppressed_pairs) = visible_pairs(raw_pairs, &mut visible);
     let families = families::rebuild(&pairs);
     let suppressed_families = raw_family_count.saturating_sub(families.len());
-    let (families, low_signal) = suppress_low_signal(state, args, families)?;
+    let (families, low_signal) = low_signal::suppress(state, args, families)?;
     let visible_pair_ids = families
         .iter()
         .flat_map(|family| family.pair_ids.iter().cloned())
@@ -73,6 +81,39 @@ pub(in crate::operations) fn duplicates(
         suppressed_pairs,
         low_signal,
     ))
+}
+
+/// Clone evidence over embedded string payloads, on the same thresholds.
+#[cfg(feature = "clone")]
+fn string_payloads(
+    state: &RepositoryState,
+    detector: CloneDetector,
+) -> Result<CloneReport, String> {
+    detector
+        .detect(&strings::fragments(state))
+        .map_err(|error| error.to_string())
+}
+
+/// Folds a second pass into the report the caller receives.
+///
+/// Families are rebuilt from the surviving pairs further down, so only the
+/// pair set and the counts that describe the work done have to carry over.
+#[cfg(feature = "clone")]
+fn merge(report: &mut CloneReport, mut other: CloneReport) {
+    report.pairs.append(&mut other.pairs);
+    report.families.append(&mut other.families);
+    report.statistics.source_tokens = report
+        .statistics
+        .source_tokens
+        .saturating_add(other.statistics.tokens);
+    report.statistics.candidate_pairs = report
+        .statistics
+        .candidate_pairs
+        .saturating_add(other.statistics.candidate_pairs);
+    report.statistics.verified_pairs = report
+        .statistics
+        .verified_pairs
+        .saturating_add(other.statistics.verified_pairs);
 }
 
 #[cfg(feature = "clone")]
@@ -131,62 +172,6 @@ struct Visibility {
 }
 
 #[cfg(feature = "clone")]
-#[derive(Clone, Copy)]
-struct LowSignalSuppression {
-    pub(super) boilerplate: usize,
-    pub(super) declarative: usize,
-}
-
-#[cfg(feature = "clone")]
-fn suppress_low_signal(
-    state: &RepositoryState,
-    args: &Value,
-    families: Vec<CloneFamily>,
-) -> Result<(Vec<CloneFamily>, LowSignalSuppression), String> {
-    let include_boilerplate = optional_bool(args, "include_boilerplate")?.unwrap_or(false);
-    // Clone review is high-recall by default. Callers may explicitly suppress
-    // data-only catalogs, but absence of control flow is not enough to hide
-    // model, schema, or contract duplication.
-    let include_declarative = optional_bool(args, "include_declarative")?.unwrap_or(true);
-    let mut sources = HashMap::<String, Vec<String>>::new();
-    let mut suppression = LowSignalSuppression {
-        boilerplate: 0,
-        declarative: 0,
-    };
-    let families = families
-        .into_iter()
-        .filter(|family| {
-            if !include_boilerplate
-                && family
-                    .members
-                    .iter()
-                    .all(|member| is_boilerplate(&member.path))
-            {
-                suppression.boilerplate += 1;
-                return false;
-            }
-            if !include_declarative
-                && family.members.iter().all(|member| {
-                    !is_semantic_contract_path(&member.path)
-                        && !has_control_flow(
-                            state.root(),
-                            &member.path,
-                            member.span.start_line,
-                            member.span.end_line,
-                            &mut sources,
-                        )
-                })
-            {
-                suppression.declarative += 1;
-                return false;
-            }
-            true
-        })
-        .collect();
-    Ok((families, suppression))
-}
-
-#[cfg(feature = "clone")]
 fn clone_location_visible(
     state: &RepositoryState,
     path: &str,
@@ -214,54 +199,6 @@ fn clone_location_visible(
         PathClass::Test => visibility.include_tests,
         PathClass::Classified => visibility.include_classified,
     }
-}
-
-#[cfg(feature = "clone")]
-fn is_boilerplate(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    let file = lower.rsplit(['/', '\\']).next().unwrap_or(&lower);
-    [".router.", ".routes.", ".handlers."]
-        .iter()
-        .any(|marker| file.contains(marker))
-}
-
-#[cfg(feature = "clone")]
-fn is_semantic_contract_path(path: &str) -> bool {
-    path.to_ascii_lowercase()
-        .split(|character: char| !character.is_ascii_alphanumeric())
-        .any(|word| {
-            matches!(
-                word,
-                "model" | "models" | "schema" | "schemas" | "contract" | "contracts"
-            )
-        })
-}
-
-#[cfg(feature = "clone")]
-fn has_control_flow(
-    root: &std::path::Path,
-    path: &str,
-    start_line: u32,
-    end_line: u32,
-    sources: &mut HashMap<String, Vec<String>>,
-) -> bool {
-    const MARKERS: &[&str] = &[
-        "if ", "if(", "for ", "for(", "while ", "while(", "return", "=>", "function", "throw",
-        "await ", "switch", "yield", "match ", "loop ", "?.",
-    ];
-    let lines = sources.entry(path.to_owned()).or_insert_with(|| {
-        std::fs::read_to_string(root.join(path))
-            .map(|text| text.lines().map(str::to_owned).collect())
-            .unwrap_or_default()
-    });
-    let start = usize::try_from(start_line.saturating_sub(1)).unwrap_or(0);
-    let end = usize::try_from(end_line).unwrap_or(0).min(lines.len());
-    if start >= end {
-        return true;
-    }
-    lines[start..end]
-        .iter()
-        .any(|line| MARKERS.iter().any(|marker| line.contains(marker)))
 }
 
 #[cfg(not(feature = "clone"))]

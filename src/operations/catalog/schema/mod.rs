@@ -1,8 +1,10 @@
 //! JSON schemas for the operation catalog.
 
+mod descriptions;
 mod optional_sections;
 
 use blazingly_json::{Value, json};
+use descriptions::documented;
 use optional_sections::{extension_fields, health_fields};
 
 pub(super) fn optional_fields(tool: &str) -> &'static [&'static str] {
@@ -199,27 +201,8 @@ fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str]> {
 }
 
 pub(super) fn field_schema(tool: &str, name: &str) -> Value {
-    if name == "token_budget" {
-        return json!({
-            "type": "integer",
-            "minimum": 1,
-            "description": "Approximate output ceiling in tokens (serialized bytes / 4); result arrays are trimmed from the tail to fit and the report states what was dropped"
-        });
-    }
-    if name == "relation_filter" {
-        return json!({
-            "oneOf": [
-                {"type": "string"},
-                {"type": "array", "items": {"type": "string"}}
-            ]
-        });
-    }
-    if tool == "find_duplicates" && name == "include_declarative" {
-        return json!({
-            "type": "boolean",
-            "default": true,
-            "description": "High-recall by default; false suppresses data-only catalogs but retains model, schema, and contract clones"
-        });
+    if let Some(documented) = documented(tool, name) {
+        return documented;
     }
     if matches!(
         name,
