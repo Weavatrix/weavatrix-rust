@@ -75,6 +75,45 @@ mod tests {
 }
 
 #[test]
+fn multi_line_literals_do_not_shift_findings_onto_earlier_lines() {
+    let source = r#"
+pub fn save(transaction: &Transaction, graph: &Graph) -> Result<(), StoreError> {
+    transaction.execute(
+        "INSERT INTO graphs (id, revision, document, updated_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(id) DO UPDATE SET
+           revision = excluded.revision,
+           document = excluded.document",
+        params![graph.id, graph.revision],
+    )?;
+    /* a block comment
+       also spanning
+       several lines */
+    connection().unwrap();
+    Ok(())
+}
+"#;
+    let (findings, scanned, truncated) = runtime_findings(
+        [(
+            "src/lib.rs".to_owned(),
+            "rust".to_owned(),
+            source.to_owned(),
+        )],
+        10,
+    );
+
+    assert_eq!(scanned, 1);
+    assert!(!truncated);
+    assert_eq!(
+        findings.len(),
+        1,
+        "SQL placeholders and braces inside literals are not runtime findings: {findings:?}"
+    );
+    assert_eq!(findings[0]["line"], 14, "reported line: {findings:?}");
+    assert_eq!(findings[0]["evidence"], "connection().unwrap();");
+}
+
+#[test]
 fn blocking_calls_are_reported_only_inside_async_contexts() {
     let rust = r"
 fn background_worker() {

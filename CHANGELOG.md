@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `run_audit` runtime rules no longer attribute a finding to the wrong line.
+  String literals and comments are blanked before the rules run, and blanking
+  used to consume their line breaks as well, so every line after a multi-line
+  literal or block comment shifted. On a repository with multi-line SQL this
+  reported `unwrap`/`expect` findings against lines holding neither.
+
 ## 2.1.1 - 2026-08-03
 
 - manifests saved with a UTF-8 BOM parse correctly: `build_graph` workspace

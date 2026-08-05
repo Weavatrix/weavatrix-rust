@@ -24,7 +24,15 @@ pub(super) fn runtime_code(path: &str, source: &str) -> String {
                 | weavatrix_parse::TokenKind::BlockComment
                 | weavatrix_parse::TokenKind::Unterminated
         ) {
-            code[token.start..token.end].fill(b' ');
+            // Blank the contents but keep every line break: callers zip this
+            // text line by line against the original, and a multi-line string
+            // or block comment collapsed into one line shifts every later
+            // finding onto the wrong source line.
+            for byte in &mut code[token.start..token.end] {
+                if !matches!(*byte, b'\n' | b'\r') {
+                    *byte = b' ';
+                }
+            }
         }
     }
     String::from_utf8(code).unwrap_or_else(|_| source.to_owned())
