@@ -47,11 +47,18 @@ pub(super) fn report(
     })
 }
 
+/// Line and byte extent of the matched region.
+///
+/// Both ranges are inclusive of whole lines only: the byte offsets bound
+/// exactly the text the line range names, so a caller can compare two sites
+/// byte for byte and reproduce the evidence.
 fn location(location: &CloneLocation) -> Value {
     json!({
         "fragment_id": location.fragment_id,
         "path": location.path,
         "start_line": location.span.start_line,
-        "end_line": location.span.end_line
+        "end_line": location.span.end_line,
+        "start_byte": location.span.start_byte,
+        "end_byte": location.span.end_byte
     })
 }

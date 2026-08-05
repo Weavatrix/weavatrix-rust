@@ -19,6 +19,8 @@ mod families;
 #[cfg(feature = "clone")]
 mod render;
 #[cfg(feature = "clone")]
+mod spans;
+#[cfg(feature = "clone")]
 mod threshold;
 
 #[cfg(feature = "clone")]
@@ -31,10 +33,17 @@ pub(in crate::operations) fn duplicates(
         .map_err(|error| error.to_string())?;
     let CloneReport {
         families: raw_families,
-        pairs: raw_pairs,
+        pairs: mut raw_pairs,
         statistics,
     } = report;
     let raw_family_count = raw_families.len();
+    // Token windows start and end mid-line; report only the lines the match
+    // covers completely so the evidence below survives a byte comparison.
+    spans::trim_pairs(
+        state.root(),
+        &mut raw_pairs,
+        &mut spans::SourceCache::default(),
+    );
     let top = usize::try_from(optional_u64(args, "top_n")?.unwrap_or(15))
         .map_err(|_| "top_n is too large".to_owned())?;
     let visibility = Visibility {

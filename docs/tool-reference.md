@@ -38,7 +38,11 @@ schemas are authoritative.
 
 ## Health and quality
 
-- `find_duplicates`: Type-1/2/3 clone evidence with boilerplate controls.
+- `find_duplicates`: Type-1/2/3 clone evidence with boilerplate controls. Each
+  site reports only the lines the match covers completely, plus the matching
+  `start_byte`/`end_byte`, so a reported range can be compared directly.
+  `strict_equal` means token-identical: indentation and comments may still
+  differ between two sites.
 - `find_dead_code`: review candidates with entry-point, test, configuration,
   dynamic, and external-use classification.
 - `run_audit`: dependency, runtime, graph, and capability health.

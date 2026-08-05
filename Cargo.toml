@@ -44,7 +44,7 @@ proc-macro2 = { version = "1.0.107", default-features = false, features = ["span
 serde = { version = "1.0.229", features = ["derive"] }
 blazingly-json = "0.1.0"
 syn = { version = "3.0.3", default-features = false, features = ["clone-impls", "full", "parsing", "printing", "visit"], optional = true }
-weavatrix-clone = { version = "0.1.3", optional = true }
+weavatrix-clone = { version = "0.1.4", optional = true }
 weavatrix-git = { version = "0.3.1", optional = true }
 weavatrix-graph = "0.6.3"
 weavatrix-parse = "0.3.0"

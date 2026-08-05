@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `find_duplicates` reports only the lines a clone covers completely, and
+  carries the matching `start_byte`/`end_byte` so the evidence can be
+  reproduced directly. Token windows start and end mid-line, so the reported
+  first and last line used to include text the matcher never compared: a
+  `strict_equal` pair could be diffed line by line and come out different,
+  which is exactly the reading that turns two distinct cases into one. Needs
+  `weavatrix-clone` 0.1.4, which snaps both sites of a block match to the
+  same line-aligned run.
 - `run_audit` runtime rules no longer attribute a finding to the wrong line.
   String literals and comments are blanked before the rules run, and blanking
   used to consume their line breaks as well, so every line after a multi-line
