@@ -30,8 +30,9 @@ schemas are authoritative.
   bounded reverse dependencies.
 - `search_code`, `read_source`: bounded search and verified excerpts; both
   accept `token_budget`, as do `context_bundle` and `query_graph`. Those four
-  are the only operations that apply a budget; any other operation refuses the
-  argument rather than answering past it in silence.
+  are the only operations that apply a budget; any other operation still
+  answers in full and reports `token_budget.applied: false` with the estimated
+  cost, so an unapplied budget is visible rather than silent.
 - `inspect_symbol`, `context_bundle`: exact declarations and compact task
   worksets with ranked inbound/outbound evidence.
 - `map_stacktrace`: V8/Node, JVM, CPython and Rust panic frames from supplied

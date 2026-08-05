@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.1 - 2026-08-05
+
+- an operation that cannot apply `token_budget` answers and records that in
+  the response instead of refusing the call. 2.2.0 turned the ignored argument
+  into an error, which withheld evidence a read-only tool had already produced
+  and broke every caller that passed the argument uniformly. The budget block
+  now appears on every operation that was given one, carrying `applied: false`
+  and the estimated cost beside the same `fit` field the applying operations
+  report, so a caller reads one shape everywhere and nothing is lost.
+
 ## 2.2.0 - 2026-08-05
 
 Three contract repairs found by hand-verifying the engine's own reports, and

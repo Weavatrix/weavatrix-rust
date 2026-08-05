@@ -23,24 +23,44 @@ const HONOURED: &[&str] = &[
 #[cfg(not(feature = "search"))]
 const HONOURED: &[&str] = &["context_bundle", "query_graph", "read_source"];
 
-/// Rejects a budget the named operation would silently ignore.
+/// Records that an operation could not apply the requested budget.
 ///
-/// A caller sets `token_budget` to protect its context window. Accepting the
-/// argument and returning an unbounded answer spends the window it was meant
-/// to defend and leaves nothing to attribute the overrun to, so an operation
-/// that cannot honour the budget has to say so.
+/// A caller sets `token_budget` to protect its context window, so a budget
+/// that was not applied has to be visible in the answer. It is reported, never
+/// refused: these operations are read-only and lossless, a caller reads the
+/// same `token_budget` block from every operation, and an argument a tool
+/// cannot use is not a reason to withhold the evidence it was asked for.
 ///
 /// # Errors
 ///
-/// Returns the operations that do honour a budget.
-pub(crate) fn reject_unsupported(tool: &str, args: &Value) -> Result<(), String> {
-    if args.get("token_budget").is_none() || HONOURED.contains(&tool) {
+/// Returns a caller error for a malformed or zero budget.
+pub(crate) fn annotate_unapplied(
+    tool: &str,
+    args: &Value,
+    report: &mut Value,
+) -> Result<(), String> {
+    let Some(budget) = requested(args)? else {
+        return Ok(());
+    };
+    if HONOURED.contains(&tool) {
         return Ok(());
     }
-    Err(format!(
-        "{tool} does not bound its answer by token_budget; it is honoured by {}",
-        HONOURED.join(", ")
-    ))
+    let estimated = estimate(report);
+    if let Some(object) = report.as_object_mut() {
+        object.insert(
+            "token_budget".to_owned(),
+            json!({
+                "requested": budget,
+                "estimated_tokens": estimated,
+                "estimator": "serialized bytes / 4",
+                "dropped_items": 0,
+                "fit": estimated <= budget,
+                "applied": false,
+                "applied_by": HONOURED
+            }),
+        );
+    }
+    Ok(())
 }
 
 pub(crate) fn requested(args: &Value) -> Result<Option<usize>, String> {
@@ -78,7 +98,8 @@ pub(crate) fn fit(report: &mut Value, budget: Option<usize>, pointers: &[&str]) 
                 "estimated_tokens": estimated,
                 "estimator": "serialized bytes / 4",
                 "dropped_items": dropped,
-                "fit": estimated <= budget
+                "fit": estimated <= budget,
+                "applied": true
             }),
         );
     }
@@ -104,14 +125,26 @@ fn fit_array(report: &mut Value, budget: usize, pointer: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::reject_unsupported;
+    use super::annotate_unapplied;
     use blazingly_json::json;
 
     #[test]
-    fn a_budget_is_rejected_by_an_operation_that_cannot_honour_it() {
+    fn an_unapplied_budget_is_recorded_and_the_answer_is_kept() {
         let budgeted = json!({"label": "value", "token_budget": 800});
-        assert!(reject_unsupported("inspect_symbol", &budgeted).is_err());
-        assert!(reject_unsupported("read_source", &budgeted).is_ok());
-        assert!(reject_unsupported("inspect_symbol", &json!({"label": "value"})).is_ok());
+        let mut report = json!({"node": "value"});
+        annotate_unapplied("inspect_symbol", &budgeted, &mut report).unwrap();
+        assert_eq!(report["token_budget"]["applied"], false);
+        assert_eq!(report["node"], "value");
+
+        let mut applying = json!({"lines": []});
+        annotate_unapplied("read_source", &budgeted, &mut applying).unwrap();
+        assert!(
+            applying.get("token_budget").is_none(),
+            "an operation that applies the budget reports it itself"
+        );
+
+        let mut unbudgeted = json!({"node": "value"});
+        annotate_unapplied("inspect_symbol", &json!({}), &mut unbudgeted).unwrap();
+        assert!(unbudgeted.get("token_budget").is_none());
     }
 }

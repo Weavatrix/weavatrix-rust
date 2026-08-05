@@ -121,35 +121,45 @@ fn the_catalog_offers_a_budget_to_exactly_the_operations_that_apply_one() {
 }
 
 #[test]
-fn an_operation_that_cannot_bound_its_answer_rejects_the_budget() {
+fn an_operation_that_cannot_apply_the_budget_answers_and_says_so() {
     let fixture = Fixture::new();
     fixture.write("src/big.js", &long_module());
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
 
-    // Accepting the argument and answering unbounded spends the very context
-    // window the caller set it to protect, with nothing to attribute the
-    // overrun to.
+    // The answer is never withheld over an argument the operation cannot use;
+    // a caller that set a budget to protect its context window learns from the
+    // same block it reads everywhere else that nothing was trimmed.
     for tool in ["inspect_symbol", "get_dependents", "graph_stats"] {
-        let error = tools::call(
+        let report = tools::call(
             &mut engine,
             tool,
             json!({"label": "value1", "file": "src/big.js", "token_budget": 800}),
         )
-        .unwrap_err();
+        .unwrap_or_else(|error| panic!("{tool} withheld its answer over a budget: {error}"));
+
+        assert_eq!(
+            report["token_budget"]["applied"], false,
+            "{tool} must record that it did not apply the budget: {report:?}"
+        );
+        assert_eq!(report["token_budget"]["requested"], 800);
+        assert_eq!(report["token_budget"]["dropped_items"], 0);
         assert!(
-            error.contains("token_budget") && error.contains("read_source"),
-            "{tool} must name the operations that honour a budget: {error}"
+            report["token_budget"]["estimated_tokens"]
+                .as_u64()
+                .is_some(),
+            "{tool} must state what its answer costs: {report:?}"
         );
     }
 
-    assert!(
-        tools::call(
-            &mut engine,
-            "read_source",
-            json!({"path": "src/big.js", "after": 4}),
-        )
-        .is_ok(),
-        "an operation keeps working without a budget"
+    let applied = tools::call(
+        &mut engine,
+        "read_source",
+        json!({"path": "src/big.js", "after": 150, "token_budget": 300}),
+    )
+    .unwrap();
+    assert_eq!(
+        applied["token_budget"]["applied"], true,
+        "an operation that trims says so on the same field: {applied:?}"
     );
 }
 

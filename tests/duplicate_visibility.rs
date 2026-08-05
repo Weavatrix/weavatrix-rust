@@ -1,4 +1,4 @@
-﻿#[cfg(feature = "clone")]
+#[cfg(feature = "clone")]
 mod tool_fixture;
 
 #[cfg(feature = "clone")]

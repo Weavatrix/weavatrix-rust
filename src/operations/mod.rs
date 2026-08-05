@@ -26,57 +26,64 @@ use blazingly_json::{Value, json};
 /// failures without mutating repository source.
 #[allow(clippy::needless_pass_by_value)]
 pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<Value, String> {
-    token_budget::reject_unsupported(name, &arguments)?;
+    let mut report = dispatch(weavatrix, name, &arguments)?;
+    // A budget an operation cannot apply is reported, not refused: the answer
+    // itself is never withheld.
+    token_budget::annotate_unapplied(name, &arguments, &mut report)?;
+    Ok(report)
+}
+
+fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<Value, String> {
     if name == "trace_api_contract" {
-        return workflow::trace_api_cached(weavatrix, &arguments);
+        return workflow::trace_api_cached(weavatrix, arguments);
     }
     let state = weavatrix.state();
     match name {
         "graph_stats" => Ok(graph::stats(state)),
-        "get_node" => graph::get_node(state, &arguments),
-        "get_neighbors" => graph::neighbors(state, &arguments),
-        "query_graph" => graph::query(state, &arguments),
-        "god_nodes" => Ok(graph::hubs(state, &arguments)),
-        "shortest_path" => graph::path(state, &arguments),
-        "get_dependents" => graph::dependents(state, &arguments),
-        "change_impact" => workflow::change_impact(state, &arguments),
-        "map_stacktrace" => workflow::map_stacktrace(state, &arguments),
-        "select_tests" => workflow::select_tests(state, &arguments),
-        "git_history" => history::history(state, &arguments),
-        "cross_repo_git" => history::cross_repo(state, &arguments),
-        "verified_change" => workflow::verified_change(state, &arguments),
-        "get_community" | "list_communities" => graph::communities(state, &arguments),
-        "search_code" => source::search(state, &arguments),
-        "read_source" => source::read_source(state, &arguments),
-        "inspect_symbol" => source::inspect(state, &arguments),
-        "context_bundle" => source::context(state, &arguments),
-        "find_duplicates" => health::duplicates(state, &arguments),
-        "find_dead_code" => health::dead_code(state, &arguments),
-        "run_audit" => health::audit(state, &arguments),
-        "coverage_map" => health::coverage(state, &arguments),
-        "hot_path_review" => health::hot_paths(state, &arguments),
-        "module_map" => graph::module_map(state, &arguments),
-        "build_graph" => build::build_graph(state, &arguments),
-        "list_endpoints" => graph::endpoints(state, &arguments),
-        "trace_endpoint" => graph::trace_endpoint(state, &arguments),
-        "graph_diff" => history::graph_diff(state, &arguments),
-        "get_architecture_contract" => architecture::contract(state, &arguments),
-        "prepare_change" => architecture::prepare(state, &arguments),
+        "get_node" => graph::get_node(state, arguments),
+        "get_neighbors" => graph::neighbors(state, arguments),
+        "query_graph" => graph::query(state, arguments),
+        "god_nodes" => Ok(graph::hubs(state, arguments)),
+        "shortest_path" => graph::path(state, arguments),
+        "get_dependents" => graph::dependents(state, arguments),
+        "change_impact" => workflow::change_impact(state, arguments),
+        "map_stacktrace" => workflow::map_stacktrace(state, arguments),
+        "select_tests" => workflow::select_tests(state, arguments),
+        "git_history" => history::history(state, arguments),
+        "cross_repo_git" => history::cross_repo(state, arguments),
+        "verified_change" => workflow::verified_change(state, arguments),
+        "get_community" | "list_communities" => graph::communities(state, arguments),
+        "search_code" => source::search(state, arguments),
+        "read_source" => source::read_source(state, arguments),
+        "inspect_symbol" => source::inspect(state, arguments),
+        "context_bundle" => source::context(state, arguments),
+        "find_duplicates" => health::duplicates(state, arguments),
+        "find_dead_code" => health::dead_code(state, arguments),
+        "run_audit" => health::audit(state, arguments),
+        "coverage_map" => health::coverage(state, arguments),
+        "hot_path_review" => health::hot_paths(state, arguments),
+        "module_map" => graph::module_map(state, arguments),
+        "build_graph" => build::build_graph(state, arguments),
+        "list_endpoints" => graph::endpoints(state, arguments),
+        "trace_endpoint" => graph::trace_endpoint(state, arguments),
+        "graph_diff" => history::graph_diff(state, arguments),
+        "get_architecture_contract" => architecture::contract(state, arguments),
+        "prepare_change" => architecture::prepare(state, arguments),
         "verify_architecture" => architecture::verify(state),
-        "explain_architecture_violation" => architecture::explain(state, &arguments),
-        "propose_architecture_exception" => architecture::propose_exception(state, &arguments),
-        "semantic_link" => semantic::semantic_link(state, &arguments),
-        "vector_search" => vector::search(&arguments),
-        "seo_link_suggestions" => semantic::seo_links(state, &arguments),
-        "memory_context" => memory::context(state, &arguments),
+        "explain_architecture_violation" => architecture::explain(state, arguments),
+        "propose_architecture_exception" => architecture::propose_exception(state, arguments),
+        "semantic_link" => semantic::semantic_link(state, arguments),
+        "vector_search" => vector::search(arguments),
+        "seo_link_suggestions" => semantic::seo_links(state, arguments),
+        "memory_context" => memory::context(state, arguments),
         "rebuild_graph" => {
             let before = graph::stats(state);
             weavatrix.rebuild().map_err(|error| error.to_string())?;
             Ok(json!({"before": before, "after": graph::stats(weavatrix.state())}))
         }
         "open_repo" => {
-            let path = arg_str(&arguments, "path")?.to_owned();
-            let should_build = arg_bool(&arguments, "build").unwrap_or(true);
+            let path = arg_str(arguments, "path")?.to_owned();
+            let should_build = arg_bool(arguments, "build").unwrap_or(true);
             let graph_built = weavatrix
                 .open_repository_with_build(&path, should_build)
                 .map_err(|error| error.to_string())?;
