@@ -24,6 +24,7 @@ pub(super) fn health_fields(tool: &str) -> Option<&'static [&'static str]> {
             "min_severity",
             "max_findings",
             "include_classified",
+            "include_capabilities",
             "base_ref",
             "changed_files",
             "debt",

@@ -39,6 +39,7 @@ fn graph_fields(tool: &str) -> Option<&'static [&'static str]> {
             "include_low_signal",
             "token_budget",
         ]),
+        "graph_stats" => Some(&["include_capabilities"]),
         "god_nodes" => Some(&["top_n", "include_classified"]),
         "shortest_path" => Some(&["max_hops"]),
         "get_community" => Some(&["max_nodes", "cursor"]),
@@ -244,6 +245,7 @@ pub(super) fn field_schema(tool: &str, name: &str) -> Value {
             | "first_parent"
             | "is_regex"
             | "include_tests"
+            | "include_capabilities"
             | "include_boilerplate"
             | "include_declarative"
             | "include_strings"

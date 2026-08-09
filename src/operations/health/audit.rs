@@ -50,6 +50,13 @@ pub(in crate::operations) fn audit(state: &RepositoryState, args: &Value) -> Res
         || has_cycles
         || !findings.is_empty();
     let debt = debt::debt(state, args, max, &runtime_report)?;
+    // A static property of the build: identical for every repository and every call, and it was
+    // the single largest block of this payload. Callers that actually need it opt in.
+    let capability_matrix = if optional_bool(args, "include_capabilities")?.unwrap_or(false) {
+        json!(state.snapshot().capabilities)
+    } else {
+        Value::Null
+    };
     Ok(json!({
         "status": if reviewing {"REVIEW"} else {"PASS"},
         "execution": {"status": "COMPLETE"},
@@ -61,7 +68,7 @@ pub(in crate::operations) fn audit(state: &RepositoryState, args: &Value) -> Res
             "excluded": ["containment", "symbol ownership", "references", "inheritance", "implements", "re-exports", "type-only and compile-time imports", "test and classified files by default"],
         },
         "languages": language_counts,
-        "capability_matrix": state.snapshot().capabilities,
+        "capability_matrix": capability_matrix,
         "dependency_report": dependency_report,
         "runtime_report": runtime_report,
         "coverage_report": coverage_report,

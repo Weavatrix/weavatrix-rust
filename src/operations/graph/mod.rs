@@ -1,5 +1,5 @@
 use crate::engine::RepositoryState;
-use crate::operations::{arg_str, arg_u64};
+use crate::operations::{arg_str, arg_u64, optional_bool};
 use blazingly_json::{Value, json};
 use std::collections::BTreeMap;
 use weavatrix_graph::{Direction, NodeIndex, NodeKind, shortest_path};
@@ -15,7 +15,7 @@ pub use views::{communities, endpoints, module_map};
 use walk::resolve_seeds;
 pub(super) use walk::traverse;
 
-pub fn stats(state: &RepositoryState) -> Value {
+pub fn stats(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let mut kinds = BTreeMap::<String, u64>::new();
     let mut relations = BTreeMap::<String, u64>::new();
     let mut evidence = BTreeMap::<String, u64>::new();
@@ -28,7 +28,13 @@ pub fn stats(state: &RepositoryState) -> Value {
             .entry(edge.provenance.evidence.as_str().to_owned())
             .or_default() += 1;
     }
-    json!({
+    // Static per build, not per repository or per call: opt in rather than pay for it every time.
+    let capabilities = if optional_bool(args, "include_capabilities")?.unwrap_or(false) {
+        json!(state.snapshot().capabilities)
+    } else {
+        Value::Null
+    };
+    Ok(json!({
         "repository": state.snapshot().repository,
         "revision": state.snapshot().revision,
         "nodes": state.graph().node_count(),
@@ -37,14 +43,14 @@ pub fn stats(state: &RepositoryState) -> Value {
         "node_kinds": kinds,
         "relations": relations,
         "evidence": evidence,
-        "capabilities": state.snapshot().capabilities,
+        "capabilities": capabilities,
         "freshness": {
             "state": "CURRENT",
             "source_revision": state.snapshot().revision,
             "incremental_hashes_reused": state.scan_report().cache.reused_hashes,
             "content_reads": state.scan_report().cache.content_reads
         }
-    })
+    }))
 }
 
 pub fn get_node(state: &RepositoryState, args: &Value) -> Result<Value, String> {

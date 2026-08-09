@@ -39,7 +39,7 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
     }
     let state = weavatrix.state();
     match name {
-        "graph_stats" => Ok(graph::stats(state)),
+        "graph_stats" => graph::stats(state, arguments),
         "get_node" => graph::get_node(state, arguments),
         "get_neighbors" => graph::neighbors(state, arguments),
         "query_graph" => graph::query(state, arguments),
@@ -77,9 +77,9 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "seo_link_suggestions" => semantic::seo_links(state, arguments),
         "memory_context" => memory::context(state, arguments),
         "rebuild_graph" => {
-            let before = graph::stats(state);
+            let before = graph::stats(state, arguments)?;
             weavatrix.rebuild().map_err(|error| error.to_string())?;
-            Ok(json!({"before": before, "after": graph::stats(weavatrix.state())}))
+            Ok(json!({"before": before, "after": graph::stats(weavatrix.state(), arguments)?}))
         }
         "open_repo" => {
             let path = arg_str(arguments, "path")?.to_owned();
@@ -90,7 +90,7 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
             Ok(json!({
                 "repository": weavatrix.state().root(),
                 "built": graph_built,
-                "graph": graph::stats(weavatrix.state())
+                "graph": graph::stats(weavatrix.state(), arguments)?
             }))
         }
         "list_known_repos" => Ok(json!({
