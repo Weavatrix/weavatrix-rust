@@ -10,7 +10,9 @@ schemas are authoritative.
 
 ## Graph and orientation
 
-- `graph_stats`: root, revision, freshness, graph counts, and capabilities.
+- `graph_stats`: root, revision, freshness, and graph counts. The build's
+  capability matrix is static, so it is returned only with
+  `include_capabilities`; `run_audit` takes the same argument.
 - `get_node`, `get_neighbors`: exact nodes and typed direct relationships.
 - `query_graph`: bounded BFS/DFS around exact file or symbol seeds.
 - `god_nodes`, `shortest_path`: connectivity review and typed paths.

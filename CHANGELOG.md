@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.3.0 - 2026-08-09
+
+- `run_audit` and `graph_stats` return the capability matrix only when asked for
+  it with `include_capabilities`. The matrix is a static property of the build:
+  the same list for every repository and every call. It was also the largest
+  single block of both answers - 56% of `run_audit` and 87% of `graph_stats` on
+  a 66-file repository - so every caller paid for it repeatedly to learn nothing
+  about the repository it had asked about. Measured on that repository the
+  default answers drop from 2872 to 1379 and from 1748 to 252 estimated tokens.
+  Callers that need the matrix pass the argument and get exactly what they got
+  before. `rebuild_graph` and `open_repo` forward their own arguments, so the
+  graph blocks they nest shed the matrix too.
+
 ## 2.2.1 - 2026-08-05
 
 - an operation that cannot apply `token_budget` answers and records that in
