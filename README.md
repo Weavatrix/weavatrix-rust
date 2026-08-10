@@ -17,7 +17,7 @@ Use the crate to:
 
 - embed repository analysis in a Rust application;
 - produce a serializable `Snapshot` for CI, indexing, or review systems;
-- run 42 bounded read-only operations over repository and graph evidence in
+- run 43 bounded read-only operations over repository and graph evidence in
   the default full build;
 - run the standalone `weavatrix-rust` CLI.
 
@@ -33,13 +33,13 @@ Use the crate to:
 | `Snapshot` | Serialize nodes, edges, diagnostics, capabilities, and provenance. |
 | `Graph`, `Node`, `Edge` | Work directly with typed evidence-carrying graph primitives. |
 | `Weavatrix` / `RepositoryState` | Keep an analyzed repository live and execute bounded operations against one revision. |
-| `operations` | Call the compiled read-only use cases from Rust or the CLI (42 in the default full build). |
+| `operations` | Call the compiled read-only use cases from Rust or the CLI (43 in the default full build). |
 
 Release evidence:
 
 | Property | Result |
 | --- | ---: |
-| Read-only analysis operations | **42** |
+| Read-only analysis operations | **43** |
 | Shared JavaScript call targets missing or wrong | **0 / 0** |
 | Shared imports, methods, and re-exports covered | **100%** |
 | Rust line coverage | **87.71%** |
@@ -243,9 +243,9 @@ while structural facts retain exact spans. This supports diagnostics,
 round-trip validation, and future source-to-source consumers without making
 the graph depend on regex reconstruction.
 
-## The 42 default analysis operations
+## The 43 default analysis operations
 
-The default full build exposes 42 operations. The public `operations` layer
+The default full build exposes 43 operations. The public `operations` layer
 sits above the engine and is usable from Rust or the CLI. Feature-minimal
 builds expose only operations backed by compiled capabilities.
 
@@ -256,7 +256,7 @@ builds expose only operations backed by compiled capabilities.
 | Exact source context | `search_code`, `read_source`, `inspect_symbol`, `context_bundle`, `map_stacktrace` |
 | Health and quality | `find_duplicates`, `find_dead_code`, `run_audit`, `coverage_map`, `hot_path_review` |
 | APIs and transports | `list_endpoints`, `trace_endpoint`, `trace_api_contract` |
-| Architecture | `get_architecture_contract`, `verify_architecture`, `explain_architecture_violation`, `propose_architecture_exception` |
+| Architecture | `get_architecture_contract`, `verify_architecture`, `verify_capabilities`, `explain_architecture_violation`, `propose_architecture_exception` |
 | Git and repositories | `git_history`, `cross_repo_git`, `open_repo`, `list_known_repos`, `rebuild_graph` |
 | Native extensions | `vector_search`, `semantic_link`, `seo_link_suggestions`, `memory_context` |
 

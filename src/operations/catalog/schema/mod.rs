@@ -121,6 +121,7 @@ fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
         ]),
         "graph_diff" => Some(&["base_ref", "path"]),
         "prepare_change" => Some(&["intent"]),
+        "verify_capabilities" => Some(&["max_results", "include_tests", "include_classified"]),
         _ => None,
     }
 }

@@ -57,6 +57,7 @@ pub(crate) fn health_source_calls(ids: &[String]) -> Vec<(&'static str, Value)> 
             json!({"files": ["app/main.js"], "intent": "test"}),
         ),
         ("verify_architecture", json!({})),
+        ("verify_capabilities", json!({})),
         ("list_known_repos", json!({})),
     ]
 }

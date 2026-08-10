@@ -176,6 +176,11 @@ pub(super) const SPECS: &[ToolSpec] = &[
         required: &[],
     },
     ToolSpec {
+        name: "verify_capabilities",
+        description: "Resolve declared capabilities against exposed endpoint evidence.",
+        required: &[],
+    },
+    ToolSpec {
         name: "explain_architecture_violation",
         description: "Explain one active contract violation.",
         required: &["fingerprint"],

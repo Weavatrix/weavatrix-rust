@@ -50,6 +50,7 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "get_architecture_contract",
         "prepare_change",
         "verify_architecture",
+        "verify_capabilities",
         "explain_architecture_violation",
         "propose_architecture_exception",
         "open_repo",

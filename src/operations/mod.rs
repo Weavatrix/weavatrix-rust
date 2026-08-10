@@ -70,6 +70,7 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "get_architecture_contract" => architecture::contract(state, arguments),
         "prepare_change" => architecture::prepare(state, arguments),
         "verify_architecture" => architecture::verify(state),
+        "verify_capabilities" => architecture::verify_capabilities(state, arguments),
         "explain_architecture_violation" => architecture::explain(state, arguments),
         "propose_architecture_exception" => architecture::propose_exception(state, arguments),
         "semantic_link" => semantic::semantic_link(state, arguments),

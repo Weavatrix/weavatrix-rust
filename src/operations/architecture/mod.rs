@@ -1,4 +1,5 @@
 mod budgets;
+mod capabilities;
 mod contract;
 mod rules;
 mod source_metrics;
@@ -113,6 +114,63 @@ pub fn verify(state: &RepositoryState) -> Result<Value, String> {
         "existing": existing,
         "excepted": excepted,
         "fixed": fixed,
+        "contract": ".weavatrix/architecture.json"
+    }))
+}
+
+/// Resolves every declared capability against the endpoints this revision
+/// exposes, in both directions: a claim with no evidence behind it, and
+/// evidence no claim covers.
+pub fn verify_capabilities(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    let limit = crate::operations::optional_u64(args, "max_results")?
+        .unwrap_or(capabilities::DEFAULT_MAX_RESULTS);
+    let Some(value) = contract::load_optional(state)? else {
+        let (starter, total) = capabilities::trimmed(capabilities::starter(state, args), limit);
+        return Ok(json!({
+            "state": "NOT_CONFIGURED",
+            "enforceable": false,
+            "served": [],
+            "drifted": [],
+            "orphaned": [],
+            "unmapped": [],
+            "unmapped_total": total,
+            "starter": {"capabilities": starter, "capabilities_total": total},
+            "remediation": contract::remediation(),
+            "write": "NONE"
+        }));
+    };
+    let Some(declared) = capabilities::declared(&value) else {
+        let (unmapped, total) =
+            capabilities::trimmed(capabilities::verify(state, &value, args).unmapped, limit);
+        let (starter, _) = capabilities::trimmed(capabilities::starter(state, args), limit);
+        return Ok(json!({
+            "state": "NOT_DECLARED",
+            "enforceable": false,
+            "reason": "the architecture contract has no `capabilities` section",
+            "served": [],
+            "drifted": [],
+            "orphaned": [],
+            "unmapped": unmapped,
+            "unmapped_total": total,
+            "starter": {"capabilities": starter, "capabilities_total": total},
+            "contract": ".weavatrix/architecture.json",
+            "write": "NONE"
+        }));
+    };
+    let declared = declared.len();
+    capabilities::validate(&value)?;
+    let report = capabilities::verify(state, &value, args);
+    let blocked = report.blocked();
+    let (unmapped, unmapped_total) = capabilities::trimmed(report.unmapped, limit);
+    Ok(json!({
+        "state": if blocked {"BLOCKED"} else {"PASS"},
+        "enforceable": true,
+        "declared": declared,
+        "served": report.served,
+        "drifted": report.drifted,
+        "orphaned": report.orphaned,
+        "unmapped": unmapped,
+        "unmapped_total": unmapped_total,
         "contract": ".weavatrix/architecture.json"
     }))
 }
