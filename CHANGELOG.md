@@ -1,5 +1,50 @@
 # Changelog
 
+## 2.4.0 - 2026-08-10
+
+- Rust route attributes are read past their first argument. `#[get("/users/{id}",
+  id = "users.read", summary = "Read a user")]` is the ordinary shape wherever a
+  framework records operation identity beside the path - blazingly writes it on
+  every route, Rocket adds `rank` and `format`, actix-web spells the verb as
+  `#[route("/p", method = "GET")]` - and the extractor accepted a lone string
+  literal only, so a second argument dropped the route entirely. A workspace
+  whose routes are all declared that way reported none of them: `blazingly` at
+  873db4a went from 0 endpoint nodes to 78. The path now comes from the first
+  positional literal or from the `path`/`uri` key, the verb from the attribute
+  name or from a `method` argument, and `#[operation(method = PUT, path =
+  "/users/{id}")]` resolves like the method-specific form.
+
+- an axum `MethodRouter` chain exposes every verb it serves.
+  `.route("/users", get(list).post(create))` reported nothing, because the
+  handler was read as a single call whose name was neither verb; it now yields
+  `GET /users` and `POST /users`, and a chain ending in `.layer(...)` keeps the
+  verbs underneath it. A route whose handler names no verb is still `ANY`.
+
+- `verify_capabilities` resolves a declared served surface against the
+  endpoints a revision actually exposes. The architecture contract gains an
+  optional `capabilities` section, and each entry is answered in both
+  directions: `served` resolved, `drifted` resolves but out of the components
+  the entry named, `orphaned` names an endpoint this revision does not expose,
+  and `unmapped` is an exposed endpoint no entry claims - the half a declared
+  catalog cannot see about itself. A capability with no `id`, no `endpoints`,
+  or a duplicate `id` is rejected rather than skipped, because a skipped entry
+  reports a passing verification for a claim nothing checked. Findings carry
+  the same stable fingerprints the dependency violations use. `unmapped` and
+  the derived starter grow with the repository rather than with the contract,
+  so both are trimmed to `max_results` (50 by default, 0 for all) and always
+  report the total they were trimmed from. Nothing is written: an unconfigured
+  or undeclared repository gets the section it would need and `write: NONE`.
+
+- every operation advertises `output_format: "structured"` beside `text` and
+  `json`. An MCP result carries the payload twice - once as `structuredContent`
+  and once mirrored into a text block for clients that read only `content` -
+  and the mirror is the pretty-printed copy, so it is the larger of the two.
+  The new value drops it. Measured on `run_audit` over a real repository the
+  response fell from 8931 to 3589 bytes, 59.8% smaller. The default is
+  unchanged, because a client that ignores `structuredContent` would see an
+  empty result; the transport that honours the value is the separate
+  `weavatrix` product on `mcport` 0.5.0.
+
 ## 2.3.0 - 2026-08-09
 
 - `run_audit` and `graph_stats` return the capability matrix only when asked for
