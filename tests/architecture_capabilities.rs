@@ -1,5 +1,9 @@
 //! How one declared capability resolves against the endpoints a revision
 //! exposes. Scope and boundedness live in `architecture_capability_scope`.
+//!
+//! The fixtures declare their routes as Rust attributes, so they need the
+//! adapter that reads them. The operation itself is language-neutral.
+#![cfg(feature = "lang-rust")]
 
 #[allow(dead_code)]
 mod capability_contract;

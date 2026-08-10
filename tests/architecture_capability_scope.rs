@@ -1,4 +1,8 @@
 //! What counts as the served surface, and what the answer costs to read.
+//!
+//! The fixtures declare their routes as Rust attributes, so they need the
+//! adapter that reads them.
+#![cfg(feature = "lang-rust")]
 
 #[allow(dead_code)]
 mod capability_contract;
