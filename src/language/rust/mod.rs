@@ -262,10 +262,10 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
         self.add_reference(node.method.to_string(), node.span());
-        if node.method == "route"
-            && let Some((method, path)) = route_call(node)
-        {
-            self.add_endpoint(method, &path, node.span());
+        if node.method == "route" {
+            for (method, path) in route_call(node) {
+                self.add_endpoint(method, &path, node.span());
+            }
         }
         syn::visit::visit_expr_method_call(self, node);
     }

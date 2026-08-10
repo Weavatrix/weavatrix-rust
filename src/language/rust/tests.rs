@@ -167,3 +167,131 @@ async fn actix() {}
         );
     }
 }
+
+#[test]
+fn route_attributes_survive_the_metadata_they_carry() {
+    let source = r#"
+#[get("/users/{id}", id = "users.read", summary = "Read a user")]
+async fn read_user() {}
+
+#[post(
+    "/users",
+    id = "users.create",
+    tags = ["users", "admin"],
+    deprecated,
+    external_docs = "https://example.com/users"
+)]
+async fn create_user() {}
+
+#[operation(method = PUT, path = "/users/{id}", id = "users.replace")]
+async fn replace_user() {}
+
+#[route("/legacy", method = "GET", method = "HEAD")]
+async fn legacy() {}
+
+#[get("/hello?<name>", rank = 2, format = "json")]
+fn hello() {}
+
+#[get("relative", id = "not.a.route")]
+fn relative() {}
+"#;
+    let facts = RustAdapter
+        .parse(SourceFile {
+            path: "src/web.rs",
+            text: source,
+        })
+        .unwrap();
+    assert_eq!(
+        sorted_endpoints(&facts),
+        [
+            "GET /hello?<name>",
+            "GET /legacy",
+            "GET /users/{id}",
+            "HEAD /legacy",
+            "POST /users",
+            "PUT /users/{id}",
+        ]
+    );
+}
+
+#[test]
+fn chained_method_routers_expose_every_verb_they_serve() {
+    let source = r#"
+fn routes() -> Router {
+    Router::new()
+        .route(&format!("/{}", prefix), get(computed))
+        .route("/opaque", handler)
+        .route("/users", get(list).post(create))
+        .route("/users/{id}", get(read).patch(update).delete(remove).layer(auth()))
+}
+"#;
+    let facts = RustAdapter
+        .parse(SourceFile {
+            path: "src/web.rs",
+            text: source,
+        })
+        .unwrap();
+
+    assert_eq!(
+        sorted_endpoints(&facts),
+        [
+            "ANY /opaque",
+            "DELETE /users/{id}",
+            "GET /users",
+            "GET /users/{id}",
+            "PATCH /users/{id}",
+            "POST /users",
+        ]
+    );
+}
+
+/// A documentation example is prose. It reaches `syn` as `#[doc = "..."]`, and
+/// the routes written inside it are served by nothing, so a repository whose
+/// docs show a dozen `GET /foo` must not gain a dozen endpoints that no handler
+/// answers.
+#[test]
+fn documentation_examples_are_not_endpoints() {
+    let source = r#"
+//! ```
+//! #[get("/module-doc")]
+//! ```
+
+/// Declares a `GET` operation.
+///
+/// ```ignore
+/// #[get("/users/{id}", id = "users.read", summary = "Read a user")]
+/// async fn read_user() {}
+/// ```
+///
+/// ```ignore
+/// Router::new().route("/doc-route", get(handler))
+/// ```
+#[proc_macro_attribute]
+pub fn get(arguments: TokenStream, item: TokenStream) -> TokenStream {
+    expand_operation(arguments, item)
+}
+"#;
+    let facts = RustAdapter
+        .parse(SourceFile {
+            path: "src/lib.rs",
+            text: source,
+        })
+        .unwrap();
+
+    assert!(
+        facts.domains.is_empty(),
+        "documentation examples are prose, not served routes: {:?}",
+        sorted_endpoints(&facts)
+    );
+}
+
+fn sorted_endpoints(facts: &FileFacts) -> Vec<&str> {
+    let mut endpoints = facts
+        .domains
+        .iter()
+        .filter(|item| item.kind == NodeKind::Endpoint)
+        .map(|item| item.name.as_str())
+        .collect::<Vec<_>>();
+    endpoints.sort_unstable();
+    endpoints
+}
