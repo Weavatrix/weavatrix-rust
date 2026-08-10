@@ -69,8 +69,13 @@ fn tool(
         "output_format".to_owned(),
         json!({
             "type": "string",
-            "enum": ["text", "json"],
-            "default": "json"
+            "enum": ["text", "json", "structured"],
+            "default": "json",
+            "description": "text returns the concise text block only; json returns \
+                            structured output and mirrors it into text for clients that \
+                            read only content; structured drops that mirror, which is the \
+                            larger copy, and is safe only where the client reads \
+                            structuredContent"
         }),
     )]);
     for name in schema::optional_fields(tool_name) {
