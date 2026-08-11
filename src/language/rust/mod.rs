@@ -69,11 +69,18 @@ struct Collector<'source> {
 }
 
 impl Collector<'_> {
-    fn add_symbol(&mut self, name: &syn::Ident, kind: NodeKind, span: Span) -> SymbolLocator {
+    fn add_symbol(
+        &mut self,
+        name: &syn::Ident,
+        kind: NodeKind,
+        definition_span: Span,
+    ) -> SymbolLocator {
+        let mut span = source_span(self.path, name.span());
+        span.end = source_span(self.path, definition_span).end;
         let locator = SymbolLocator {
             name: name.to_string(),
             kind,
-            span: source_span(self.path, span),
+            span,
         };
         self.facts.symbols.push(SymbolFact {
             name: locator.name.clone(),
@@ -100,12 +107,12 @@ impl Collector<'_> {
         self.test_context = previous;
     }
 
-    fn add_reference(&mut self, name: String, span: Span) {
+    fn add_reference(&mut self, name: String, kind: EdgeKind, qualified: bool, span: Span) {
         self.facts.references.push(ReferenceFact {
             name,
-            kind: EdgeKind::Calls,
+            kind,
             receiver: None,
-            qualified: false,
+            qualified,
             span: source_span(self.path, span),
             owner: self.owner.symbol.clone(),
         });
@@ -131,8 +138,7 @@ impl Collector<'_> {
 impl<'ast> Visit<'ast> for Collector<'_> {
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
         self.with_test_context(&node.attrs, |collector| {
-            let owner =
-                collector.add_symbol(&node.sig.ident, NodeKind::Function, node.sig.ident.span());
+            let owner = collector.add_symbol(&node.sig.ident, NodeKind::Function, node.span());
             collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
                 collector.add_attribute_endpoints(&node.attrs);
                 syn::visit::visit_item_fn(collector, node);
@@ -142,8 +148,7 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
         self.with_test_context(&node.attrs, |collector| {
-            let owner =
-                collector.add_symbol(&node.sig.ident, NodeKind::Method, node.sig.ident.span());
+            let owner = collector.add_symbol(&node.sig.ident, NodeKind::Method, node.span());
             collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
                 collector.add_attribute_endpoints(&node.attrs);
                 syn::visit::visit_impl_item_fn(collector, node);
@@ -153,8 +158,7 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
         self.with_test_context(&node.attrs, |collector| {
-            let owner =
-                collector.add_symbol(&node.sig.ident, NodeKind::Method, node.sig.ident.span());
+            let owner = collector.add_symbol(&node.sig.ident, NodeKind::Method, node.span());
             collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
                 syn::visit::visit_trait_item_fn(collector, node);
             });
@@ -163,21 +167,21 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Struct, node.ident.span());
+            collector.add_symbol(&node.ident, NodeKind::Struct, node.span());
             syn::visit::visit_item_struct(collector, node);
         });
     }
 
     fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Enum, node.ident.span());
+            collector.add_symbol(&node.ident, NodeKind::Enum, node.span());
             syn::visit::visit_item_enum(collector, node);
         });
     }
 
     fn visit_item_trait(&mut self, node: &'ast syn::ItemTrait) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Trait, node.ident.span());
+            collector.add_symbol(&node.ident, NodeKind::Trait, node.span());
             collector.with_owner(OwnerUpdate::Type(node.ident.to_string()), |collector| {
                 syn::visit::visit_item_trait(collector, node);
             });
@@ -198,28 +202,28 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_item_type(&mut self, node: &'ast syn::ItemType) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::TypeAlias, node.ident.span());
+            collector.add_symbol(&node.ident, NodeKind::TypeAlias, node.span());
             syn::visit::visit_item_type(collector, node);
         });
     }
 
     fn visit_item_const(&mut self, node: &'ast syn::ItemConst) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Constant, node.ident.span());
+            collector.add_symbol(&node.ident, NodeKind::Constant, node.span());
             syn::visit::visit_item_const(collector, node);
         });
     }
 
     fn visit_item_static(&mut self, node: &'ast syn::ItemStatic) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Static, node.ident.span());
+            collector.add_symbol(&node.ident, NodeKind::Static, node.span());
             syn::visit::visit_item_static(collector, node);
         });
     }
 
     fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Module, node.ident.span());
+            collector.add_symbol(&node.ident, NodeKind::Module, node.span());
             if node.content.is_some() {
                 collector.module_scope.enter(node.ident.to_string());
             } else {
@@ -255,19 +259,38 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
         if let Some(name) = callable_name(&node.func) {
-            self.add_reference(name, node.span());
+            self.add_reference(name, EdgeKind::Calls, false, node.span());
         }
         syn::visit::visit_expr_call(self, node);
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
-        self.add_reference(node.method.to_string(), node.span());
+        self.add_reference(node.method.to_string(), EdgeKind::Calls, false, node.span());
         if node.method == "route" {
             for (method, path) in route_call(node) {
                 self.add_endpoint(method, &path, node.span());
             }
         }
         syn::visit::visit_expr_method_call(self, node);
+    }
+
+    fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
+        // A final segment alone is not enough evidence for a qualified Rust
+        // path: `std::io::Result` must not bind to an unrelated local
+        // `Result`. Keep exact single-name type references now; path-aware
+        // module resolution can add qualified references without guessing.
+        if node.qself.is_none()
+            && node.path.segments.len() == 1
+            && let Some(segment) = node.path.segments.last()
+        {
+            self.add_reference(
+                segment.ident.to_string(),
+                EdgeKind::References,
+                false,
+                node.span(),
+            );
+        }
+        syn::visit::visit_type_path(self, node);
     }
 }
 

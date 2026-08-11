@@ -125,6 +125,7 @@ fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
             "base_ref",
             "head_ref",
             "path",
+            "detail",
             "max_results",
             "token_budget",
         ]),

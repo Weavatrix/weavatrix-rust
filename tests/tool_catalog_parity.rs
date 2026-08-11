@@ -134,3 +134,19 @@ fn catalog_does_not_advertise_unavailable_lsp_precision() {
         );
     }
 }
+
+#[test]
+#[cfg(feature = "git")]
+fn graph_diff_catalog_documents_its_compact_default_and_raw_edge_opt_in() {
+    use blazingly_json::json;
+    use weavatrix_rust::tools;
+
+    let graph_diff = tools::catalog()
+        .into_iter()
+        .find(|tool| tool.name == "graph_diff")
+        .unwrap();
+    let detail = &graph_diff.input_schema["properties"]["detail"];
+
+    assert_eq!(detail["enum"], json!(["file_pairs", "edges"]));
+    assert_eq!(detail["default"], "file_pairs");
+}

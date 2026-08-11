@@ -19,6 +19,14 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
             ]
         }));
     }
+    if tool == "graph_diff" && name == "detail" {
+        return Some(json!({
+            "type": "string",
+            "enum": ["file_pairs", "edges"],
+            "default": "file_pairs",
+            "description": "Aggregate edge churn by source file, target file, and relation by default; request edges for individual edge provenance"
+        }));
+    }
     if tool != "find_duplicates" {
         return None;
     }

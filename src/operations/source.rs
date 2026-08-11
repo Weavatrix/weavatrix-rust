@@ -14,7 +14,10 @@ pub fn read_source(state: &RepositoryState, args: &Value) -> Result<Value, Strin
             .span
             .as_ref()
             .ok_or_else(|| format!("node has no source span: {}", node.id))?;
-        (span.file.clone(), Some(u64::from(span.start.line)))
+        (
+            span.file.clone(),
+            Some((u64::from(span.start.line), u64::from(span.end.line))),
+        )
     } else {
         (arg_str(args, "path")?.to_owned(), None)
     };
@@ -22,11 +25,19 @@ pub fn read_source(state: &RepositoryState, args: &Value) -> Result<Value, Strin
     let path = secure_path(root, &relative)?;
     let text = fs::read_to_string(&path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-    let start = arg_u64(args, "start_line").ok().or(anchor).unwrap_or(1);
+    let requested_start = arg_u64(args, "start_line").ok();
+    let start = requested_start
+        .or_else(|| anchor.map(|(start, _)| start))
+        .unwrap_or(1);
     let before = arg_u64(args, "before").unwrap_or(3);
     let after = arg_u64(args, "after").unwrap_or(40);
     let first = start.saturating_sub(before).max(1);
-    let last = start.saturating_add(after);
+    let contextual_last = start.saturating_add(after);
+    let last = if requested_start.is_none() {
+        anchor.map_or(contextual_last, |(_, end)| contextual_last.max(end))
+    } else {
+        contextual_last
+    };
     let lines = text
         .lines()
         .enumerate()
