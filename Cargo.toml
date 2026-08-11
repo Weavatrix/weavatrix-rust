@@ -1,6 +1,6 @@
 [package]
 name = "weavatrix-rust"
-version = "2.4.0"
+version = "2.5.0"
 edition = "2024"
 rust-version = "1.89"
 description = "Protocol-independent Rust repository intelligence: typed evidence graphs for impact, architecture, APIs, Git, search, and memory"
@@ -68,7 +68,6 @@ unsafe_code = "forbid"
 [lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
-
 
 
 
