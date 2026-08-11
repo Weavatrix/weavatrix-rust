@@ -13,15 +13,32 @@ const BYTES_PER_TOKEN: usize = 4;
 /// Operations that trim their answer to `token_budget` and report what they
 /// dropped. The catalog offers the argument to exactly these, so the list
 /// follows the compiled capabilities rather than naming an absent operation.
-#[cfg(feature = "search")]
-const HONOURED: &[&str] = &[
-    "context_bundle",
-    "query_graph",
-    "read_source",
-    "search_code",
-];
-#[cfg(not(feature = "search"))]
-const HONOURED: &[&str] = &["context_bundle", "query_graph", "read_source"];
+pub(crate) fn honoured() -> &'static [&'static str] {
+    match (cfg!(feature = "search"), cfg!(feature = "git")) {
+        (true, true) => &[
+            "context_bundle",
+            "git_history",
+            "graph_diff",
+            "query_graph",
+            "read_source",
+            "search_code",
+        ],
+        (true, false) => &[
+            "context_bundle",
+            "query_graph",
+            "read_source",
+            "search_code",
+        ],
+        (false, true) => &[
+            "context_bundle",
+            "git_history",
+            "graph_diff",
+            "query_graph",
+            "read_source",
+        ],
+        (false, false) => &["context_bundle", "query_graph", "read_source"],
+    }
+}
 
 /// Records that an operation could not apply the requested budget.
 ///
@@ -42,7 +59,7 @@ pub(crate) fn annotate_unapplied(
     let Some(budget) = requested(args)? else {
         return Ok(());
     };
-    if HONOURED.contains(&tool) {
+    if honoured().contains(&tool) {
         return Ok(());
     }
     let estimated = estimate(report);
@@ -56,7 +73,7 @@ pub(crate) fn annotate_unapplied(
                 "dropped_items": 0,
                 "fit": estimated <= budget,
                 "applied": false,
-                "applied_by": HONOURED
+                "applied_by": honoured()
             }),
         );
     }

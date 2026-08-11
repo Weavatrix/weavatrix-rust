@@ -79,6 +79,8 @@ fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
             "max_pairs",
             "top_n",
             "first_parent",
+            "include_analytics",
+            "token_budget",
         ]),
         "cross_repo_git" => Some(&[
             "action",
@@ -119,7 +121,13 @@ fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
             "max_tests",
             "precision",
         ]),
-        "graph_diff" => Some(&["base_ref", "path"]),
+        "graph_diff" => Some(&[
+            "base_ref",
+            "head_ref",
+            "path",
+            "max_results",
+            "token_budget",
+        ]),
         "prepare_change" => Some(&["intent"]),
         "verify_capabilities" => Some(&["max_results", "include_tests", "include_classified"]),
         _ => None,
@@ -247,6 +255,7 @@ pub(super) fn field_schema(tool: &str, name: &str) -> Value {
             | "is_regex"
             | "include_tests"
             | "include_capabilities"
+            | "include_analytics"
             | "include_boilerplate"
             | "include_declarative"
             | "include_strings"

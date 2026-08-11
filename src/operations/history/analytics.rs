@@ -5,6 +5,35 @@ use std::collections::BTreeMap;
 use weavatrix_git::{HistoryRecord, Repository};
 use weavatrix_graph::{NodeIndex, NodeKind};
 
+/// The commit log alone: identity, time and summary, with no diff.
+///
+/// Hotspots and co-change need one `diff_commits` per commit and dominate both
+/// the answer and its latency. A caller asking what changed recently is asking
+/// for this, and paying for the analysis it did not ask for is the difference
+/// between an answer that costs a few hundred tokens and one that costs
+/// several thousand.
+pub(super) fn commits(records: &[HistoryRecord]) -> Vec<Value> {
+    records
+        .iter()
+        .map(|record| {
+            json!({
+                "id": record.id.to_string(),
+                "time": commit_time(record),
+                "summary": record.commit.summary_lossy()
+            })
+        })
+        .collect()
+}
+
+fn commit_time(record: &HistoryRecord) -> Option<i64> {
+    record
+        .commit
+        .committer
+        .as_ref()
+        .or(record.commit.author.as_ref())
+        .map(|signature| signature.timestamp)
+}
+
 pub(super) fn analyze(
     state: &RepositoryState,
     repository: &Repository,
@@ -26,15 +55,9 @@ pub(super) fn analyze(
                 *coupling.entry((left.clone(), right.clone())).or_default() += 1;
             }
         }
-        let time = record
-            .commit
-            .committer
-            .as_ref()
-            .or(record.commit.author.as_ref())
-            .map(|signature| signature.timestamp);
         commits.push(json!({
             "id": record.id.to_string(),
-            "time": time,
+            "time": commit_time(record),
             "changed_files": paths.len(),
             "summary": record.commit.summary_lossy()
         }));

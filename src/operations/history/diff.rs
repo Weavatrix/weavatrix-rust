@@ -13,33 +13,49 @@ pub(super) fn graph_diff(state: &RepositoryState, args: &Value) -> Result<Value,
     let base = super::resolve_revision(&repository, base_ref)?;
     let analyzer = Analyzer::default();
     let baseline = revision_graph(&analyzer, &repository, state, base)?;
-    let max = usize::try_from(optional_u64(args, "max_results")?.unwrap_or(100))
+    // Five arrays share this cap, and a node carries its attributes and span,
+    // so a hundred each is a six-figure token answer for a ten-commit range.
+    // `counts` stays exact, so a smaller sample hides nothing.
+    let max = usize::try_from(optional_u64(args, "max_results")?.unwrap_or(25))
         .map_err(|_| "max_results is too large")?;
+    let budget = crate::operations::token_budget::requested(args)?;
 
-    if let Some(head_ref) = optional_str(args, "head_ref")? {
+    let mut report = if let Some(head_ref) = optional_str(args, "head_ref")? {
         let head = super::resolve_revision(&repository, head_ref)?;
         let target = revision_graph(&analyzer, &repository, state, head)?;
         let base_text = base.to_string();
         let head_text = head.to_string();
-        return Ok(compare(
+        compare(
             &baseline,
             &target,
             &base_text,
             &head_text,
             "immutable_git_revision",
             max,
-        ));
-    }
-
-    let base_text = base.to_string();
-    Ok(compare(
-        &baseline,
-        state.graph(),
-        &base_text,
-        "WORKTREE",
-        "analyzed_worktree",
-        max,
-    ))
+        )
+    } else {
+        let base_text = base.to_string();
+        compare(
+            &baseline,
+            state.graph(),
+            &base_text,
+            "WORKTREE",
+            "analyzed_worktree",
+            max,
+        )
+    };
+    crate::operations::token_budget::fit(
+        &mut report,
+        budget,
+        &[
+            "/nodes/changed",
+            "/edges/added",
+            "/edges/removed",
+            "/nodes/added",
+            "/nodes/removed",
+        ],
+    );
+    Ok(report)
 }
 
 fn compare(

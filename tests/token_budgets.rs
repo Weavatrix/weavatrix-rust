@@ -1,4 +1,6 @@
 mod language_fixture;
+#[allow(dead_code)]
+mod support;
 
 use blazingly_json::json;
 use language_fixture::Fixture;
@@ -83,21 +85,23 @@ fn search_code_reports_budget_truncation_honestly() {
     assert_eq!(budgeted["token_budget"]["fit"], true);
 }
 
-/// The operations that trim their answer to `token_budget`.
+/// The operations that trim their answer to `token_budget`, per compiled
+/// capability. Two of them answer from Git, so the list follows both features.
 ///
 /// Pinned on both sides: the catalog must offer the argument to exactly these,
 /// and every other operation must refuse it. Drift in either direction is the
 /// defect this list exists to catch - a schema that promises a bound the code
 /// does not apply.
-#[cfg(feature = "search")]
-const HONOURED: &[&str] = &[
-    "context_bundle",
-    "query_graph",
-    "read_source",
-    "search_code",
-];
-#[cfg(not(feature = "search"))]
-const HONOURED: &[&str] = &["context_bundle", "query_graph", "read_source"];
+fn honoured() -> Vec<&'static str> {
+    let mut names = vec!["context_bundle", "query_graph", "read_source"];
+    if cfg!(feature = "git") {
+        names.extend(["git_history", "graph_diff"]);
+    }
+    if cfg!(feature = "search") {
+        names.push("search_code");
+    }
+    names
+}
 
 #[test]
 fn the_catalog_offers_a_budget_to_exactly_the_operations_that_apply_one() {
@@ -115,9 +119,76 @@ fn the_catalog_offers_a_budget_to_exactly_the_operations_that_apply_one() {
 
     assert_eq!(
         declared,
-        HONOURED.iter().copied().collect(),
+        honoured().into_iter().collect(),
         "the declared budget surface drifted from the implemented one"
     );
+}
+
+/// Hotspots and co-change diff every commit and are most of the answer. A
+/// caller reading recent history is not asking for them, and the cheap answer
+/// must stay cheap.
+#[cfg(feature = "git")]
+#[test]
+fn reading_recent_history_does_not_pay_for_the_analysis_it_did_not_ask_for() {
+    let fixture = support::GitFixture::new();
+    for index in 0..12 {
+        fixture.write(
+            "src/lib.rs",
+            &format!("pub fn step() -> u32 {{ {index} }}\n"),
+        );
+        fixture.write(&format!("src/m{index}.rs"), "pub fn helper() {}\n");
+        fixture.commit(&format!("step {index}"));
+    }
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    let plain = tools::call(&mut engine, "git_history", json!({"max_commits": 12})).unwrap();
+    let analysed = tools::call(
+        &mut engine,
+        "git_history",
+        json!({"max_commits": 12, "include_analytics": true}),
+    )
+    .unwrap();
+
+    assert_eq!(plain["analytics"]["present"], false);
+    assert!(
+        plain["commits"].as_array().is_some_and(|it| it.len() == 12),
+        "the commit log itself is still the answer"
+    );
+    // The blocks that cost a diff per commit are the ones that must be absent.
+    // How much that saves is repository-shaped, so the invariant is checked
+    // here and the magnitude is measured on a real repository.
+    for absent in ["hotspots", "cochange_pairs", "commits"] {
+        assert!(
+            plain["analytics"][absent].is_null(),
+            "{absent} must not be computed unless it was asked for"
+        );
+    }
+    assert!(analysed["analytics"]["hotspots"].is_array());
+    assert!(
+        estimate(&plain) < estimate(&analysed),
+        "the default must be cheaper: {} vs {}",
+        estimate(&plain),
+        estimate(&analysed)
+    );
+
+    let bounded = tools::call(
+        &mut engine,
+        "git_history",
+        json!({"max_commits": 12, "token_budget": 200}),
+    )
+    .unwrap();
+    assert_eq!(bounded["token_budget"]["applied"], true);
+    assert!(
+        bounded["token_budget"]["dropped_items"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0
+    );
+}
+
+#[cfg(feature = "git")]
+fn estimate(value: &blazingly_json::Value) -> usize {
+    blazingly_json::to_vec(value).map_or(0, |bytes| bytes.len().div_ceil(4))
 }
 
 #[test]

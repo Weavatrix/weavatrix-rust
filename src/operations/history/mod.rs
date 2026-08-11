@@ -46,14 +46,43 @@ pub fn history(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             },
         )
         .map_err(|error| error.to_string())?;
-    let analytics = analytics::analyze(state, &repository, &records, args)?;
-    Ok(json!({
-        "status": "COMPLETE",
-        "git_evidence": {"present": true},
-        "revision": start.to_string(),
-        "months": months,
-        "analytics": analytics
-    }))
+    let budget = crate::operations::token_budget::requested(args)?;
+    // Hotspots and co-change cost one `diff_commits` per commit and are the
+    // bulk of the answer. A caller reading recent history is not asking for
+    // them, so they are computed when asked for rather than by default.
+    let mut report = if optional_bool(args, "include_analytics")?.unwrap_or(false) {
+        json!({
+            "status": "COMPLETE",
+            "git_evidence": {"present": true},
+            "revision": start.to_string(),
+            "months": months,
+            "analytics": analytics::analyze(state, &repository, &records, args)?
+        })
+    } else {
+        json!({
+            "status": "COMPLETE",
+            "git_evidence": {"present": true, "changed_paths": false},
+            "revision": start.to_string(),
+            "months": months,
+            "commits_scanned": records.len(),
+            "commits": analytics::commits(&records),
+            "analytics": {
+                "present": false,
+                "reason": "hotspots and co-change diff every commit; pass include_analytics for them"
+            }
+        })
+    };
+    crate::operations::token_budget::fit(
+        &mut report,
+        budget,
+        &[
+            "/analytics/cochange_pairs",
+            "/analytics/commits",
+            "/analytics/hotspots",
+            "/commits",
+        ],
+    );
+    Ok(report)
 }
 
 #[cfg(feature = "git")]

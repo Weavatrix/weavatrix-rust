@@ -141,10 +141,12 @@ fn absent_external_evidence_is_structured_and_malformed_evidence_is_an_error() {
     assert_eq!(audit["debt"]["comparison"]["present"], false);
     assert_no_incomplete_value(&audit, "run_audit result");
 
+    // The analytics block is what this contract is about, and it is now asked
+    // for rather than paid for by default.
     let history = operations::call(
         &mut engine,
         "git_history",
-        json!({"max_commits": 10, "months": 1200}),
+        json!({"max_commits": 10, "months": 1200, "include_analytics": true}),
     )
     .unwrap();
     assert_eq!(history["status"], "COMPLETE");
