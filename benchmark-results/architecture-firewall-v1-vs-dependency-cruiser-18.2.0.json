@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-08-11T10:52:47.178Z",
+  "sourceRevision": "0ef351b150ad4ab4a76584d96df4acbb06beea6a",
+  "environment": {
+    "platform": "win32-x64",
+    "node": "v24.15.0",
+    "weavatrix": "weavatrix 1.4.0 (engine 2.3.0)",
+    "dependencyCruiser": "18.2.0"
+  },
+  "method": {
+    "performanceBoundary": "fresh CLI process, graph build plus policy evaluation",
+    "installExcluded": true,
+    "warmups": 2,
+    "measuredRuns": 9,
+    "generatedJavaScriptFiles": 400,
+    "caveat": "The same import graph and direct rule are used, but Weavatrix builds richer evidence than an import-only graph."
+  },
+  "capabilities": {
+    "corpus": "purpose-built JavaScript dependency cases",
+    "interpretation": "A false Weavatrix value for a v1-inexpressible rule means unsupported, not a silently missed configured rule.",
+    "observed": {
+      "directForbid": {
+        "weavatrix": true,
+        "dependencyCruiser": true
+      },
+      "transitiveForbid": {
+        "weavatrix": false,
+        "dependencyCruiser": true
+      },
+      "requiredDependency": {
+        "weavatrix": false,
+        "dependencyCruiser": true
+      },
+      "runtimeCycle": {
+        "weavatrix": true,
+        "dependencyCruiser": true
+      },
+      "unresolvedDependency": {
+        "weavatrix": false,
+        "dependencyCruiser": true
+      },
+      "allowList": {
+        "weavatrix": false,
+        "dependencyCruiser": true
+      }
+    },
+    "cliExitOnBlockingViolation": {
+      "weavatrix": 0,
+      "dependencyCruiserJsonReporter": 0,
+      "note": "Both JSON-oriented commands return zero; dependency-cruiser's err reporter gates CI, while Weavatrix has no policy-specific CLI yet."
+    }
+  },
+  "performance": {
+    "weavatrix": {
+      "medianMs": 152.67,
+      "samplesMs": [
+        98.26,
+        122.07,
+        152.67,
+        499.04,
+        346.88,
+        74.7,
+        79.98,
+        173.24,
+        430.13
+      ],
+      "violationCount": 200
+    },
+    "dependencyCruiser": {
+      "medianMs": 1681.37,
+      "samplesMs": [
+        1352.19,
+        1735.81,
+        1681.37,
+        1973.01,
+        2167.46,
+        699.91,
+        1604.01,
+        1671.56,
+        3565.53
+      ],
+      "violationCount": 200
+    },
+    "pairedSpeedup": {
+      "median": 9.65,
+      "samples": [
+        13.76,
+        14.22,
+        11.01,
+        3.95,
+        6.25,
+        9.37,
+        20.06,
+        9.65,
+        8.29
+      ]
+    }
+  }
+}
