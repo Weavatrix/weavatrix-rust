@@ -304,7 +304,8 @@ dependencies = [
 [[package]]
 name = "weavatrix-parse"
 version = "0.3.1"
-source = "git+https://github.com/sergii-ziborov/weavatrix-parse.git?rev=49d8bb64a4e744b03b767e77cbf4452a535904b8#49d8bb64a4e744b03b767e77cbf4452a535904b8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42660d50463fac9b5a72d08c8648b7ebcdf30d5633bb60c66a74176f4e3a6ad6"
 
 [[package]]
 name = "weavatrix-rust"
