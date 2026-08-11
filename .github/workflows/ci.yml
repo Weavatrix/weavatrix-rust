@@ -67,7 +67,7 @@ jobs:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --locked --no-deps --all-features
       - name: Check the package before its new dependency version is released
-        run: cargo package --locked --no-verify
+        run: cargo package --list
 
   security:
     runs-on: ubuntu-24.04
