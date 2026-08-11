@@ -37,6 +37,19 @@ the contract is never changed automatically.
       "from": ["controllers"],
       "to": ["auth"],
       "kinds": ["imports"]
+    },
+    {
+      "id": "controllers-use-approved-layers",
+      "action": "allow_only",
+      "from": ["controllers"],
+      "to": ["services", "auth"],
+      "kinds": ["imports"]
+    },
+    {
+      "id": "repository-imports-must-resolve",
+      "action": "forbid",
+      "from": ["controllers", "services", "auth", "infra"],
+      "kinds": ["unresolved"]
     }
   ],
   "budgets": {
@@ -66,7 +79,7 @@ but are not selected by component dependency rules.
 A dependency rule contains:
 
 - `id`: stable rule identifier;
-- `action`: `forbid` or `require`;
+- `action`: `allow_only`, `forbid`, or `require`;
 - `reachability`: `direct` or `transitive`; omitted means `direct`;
 - `from`: source component IDs;
 - `to`: target component IDs;
@@ -80,13 +93,23 @@ forbidden target.
 at least one matching direct or transitive path to a component selected by
 `to`.
 
+`allow_only` governs direct cross-component dependencies. Dependencies within
+the source component and dependencies to components selected by `to` are
+accepted. Dependencies to any other component or to an unmapped repository
+file are blocked.
+
+The synthetic `unresolved` kind selects unresolved local-import diagnostics.
+It is supported by direct `forbid` rules and is scoped by the source
+components in `from`.
+
 Coupling filters are `any`, `runtime`, and `type-only`. Exact relation filters
 include `imports`, `calls`, `references`, `implements`, `inherits`,
 `re_exports`, `depends_on`, `publishes`, `consumes`, `binds`, `reads`,
 `writes`, `deploys`, `exposes`, `mounts`, and `configures`.
 
-Unknown actions, reachability modes, and relation kinds are rejected. They
-cannot silently produce a passing verification.
+Unknown actions, reachability modes, relation kinds, and unsupported
+action/kind combinations are rejected. They cannot silently produce a passing
+verification.
 
 ## Budgets
 
@@ -121,8 +144,10 @@ expiry metadata. An exception without `expires` is accepted; an exception with
 - `fixed`: baseline fingerprints no longer present.
 
 Dependency violations identify the rule, source, target, relation evidence,
-and stable fingerprint. Required-dependency violations identify the source
-file and required target components.
+and stable fingerprint. Allow-list violations include the source component,
+resolved or unmapped target component, and allowed targets. Unresolved
+violations include the exact analyzer diagnostic. Required-dependency
+violations identify the source file and required target components.
 
 ## Operations
 

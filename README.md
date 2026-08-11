@@ -29,9 +29,10 @@ Use it to:
 
 Architecture Firewall evaluates `.weavatrix/architecture.json` against the
 repository evidence graph. It supports direct and transitive component
-forbids, required direct or transitive dependencies, relation and coupling
-filters, runtime-cycle and source-size budgets, stable fingerprints,
-baselines, exceptions, capability verification, and change preflight.
+forbids, direct dependency allow-lists, required direct or transitive
+dependencies, unresolved-import policy, relation and coupling filters,
+runtime-cycle and source-size budgets, stable fingerprints, baselines,
+exceptions, capability verification, and change preflight.
 
 Transitive violations include the deterministic shortest file path that
 crossed the declared boundary. Unknown rule actions, reachability modes, and
