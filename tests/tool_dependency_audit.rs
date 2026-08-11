@@ -213,7 +213,6 @@ fn audit_uses_only_production_import_evidence() {
         "inline_dev",
         "dev_only",
         "bench_only",
-        "scale_harness",
         "fuzz_only",
     ] {
         assert!(
@@ -221,6 +220,10 @@ fn audit_uses_only_production_import_evidence() {
             "fixture must exercise package evidence for {expected}: {packages:?}"
         );
     }
+    assert!(
+        !packages.contains("scale_harness"),
+        "a #[path] module is local source, not package evidence: {packages:?}"
+    );
 
     let audit = tools::call(&mut engine, "run_audit", json!({})).unwrap();
     let findings = audit["dependency_report"]["findings"].as_array().unwrap();

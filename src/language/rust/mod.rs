@@ -3,15 +3,17 @@ use super::{
     SymbolFact, SymbolLocator,
 };
 use crate::model::{Diagnostic, Result};
-use proc_macro2::Span;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
 use weavatrix_graph::{EdgeKind, NodeKind};
 
-use endpoints::{attribute_routes, callable_name, route_call};
+use endpoints::{
+    associated_owner_name, attribute_routes, bare_path_name, callable_name, route_call,
+};
 use module_scope::{ModuleScope, OwnerScope, OwnerUpdate, sort_facts};
 use syntax::{attributes_mark_test, impl_owner, source_span, use_tree_targets};
 
+mod collector;
 mod endpoints;
 mod expression_macros;
 mod module_scope;
@@ -53,7 +55,7 @@ impl LanguageAdapter for RustAdapter {
             facts: FileFacts::default(),
             owner: OwnerScope::default(),
             test_context: false,
-            module_scope: ModuleScope::default(),
+            module_scope: ModuleScope::for_file(&syntax),
         };
         collector.visit_file(&syntax);
         sort_facts(&mut collector.facts);
@@ -69,73 +71,6 @@ struct Collector<'source> {
     module_scope: ModuleScope,
 }
 
-impl Collector<'_> {
-    fn add_symbol(
-        &mut self,
-        name: &syn::Ident,
-        kind: NodeKind,
-        definition_span: Span,
-    ) -> SymbolLocator {
-        let mut span = source_span(self.path, name.span());
-        span.end = source_span(self.path, definition_span).end;
-        let locator = SymbolLocator {
-            name: name.to_string(),
-            kind,
-            span,
-        };
-        self.facts.symbols.push(SymbolFact {
-            name: locator.name.clone(),
-            kind: locator.kind.clone(),
-            span: locator.span.clone(),
-            test_only: self.test_context,
-            owner: (locator.kind == NodeKind::Method)
-                .then(|| self.owner.type_name.clone())
-                .flatten(),
-        });
-        locator
-    }
-
-    fn with_owner(&mut self, update: OwnerUpdate, visit: impl FnOnce(&mut Self)) {
-        let previous = self.owner.apply(update);
-        visit(self);
-        self.owner = previous;
-    }
-
-    fn with_test_context(&mut self, attributes: &[syn::Attribute], visit: impl FnOnce(&mut Self)) {
-        let previous = self.test_context;
-        self.test_context |= attributes_mark_test(attributes);
-        visit(self);
-        self.test_context = previous;
-    }
-
-    fn add_reference(&mut self, name: String, kind: EdgeKind, qualified: bool, span: Span) {
-        self.facts.references.push(ReferenceFact {
-            name,
-            kind,
-            receiver: None,
-            qualified,
-            span: source_span(self.path, span),
-            owner: self.owner.symbol.clone(),
-        });
-    }
-
-    fn add_endpoint(&mut self, method: &str, path: &str, span: Span) {
-        self.facts.domains.push(DomainFact {
-            name: format!("{method} {path}"),
-            kind: NodeKind::Endpoint,
-            relation: EdgeKind::Exposes,
-            span: source_span(self.path, span),
-            owner: self.owner.symbol.clone(),
-        });
-    }
-
-    fn add_attribute_endpoints(&mut self, attributes: &[syn::Attribute]) {
-        for (method, path, span) in attribute_routes(attributes) {
-            self.add_endpoint(method, &path, span);
-        }
-    }
-}
-
 impl<'ast> Visit<'ast> for Collector<'_> {
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
         self.with_test_context(&node.attrs, |collector| {
@@ -149,8 +84,17 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
         self.with_test_context(&node.attrs, |collector| {
+            let type_name = collector.owner.type_name.clone();
             let owner = collector.add_symbol(&node.sig.ident, NodeKind::Method, node.span());
             collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
+                if let Some(type_name) = type_name {
+                    collector.add_reference(
+                        type_name,
+                        EdgeKind::References,
+                        false,
+                        node.sig.ident.span(),
+                    );
+                }
                 collector.add_attribute_endpoints(&node.attrs);
                 syn::visit::visit_impl_item_fn(collector, node);
             });
@@ -231,7 +175,7 @@ impl<'ast> Visit<'ast> for Collector<'_> {
                 // `mod x;` pulls in x.rs or x/mod.rs; keep those files reachable.
                 let target = collector
                     .module_scope
-                    .target(&format!("self::{}", node.ident));
+                    .declared_target(&node.ident.to_string());
                 collector.facts.imports.push(ImportFact::new(
                     target,
                     source_span(collector.path, node.span()),
@@ -261,11 +205,19 @@ impl<'ast> Visit<'ast> for Collector<'_> {
         if let Some(name) = callable_name(&node.func) {
             self.add_reference(name, EdgeKind::Calls, false, node.span());
         }
+        if let Some(name) = associated_owner_name(&node.func) {
+            self.add_reference(name, EdgeKind::References, false, node.func.span());
+        }
         syn::visit::visit_expr_call(self, node);
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
         self.add_reference(node.method.to_string(), EdgeKind::Calls, false, node.span());
+        for argument in &node.args {
+            if let Some(name) = bare_path_name(argument) {
+                self.add_reference(name, EdgeKind::References, false, argument.span());
+            }
+        }
         if node.method == "route" {
             for (method, path) in route_call(node) {
                 self.add_endpoint(method, &path, node.span());

@@ -142,6 +142,38 @@ pub(super) fn callable_name(expression: &Expr) -> Option<String> {
     }
 }
 
+/// A one-segment expression path can be passed around as a function value:
+/// `iter.and_then(validate)`. It is still a direct symbol reference even
+/// though Rust does not spell it as an `ExprCall` at that use site.
+pub(super) fn bare_path_name(expression: &Expr) -> Option<String> {
+    let Expr::Path(path) = unwrapped(expression) else {
+        return None;
+    };
+    if path.qself.is_some() || path.path.segments.len() != 1 {
+        return None;
+    }
+    path.path
+        .segments
+        .first()
+        .map(|segment| segment.ident.to_string())
+}
+
+/// The receiver in `ArchiveOptions::default()` is itself a type reference.
+/// Keep this deliberately bounded to a two-segment path: longer paths require
+/// module resolution evidence before their penultimate segment can bind.
+pub(super) fn associated_owner_name(expression: &Expr) -> Option<String> {
+    let Expr::Path(path) = unwrapped(expression) else {
+        return None;
+    };
+    if path.qself.is_some() || path.path.segments.len() != 2 {
+        return None;
+    }
+    path.path
+        .segments
+        .first()
+        .map(|segment| segment.ident.to_string())
+}
+
 fn unwrapped(mut expression: &Expr) -> &Expr {
     loop {
         expression = match expression {
