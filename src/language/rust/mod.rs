@@ -4,11 +4,8 @@ use super::{
 };
 use crate::model::{Diagnostic, Result};
 use proc_macro2::Span;
-use syn::parse::Parser;
-use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
-use syn::{Expr, Token};
 use weavatrix_graph::{EdgeKind, NodeKind};
 
 use endpoints::{attribute_routes, callable_name, route_call};
@@ -16,6 +13,7 @@ use module_scope::{ModuleScope, OwnerScope, OwnerUpdate, sort_facts};
 use syntax::{attributes_mark_test, impl_owner, source_span, use_tree_targets};
 
 mod endpoints;
+mod expression_macros;
 mod module_scope;
 mod syntax;
 
@@ -230,8 +228,7 @@ impl<'ast> Visit<'ast> for Collector<'_> {
             if node.content.is_some() {
                 collector.module_scope.enter(node.ident.to_string());
             } else {
-                // `mod x;` pulls in x.rs or x/mod.rs. Without this edge those
-                // files look unreachable.
+                // `mod x;` pulls in x.rs or x/mod.rs; keep those files reachable.
                 let target = collector
                     .module_scope
                     .target(&format!("self::{}", node.ident));
@@ -278,46 +275,12 @@ impl<'ast> Visit<'ast> for Collector<'_> {
     }
 
     fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-        let standard_expression_macro = node
-            .mac
-            .path
-            .segments
-            .last()
-            .map(|segment| segment.ident.to_string())
-            .is_some_and(|name| {
-                matches!(
-                    name.as_str(),
-                    "format"
-                        | "format_args"
-                        | "format_args_nl"
-                        | "print"
-                        | "println"
-                        | "eprint"
-                        | "eprintln"
-                        | "write"
-                        | "writeln"
-                        | "dbg"
-                )
-            });
-        if standard_expression_macro
-            && let Ok(arguments) =
-                Punctuated::<Expr, Token![,]>::parse_terminated.parse2(node.mac.tokens.clone())
-        {
-            for argument in &arguments {
-                self.visit_expr(argument);
-            }
-        }
-        // An arbitrary macro can interpret its tokens as declarations, patterns, or prose.
-        // Treating every call-shaped token as executable code would turn guesses into graph
-        // evidence, so only the known expression-list macros above are traversed.
+        expression_macros::visit_arguments(self, node);
         syn::visit::visit_expr_macro(self, node);
     }
 
     fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
-        // A final segment alone is not enough evidence for a qualified Rust
-        // path: `std::io::Result` must not bind to an unrelated local
-        // `Result`. Keep exact single-name type references now; path-aware
-        // module resolution can add qualified references without guessing.
+        // Qualified paths must not bind by their final segment without proof.
         if node.qself.is_none()
             && node.path.segments.len() == 1
             && let Some(segment) = node.path.segments.last()

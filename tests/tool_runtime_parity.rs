@@ -2,9 +2,12 @@
 
 mod tool_fixture;
 
+#[cfg(feature = "search")]
 use blazingly_json::json;
 use tool_fixture::Fixture;
-use weavatrix_rust::{Weavatrix, tools};
+use weavatrix_rust::Weavatrix;
+#[cfg(feature = "search")]
+use weavatrix_rust::tools;
 
 #[test]
 #[cfg(all(
