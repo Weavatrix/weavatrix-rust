@@ -132,35 +132,37 @@ function probeCapabilities(depcruise) {
     violations(depcruiseJson).map((item) => item.rule?.name).filter(Boolean),
   );
   const allowedViolations = violations(JSON.parse(allowedOutput.stdout));
+  const observed = {
+    directForbid: {
+      weavatrix: weavatrixRules.has("no-direct-ui-infra"),
+      dependencyCruiser: depcruiseRules.has("no-direct-ui-infra"),
+    },
+    transitiveForbid: {
+      weavatrix: weavatrixRules.has("no-transitive-ui-infra"),
+      dependencyCruiser: depcruiseRules.has("no-transitive-ui-infra"),
+    },
+    requiredDependency: {
+      weavatrix: weavatrixRules.has("controllers-require-auth"),
+      dependencyCruiser: depcruiseRules.has("controllers-require-auth"),
+    },
+    runtimeCycle: {
+      weavatrix: weavatrixRules.has("budget.runtimeCycles"),
+      dependencyCruiser: depcruiseRules.has("no-circular"),
+    },
+    unresolvedDependency: {
+      weavatrix: weavatrixRules.has("no-unresolved"),
+      dependencyCruiser: depcruiseRules.has("no-unresolved"),
+    },
+    allowList: {
+      weavatrix: weavatrixRules.has("allow-source-to-approved"),
+      dependencyCruiser: allowedViolations.length > 0,
+    },
+  };
+  assertCapabilityMatrix(observed);
   return {
     corpus: "purpose-built JavaScript dependency cases",
     interpretation: "A false value means that the measured engine did not report the purpose-built violation.",
-    observed: {
-      directForbid: {
-        weavatrix: weavatrixRules.has("no-direct-ui-infra"),
-        dependencyCruiser: depcruiseRules.has("no-direct-ui-infra"),
-      },
-      transitiveForbid: {
-        weavatrix: weavatrixRules.has("no-transitive-ui-infra"),
-        dependencyCruiser: depcruiseRules.has("no-transitive-ui-infra"),
-      },
-      requiredDependency: {
-        weavatrix: weavatrixRules.has("controllers-require-auth"),
-        dependencyCruiser: depcruiseRules.has("controllers-require-auth"),
-      },
-      runtimeCycle: {
-        weavatrix: weavatrixRules.has("budget.runtimeCycles"),
-        dependencyCruiser: depcruiseRules.has("no-circular"),
-      },
-      unresolvedDependency: {
-        weavatrix: weavatrixRules.has("no-unresolved"),
-        dependencyCruiser: depcruiseRules.has("no-unresolved"),
-      },
-      allowList: {
-        weavatrix: false,
-        dependencyCruiser: allowedViolations.length > 0,
-      },
-    },
+    observed,
     cliExitOnBlockingViolation: {
       weavatrix: weavatrixOutput.status,
       dependencyCruiserJsonReporter: depcruiseOutput.status,
@@ -195,6 +197,14 @@ function violations(report) {
 }
 function assertEqual(actual, expected, label) {
   if (actual !== expected) throw new Error(`${label}: expected ${expected}, got ${actual}`);
+}
+
+function assertCapabilityMatrix(observed) {
+  for (const [scenario, tools] of Object.entries(observed)) {
+    for (const [tool, detected] of Object.entries(tools)) {
+      assertEqual(detected, true, `${tool} ${scenario}`);
+    }
+  }
 }
 
 function round(value) {

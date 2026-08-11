@@ -1,4 +1,5 @@
 use super::contract::{component_for, list_contains};
+use super::policy_diagnostics;
 use super::policy_reachability;
 use crate::engine::RepositoryState;
 use crate::operations::node_path;
@@ -6,7 +7,7 @@ use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 const COUPLING_KINDS: &[&str] = &["any", "runtime", "type-only"];
-const ACTIONS: &[&str] = &["forbid", "require"];
+const ACTIONS: &[&str] = &["allow_only", "forbid", "require"];
 const REACHABILITY: &[&str] = &["direct", "transitive"];
 const RELATION_KINDS: &[&str] = &[
     "contains",
@@ -27,6 +28,7 @@ const RELATION_KINDS: &[&str] = &[
     "exposes",
     "mounts",
     "configures",
+    "unresolved",
 ];
 
 pub(super) fn dependency_violations(state: &RepositoryState, value: &Value) -> Vec<Value> {
@@ -47,10 +49,8 @@ pub(super) fn dependency_violations(state: &RepositoryState, value: &Value) -> V
         let Some(from) = component_for(value, source_file) else {
             continue;
         };
-        let Some(to) = component_for(value, target_file) else {
-            continue;
-        };
-        if from == to {
+        let to = component_for(value, target_file);
+        if to == Some(from) {
             continue;
         }
         for rule in matching_rules(value, from, to, edge) {
@@ -63,17 +63,17 @@ pub(super) fn dependency_violations(state: &RepositoryState, value: &Value) -> V
             );
             let fingerprint = stable_hash(&identity);
             output.entry(fingerprint.clone()).or_insert_with(|| {
-                json!({
-                    "fingerprint": fingerprint,
-                    "rule": rule,
-                    "source": source,
-                    "target": target,
-                    "edge": edge
-                })
+                direct_violation(&fingerprint, rule, source, target, edge, from, to)
             });
         }
     }
     for violation in policy_reachability::violations(state, value) {
+        let Some(fingerprint) = violation.get("fingerprint").and_then(Value::as_str) else {
+            continue;
+        };
+        output.insert(fingerprint.to_owned(), violation);
+    }
+    for violation in policy_diagnostics::violations(state, value) {
         let Some(fingerprint) = violation.get("fingerprint").and_then(Value::as_str) else {
             continue;
         };
@@ -124,6 +124,8 @@ fn validate_vocabulary(value: &Value) -> Result<(), String> {
         .flatten();
     let mut actions = BTreeSet::new();
     let mut reachability = BTreeSet::new();
+    let mut invalid_combinations = BTreeSet::new();
+    let mut invalid_unresolved = BTreeSet::new();
     for rule in rules {
         let action = rule
             .get("action")
@@ -137,6 +139,18 @@ fn validate_vocabulary(value: &Value) -> Result<(), String> {
             if !REACHABILITY.contains(&value) {
                 reachability.insert(value.to_owned());
             }
+        }
+        let mode = rule
+            .get("reachability")
+            .and_then(Value::as_str)
+            .unwrap_or("direct");
+        if action == "allow_only" && mode != "direct" {
+            invalid_combinations.insert(rule["id"].as_str().unwrap_or("rule").to_owned());
+        }
+        if list_contains(rule.get("kinds"), "unresolved")
+            && (action != "forbid" || mode != "direct")
+        {
+            invalid_unresolved.insert(rule["id"].as_str().unwrap_or("rule").to_owned());
         }
     }
     if !actions.is_empty() {
@@ -153,7 +167,59 @@ fn validate_vocabulary(value: &Value) -> Result<(), String> {
             REACHABILITY.join(", ")
         ));
     }
+    if !invalid_combinations.is_empty() {
+        return Err(format!(
+            "allow_only supports only direct reachability; invalid rules: {}",
+            invalid_combinations
+                .into_iter()
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if !invalid_unresolved.is_empty() {
+        return Err(format!(
+            "unresolved is supported only by direct forbid rules; invalid rules: {}",
+            invalid_unresolved
+                .into_iter()
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
     Ok(())
+}
+
+fn direct_violation(
+    fingerprint: &str,
+    rule: &Value,
+    source: &weavatrix_graph::Node,
+    target: &weavatrix_graph::Node,
+    edge: &weavatrix_graph::Edge,
+    from: &str,
+    to: Option<&str>,
+) -> Value {
+    if rule["action"] == "allow_only" {
+        return json!({
+            "fingerprint": fingerprint,
+            "category": "dependency",
+            "rule": rule,
+            "source": source,
+            "target": target,
+            "edge": edge,
+            "evidence": {
+                "kind": "dependency_outside_allow_list",
+                "source_component": from,
+                "target_component": to.unwrap_or("(unmapped)"),
+                "allowed_components": rule["to"]
+            }
+        });
+    }
+    json!({
+        "fingerprint": fingerprint,
+        "rule": rule,
+        "source": source,
+        "target": target,
+        "edge": edge
+    })
 }
 
 pub(super) fn stable_hash(value: &str) -> String {
@@ -178,7 +244,7 @@ pub(super) fn rule_selects_edge(rule: &Value, edge: &weavatrix_graph::Edge) -> b
 fn matching_rules<'contract>(
     value: &'contract Value,
     from: &str,
-    to: &str,
+    to: Option<&str>,
     edge: &weavatrix_graph::Edge,
 ) -> Vec<&'contract Value> {
     value
@@ -186,7 +252,7 @@ fn matching_rules<'contract>(
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .filter(|rule| rule["action"] == "forbid")
+        .filter(|rule| rule["action"] == "forbid" || rule["action"] == "allow_only")
         .filter(|rule| {
             rule.get("reachability")
                 .and_then(Value::as_str)
@@ -194,7 +260,13 @@ fn matching_rules<'contract>(
                 == "direct"
         })
         .filter(|rule| list_contains(rule.get("from"), from))
-        .filter(|rule| list_contains(rule.get("to"), to))
+        .filter(|rule| match rule["action"].as_str() {
+            Some("forbid") => to.is_some_and(|component| list_contains(rule.get("to"), component)),
+            Some("allow_only") => {
+                to.is_none_or(|component| !list_contains(rule.get("to"), component))
+            }
+            _ => false,
+        })
         .filter(|rule| rule_selects_edge(rule, edge))
         .collect()
 }

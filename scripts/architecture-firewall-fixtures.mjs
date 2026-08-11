@@ -46,6 +46,7 @@ export function createCapabilityCorpus(directory) {
 
 function contract(includeProbes) {
   const ids = ["app", "lib", "ui", "service", "infra", "cycle", "controllers", "auth"];
+  const components = ids.map((id) => ({ id, paths: [`src/${id}`] }));
   const dependencyRules = [{
     id: "no-direct-ui-infra",
     action: "forbid",
@@ -54,6 +55,12 @@ function contract(includeProbes) {
     kinds: ["imports"],
   }];
   if (includeProbes) {
+    components.push(
+      { id: "unresolved", paths: ["src/unresolved.js"] },
+      { id: "allow-source", paths: ["allowed-src"] },
+      { id: "approved-target", paths: ["allowed-target/approved"] },
+      { id: "forbidden-target", paths: ["allowed-target/forbidden"] },
+    );
     dependencyRules.push({
       id: "no-transitive-ui-infra", action: "forbid", reachability: "transitive",
       from: ["ui"], to: ["infra"], kinds: ["imports"],
@@ -62,10 +69,18 @@ function contract(includeProbes) {
       id: "controllers-require-auth", action: "require", reachability: "transitive",
       from: ["controllers"], to: ["auth"], kinds: ["imports"],
     });
+    dependencyRules.push({
+      id: "no-unresolved", action: "forbid",
+      from: ["unresolved"], kinds: ["unresolved"],
+    });
+    dependencyRules.push({
+      id: "allow-source-to-approved", action: "allow_only",
+      from: ["allow-source"], to: ["approved-target"], kinds: ["imports"],
+    });
   }
   return {
     architectureContractV: 1,
-    components: ids.map((id) => ({ id, paths: [`src/${id}`] })),
+    components,
     dependencyRules,
     ...(includeProbes ? { budgets: { runtimeCycles: 0 } } : {}),
     ratchet: { baseline: { fingerprints: [] } },

@@ -141,7 +141,7 @@ fn unsupported_actions_and_reachability_fail_closed() {
     let fixture = GitFixture::new();
     fixture.write("src/ui/entry.js", "export const entry = true;\n");
     for (field, expected) in [
-        (("action", "allow_only"), "allow_only"),
+        (("action", "permit"), "permit"),
         (("reachability", "recursive"), "recursive"),
     ] {
         let mut rule = json!({
