@@ -8,7 +8,7 @@ pretend to provide the same semantic depth as a typed adapter.
 
 | Surface | Evidence extracted |
 | --- | --- |
-| Rust | modules, `use`/re-exports, items, impl ownership, traits, calls, tests, Axum/Actix/Rocket-style routes |
+| Rust | modules, `use`/re-exports, items, impl ownership, traits, ordinary calls and calls inside standard formatting macros, tests, Axum/Actix/Rocket-style routes |
 | JavaScript / JSX | ESM/CommonJS imports and exports, declarations, members, calls, routes, event clients |
 | TypeScript / TSX | JavaScript evidence plus interfaces, type-only coupling, aliases, and typed member ownership |
 | Python | imports, declarations, classes, calls, decorators, framework routes, and messaging |

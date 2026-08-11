@@ -4,8 +4,11 @@ use super::{
 };
 use crate::model::{Diagnostic, Result};
 use proc_macro2::Span;
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
+use syn::{Expr, Token};
 use weavatrix_graph::{EdgeKind, NodeKind};
 
 use endpoints::{attribute_routes, callable_name, route_call};
@@ -272,6 +275,42 @@ impl<'ast> Visit<'ast> for Collector<'_> {
             }
         }
         syn::visit::visit_expr_method_call(self, node);
+    }
+
+    fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
+        let standard_expression_macro = node
+            .mac
+            .path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string())
+            .is_some_and(|name| {
+                matches!(
+                    name.as_str(),
+                    "format"
+                        | "format_args"
+                        | "format_args_nl"
+                        | "print"
+                        | "println"
+                        | "eprint"
+                        | "eprintln"
+                        | "write"
+                        | "writeln"
+                        | "dbg"
+                )
+            });
+        if standard_expression_macro
+            && let Ok(arguments) =
+                Punctuated::<Expr, Token![,]>::parse_terminated.parse2(node.mac.tokens.clone())
+        {
+            for argument in &arguments {
+                self.visit_expr(argument);
+            }
+        }
+        // An arbitrary macro can interpret its tokens as declarations, patterns, or prose.
+        // Treating every call-shaped token as executable code would turn guesses into graph
+        // evidence, so only the known expression-list macros above are traversed.
+        syn::visit::visit_expr_macro(self, node);
     }
 
     fn visit_type_path(&mut self, node: &'ast syn::TypePath) {

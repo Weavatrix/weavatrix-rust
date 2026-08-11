@@ -92,7 +92,7 @@ Choose the smallest feature set your application needs:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.5.0", default-features = false }
+weavatrix-rust = { version = "2.5.1", default-features = false }
 ```
 
 ```rust
@@ -194,7 +194,7 @@ they use.
 ```toml
 [dependencies]
 weavatrix-rust = {
-    version = "2.5.0",
+    version = "2.5.1",
     default-features = false,
     features = ["lang-rust", "git", "search"]
 }
