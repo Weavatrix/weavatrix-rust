@@ -1,8 +1,10 @@
 mod budgets;
 mod capabilities;
 mod contract;
+mod path_pattern;
 mod policy_diagnostics;
 mod policy_reachability;
+mod policy_selectors;
 mod rules;
 mod source_metrics;
 
@@ -105,6 +107,10 @@ pub fn verify(state: &RepositoryState) -> Result<Value, String> {
     let (existing, new): (Vec<_>, Vec<_>) = active
         .into_iter()
         .partition(|item| baseline.contains(item["fingerprint"].as_str().unwrap_or_default()));
+    // A warn-severity rule reports without blocking; only error rules gate.
+    let (warnings, new): (Vec<_>, Vec<_>) = new
+        .into_iter()
+        .partition(|item| item["rule"]["severity"] == "warn");
     let fixed = baseline
         .iter()
         .filter(|fingerprint| !present.contains(**fingerprint))
@@ -115,6 +121,7 @@ pub fn verify(state: &RepositoryState) -> Result<Value, String> {
         "new": new,
         "existing": existing,
         "excepted": excepted,
+        "warnings": warnings,
         "fixed": fixed,
         "contract": ".weavatrix/architecture.json"
     }))

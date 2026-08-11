@@ -5,7 +5,7 @@ use weavatrix_rust::{Analyzer, Weavatrix, operations};
 
 fn main() -> ExitCode {
     match run(env::args().skip(1).collect()) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(message) => {
             eprintln!("weavatrix-rust: {message}");
             ExitCode::FAILURE
@@ -13,17 +13,17 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(arguments: Vec<String>) -> Result<(), String> {
+fn run(arguments: Vec<String>) -> Result<ExitCode, String> {
     if arguments.first().is_some_and(|value| value == "--version") {
         println!("weavatrix-rust {}", env!("CARGO_PKG_VERSION"));
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
     if arguments
         .first()
         .is_some_and(|value| value == "--help" || value == "-h")
     {
         print_help();
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
     match arguments.first().map(String::as_str) {
         Some("list-tools") => {
@@ -32,7 +32,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
                 blazingly_json::to_string_pretty(&operations::catalog())
                     .map_err(|error| error.to_string())?
             );
-            return Ok(());
+            return Ok(ExitCode::SUCCESS);
         }
         Some("tool") => {
             let name = arguments
@@ -52,7 +52,14 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
                 "{}",
                 blazingly_json::to_string_pretty(&output).map_err(|error| error.to_string())?
             );
-            return Ok(());
+            // A blocked verification is a failed gate, not a tool error: the
+            // report stays on stdout and the exit code carries the verdict.
+            if matches!(name.as_str(), "verify_architecture" | "verify_capabilities")
+                && output["state"] == "BLOCKED"
+            {
+                return Ok(ExitCode::FAILURE);
+            }
+            return Ok(ExitCode::SUCCESS);
         }
         Some("analyze") => {}
         _ => {
@@ -83,7 +90,7 @@ fn run(arguments: Vec<String>) -> Result<(), String> {
     }
     .map_err(|error| error.to_string())?;
     println!("{json}");
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

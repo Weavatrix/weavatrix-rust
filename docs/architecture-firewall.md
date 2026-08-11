@@ -107,9 +107,32 @@ include `imports`, `calls`, `references`, `implements`, `inherits`,
 `re_exports`, `depends_on`, `publishes`, `consumes`, `binds`, `reads`,
 `writes`, `deploys`, `exposes`, `mounts`, and `configures`.
 
-Unknown actions, reachability modes, relation kinds, and unsupported
-action/kind combinations are rejected. They cannot silently produce a passing
-verification.
+Unknown rule fields, actions, reachability modes, relation kinds, and
+unsupported action/kind combinations are rejected. They cannot silently
+produce a passing verification. A rule may carry a `comment`; the engine
+does not interpret it.
+
+### Path selectors
+
+A rule can address files directly instead of through components: `fromPath`
+and `toPath` select by pattern, and `fromPathNot`/`toPathNot` exclude files
+the positive selector caught. A rule addresses components or paths, never
+both, and a path rule needs at least one selector on each side. Path rules
+currently support direct `forbid` only.
+
+Patterns are Dependency-Cruiser-shaped, restricted to a declared subset:
+`^` and `$` anchors, literal characters, `\` escapes of punctuation, `.`,
+character classes such as `[^/]`, capturing and `(?:` groups with `|`
+alternation, and the `*`, `+`, and `?` quantifiers. Shorthand classes,
+backreferences, counted quantifiers, and lookarounds are rejected at
+validation time: a selector the engine cannot evaluate must fail loudly
+instead of silently selecting nothing.
+
+### Severity
+
+Every dependency rule accepts `severity`. `error`, the default, blocks
+verification; `warn` reports the violation under `warnings` without
+changing the state. Any other value is rejected.
 
 ## Budgets
 
@@ -141,7 +164,12 @@ expiry metadata. An exception without `expires` is accepted; an exception with
 - `new`: new blocking violations;
 - `existing`: active violations present in the baseline;
 - `excepted`: violations accepted by explicit exceptions;
+- `warnings`: active warn-severity violations, reported without blocking;
 - `fixed`: baseline fingerprints no longer present.
+
+The standalone CLI exits non-zero when `verify_architecture` or
+`verify_capabilities` reports `BLOCKED`, so a CI step can gate on the exit
+code without parsing JSON. The blocked report itself stays on stdout.
 
 Dependency violations identify the rule, source, target, relation evidence,
 and stable fingerprint. Allow-list violations include the source component,

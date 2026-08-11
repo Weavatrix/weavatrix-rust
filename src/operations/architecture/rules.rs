@@ -1,6 +1,7 @@
 use super::contract::{component_for, list_contains};
 use super::policy_diagnostics;
 use super::policy_reachability;
+use super::policy_selectors;
 use crate::engine::RepositoryState;
 use crate::operations::node_path;
 use blazingly_json::{Value, json};
@@ -79,11 +80,18 @@ pub(super) fn dependency_violations(state: &RepositoryState, value: &Value) -> V
         };
         output.insert(fingerprint.to_owned(), violation);
     }
+    for violation in policy_selectors::violations(state, value) {
+        let Some(fingerprint) = violation.get("fingerprint").and_then(Value::as_str) else {
+            continue;
+        };
+        output.insert(fingerprint.to_owned(), violation);
+    }
     output.into_values().collect()
 }
 
 pub(super) fn validate(value: &Value) -> Result<(), String> {
     validate_vocabulary(value)?;
+    policy_selectors::validate(value)?;
     let mut unsupported = BTreeSet::new();
     for rule in value
         .get("dependencyRules")
