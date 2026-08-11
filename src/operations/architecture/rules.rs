@@ -1,3 +1,5 @@
+mod reachability;
+
 use super::contract::{component_for, list_contains};
 use crate::engine::RepositoryState;
 use crate::operations::node_path;
@@ -5,6 +7,8 @@ use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 const COUPLING_KINDS: &[&str] = &["any", "runtime", "type-only"];
+const ACTIONS: &[&str] = &["forbid", "require"];
+const REACHABILITY: &[&str] = &["direct", "transitive"];
 const RELATION_KINDS: &[&str] = &[
     "contains",
     "imports",
@@ -70,10 +74,17 @@ pub(super) fn dependency_violations(state: &RepositoryState, value: &Value) -> V
             });
         }
     }
+    for violation in reachability::violations(state, value) {
+        let Some(fingerprint) = violation.get("fingerprint").and_then(Value::as_str) else {
+            continue;
+        };
+        output.insert(fingerprint.to_owned(), violation);
+    }
     output.into_values().collect()
 }
 
 pub(super) fn validate(value: &Value) -> Result<(), String> {
+    validate_vocabulary(value)?;
     let mut unsupported = BTreeSet::new();
     for rule in value
         .get("dependencyRules")
@@ -106,6 +117,46 @@ pub(super) fn validate(value: &Value) -> Result<(), String> {
     ))
 }
 
+fn validate_vocabulary(value: &Value) -> Result<(), String> {
+    let rules = value
+        .get("dependencyRules")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten();
+    let mut actions = BTreeSet::new();
+    let mut reachability = BTreeSet::new();
+    for rule in rules {
+        let action = rule
+            .get("action")
+            .and_then(Value::as_str)
+            .unwrap_or("(missing)");
+        if !ACTIONS.contains(&action) {
+            actions.insert(action.to_owned());
+        }
+        if let Some(value) = rule.get("reachability") {
+            let value = value.as_str().unwrap_or("(non-string)");
+            if !REACHABILITY.contains(&value) {
+                reachability.insert(value.to_owned());
+            }
+        }
+    }
+    if !actions.is_empty() {
+        return Err(format!(
+            "unsupported architecture rule actions: {}. Supported actions are {}",
+            actions.into_iter().collect::<Vec<_>>().join(", "),
+            ACTIONS.join(", ")
+        ));
+    }
+    if !reachability.is_empty() {
+        return Err(format!(
+            "unsupported architecture rule reachability: {}. Supported values are {}",
+            reachability.into_iter().collect::<Vec<_>>().join(", "),
+            REACHABILITY.join(", ")
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn stable_hash(value: &str) -> String {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in value.bytes() {
@@ -115,7 +166,7 @@ pub(super) fn stable_hash(value: &str) -> String {
     format!("{hash:016x}")
 }
 
-fn rule_selects_edge(rule: &Value, edge: &weavatrix_graph::Edge) -> bool {
+pub(super) fn rule_selects_edge(rule: &Value, edge: &weavatrix_graph::Edge) -> bool {
     let coupling = match edge.attributes.get("coupling") {
         Some(weavatrix_graph::AttributeValue::String(value)) => value.as_str(),
         _ => "runtime",
@@ -137,6 +188,12 @@ fn matching_rules<'contract>(
         .into_iter()
         .flatten()
         .filter(|rule| rule["action"] == "forbid")
+        .filter(|rule| {
+            rule.get("reachability")
+                .and_then(Value::as_str)
+                .unwrap_or("direct")
+                == "direct"
+        })
         .filter(|rule| list_contains(rule.get("from"), from))
         .filter(|rule| list_contains(rule.get("to"), to))
         .filter(|rule| rule_selects_edge(rule, edge))

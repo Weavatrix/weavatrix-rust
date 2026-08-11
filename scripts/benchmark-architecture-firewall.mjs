@@ -3,6 +3,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
+import {
+  createCapabilityCorpus,
+  createPerformanceCorpus,
+} from "./architecture-firewall-fixtures.mjs";
 const DEPCRUISE_VERSION = "18.2.0";
 const args = parseArgs(process.argv.slice(2));
 const root = mkdtempSync(join(tmpdir(), "weavatrix-firewall-bench-"));
@@ -88,8 +92,7 @@ function benchmarkPerformance(depcruise) {
   const depcruiseViolations = violations(depcruiseJson).length;
   assertEqual(weavatrixViolations, expected, "Weavatrix direct violations");
   assertEqual(depcruiseViolations, expected, "dependency-cruiser direct violations");
-  const pairedRatios = samples.weavatrix.map((value, index) =>
-    round(samples.dependencyCruiser[index] / value));
+  const pairedRatios = samples.weavatrix.map((value, index) => round(samples.dependencyCruiser[index] / value));
   return {
     weavatrix: resultRow(weavatrixRuns, weavatrixViolations),
     dependencyCruiser: resultRow(depcruiseRuns, depcruiseViolations),
@@ -131,7 +134,7 @@ function probeCapabilities(depcruise) {
   const allowedViolations = violations(JSON.parse(allowedOutput.stdout));
   return {
     corpus: "purpose-built JavaScript dependency cases",
-    interpretation: "A false Weavatrix value for a v1-inexpressible rule means unsupported, not a silently missed configured rule.",
+    interpretation: "A false value means that the measured engine did not report the purpose-built violation.",
     observed: {
       directForbid: {
         weavatrix: weavatrixRules.has("no-direct-ui-infra"),
@@ -165,85 +168,6 @@ function probeCapabilities(depcruise) {
     },
   };
 }
-function createPerformanceCorpus(directory, fileCount) {
-  const half = Math.floor(fileCount / 2);
-  for (let index = 0; index < half; index += 1) {
-    const suffix = String(index).padStart(4, "0");
-    const next = String(index + 1).padStart(4, "0");
-    const appImports = [`import { value as lib } from "../lib/lib-${suffix}.js";`];
-    if (index + 1 < half) appImports.push(`import "./app-${next}.js";`);
-    write(join(directory, `src/app/app-${suffix}.js`), `${appImports.join("\n")}\nexport const value = lib;\n`);
-    const libImport = index + 1 < half ? `import "./lib-${next}.js";\n` : "";
-    write(join(directory, `src/lib/lib-${suffix}.js`), `${libImport}export const value = ${index};\n`);
-  }
-  writeJson(join(directory, ".weavatrix/architecture.json"), weavatrixContract(false));
-  writeJson(join(directory, ".dependency-cruiser.json"), {
-    forbidden: [forbidden("no-app-lib", "^src/app/", "^src/lib/")],
-    options: { doNotFollow: { path: "node_modules" }, skipAnalysisNotInRules: true },
-  });
-}
-function createCapabilityCorpus(directory) {
-  const files = {
-    "src/ui/direct.js": 'import "../infra/db.js";\n',
-    "src/ui/transitive.js": 'import "../service/orders.js";\n',
-    "src/service/orders.js": 'import "../infra/db.js";\n',
-    "src/infra/db.js": "export const db = true;\n",
-    "src/cycle/a.js": 'import "./b.js";\n',
-    "src/cycle/b.js": 'import "./a.js";\n',
-    "src/controllers/orders-controller.js": 'import "../service/orders.js";\n',
-    "src/auth/middleware.js": "export const auth = true;\n",
-    "src/unresolved.js": 'import "./missing.js";\n',
-    "allowed-src/entry.js": 'import "../allowed-target/forbidden.js";\n',
-    "allowed-target/forbidden.js": "export const value = true;\n",
-  };
-  for (const [path, source] of Object.entries(files)) write(join(directory, path), source);
-  writeJson(join(directory, ".weavatrix/architecture.json"), weavatrixContract(true));
-  writeJson(join(directory, ".dependency-cruiser.json"), {
-    forbidden: [
-      forbidden("no-direct-ui-infra", "^src/ui/direct[.]js$", "^src/infra/"),
-      forbidden("no-transitive-ui-infra", "^src/ui/transitive[.]js$", "^src/infra/", true),
-      { name: "no-circular", severity: "error", from: {}, to: { circular: true } },
-      { name: "no-unresolved", severity: "error", from: {}, to: { couldNotResolve: true } },
-    ],
-    required: [
-      {
-        name: "controllers-require-auth",
-        severity: "error",
-        module: { path: "-controller[.]js$" },
-        to: { path: "^src/auth/middleware[.]js$" },
-      },
-    ],
-    options: { doNotFollow: { path: "node_modules" } },
-  });
-  writeJson(join(directory, ".dependency-cruiser-allowed.json"), {
-    allowed: [{ from: { path: "^allowed-src/" }, to: { path: "^allowed-target/approved" } }],
-    allowedSeverity: "error",
-  });
-}
-function weavatrixContract(includeProbes) {
-  const components = ["app", "lib", "ui", "service", "infra", "cycle", "controllers", "auth"].map(
-    (id) => ({ id, paths: [`src/${id}`] }),
-  );
-  return {
-    architectureContractV: 1,
-    components,
-    dependencyRules: [
-      {
-        id: "no-direct-ui-infra",
-        action: "forbid",
-        from: [includeProbes ? "ui" : "app"],
-        to: [includeProbes ? "infra" : "lib"],
-        kinds: ["imports"],
-      },
-    ],
-    ...(includeProbes ? { budgets: { runtimeCycles: 0 } } : {}),
-    ratchet: { baseline: { fingerprints: [] } },
-  };
-}
-
-function forbidden(name, from, to, reachable = false) {
-  return { name, severity: "error", from: { path: from }, to: { path: to, ...(reachable ? { reachable: true } : {}) } };
-}
 function installDependencyCruiser(directory) {
   mkdirSync(directory, { recursive: true });
   const npmArgs = ["install", "--no-audit", "--no-fund", `dependency-cruiser@${DEPCRUISE_VERSION}`];
@@ -268,13 +192,6 @@ function command(file, fileArgs, cwd) {
 }
 function violations(report) {
   return report.summary?.violations || report.violations || [];
-}
-function write(path, contents) {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, contents);
-}
-function writeJson(path, value) {
-  write(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 function assertEqual(actual, expected, label) {
   if (actual !== expected) throw new Error(`${label}: expected ${expected}, got ${actual}`);
