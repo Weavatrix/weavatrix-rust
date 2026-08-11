@@ -1,5 +1,5 @@
-use super::super::contract::{component_for, list_contains};
-use super::{rule_selects_edge, stable_hash};
+use super::contract::{component_for, list_contains};
+use super::rules::{rule_selects_edge, stable_hash};
 use crate::engine::RepositoryState;
 use crate::operations::node_path;
 use blazingly_json::{Value, json};

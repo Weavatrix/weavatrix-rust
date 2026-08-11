@@ -1,6 +1,7 @@
 mod budgets;
 mod capabilities;
 mod contract;
+mod policy_reachability;
 mod rules;
 mod source_metrics;
 

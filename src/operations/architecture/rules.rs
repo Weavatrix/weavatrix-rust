@@ -1,6 +1,5 @@
-mod reachability;
-
 use super::contract::{component_for, list_contains};
+use super::policy_reachability;
 use crate::engine::RepositoryState;
 use crate::operations::node_path;
 use blazingly_json::{Value, json};
@@ -74,7 +73,7 @@ pub(super) fn dependency_violations(state: &RepositoryState, value: &Value) -> V
             });
         }
     }
-    for violation in reachability::violations(state, value) {
+    for violation in policy_reachability::violations(state, value) {
         let Some(fingerprint) = violation.get("fingerprint").and_then(Value::as_str) else {
             continue;
         };
