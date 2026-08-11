@@ -7,17 +7,19 @@ architecturally allowed, explain the evidence, and block only new debt.
 
 ## Current verdict
 
-The current engine is a useful foundation, not yet a Dependency Cruiser peer
-as a policy language. In the controlled rule probe below, Weavatrix v1 covers
-2 of 6 selected cases: direct component forbids and runtime-cycle budgets.
-Dependency Cruiser 18.2.0 covers all 6. Weavatrix additionally has ratchet
-baselines, fingerprinted exceptions, capability drift, richer relation kinds,
-and agent preflight that the six-case probe does not score.
+The current source is a useful foundation, not yet a Dependency Cruiser peer
+as a policy language. In the controlled rule probe below, Weavatrix covers 4
+of 6 selected cases: direct and transitive component forbids, required
+dependencies, and runtime-cycle budgets. Dependency Cruiser 18.2.0 covers all
+6. Weavatrix additionally has ratchet baselines, fingerprinted exceptions,
+capability drift, richer relation kinds, and agent preflight that the six-case
+probe does not score.
 
 The honest status is therefore:
 
 - the evidence graph and no-regressions workflow are already strong;
-- the configurable rule language is still narrow;
+- the configurable rule language now covers the two highest-value missing
+  reachability guarantees, but selectors and allow lists remain narrow;
 - Architecture Firewall is in development and is not a released v2 policy
   surface;
 - the validated `PathPattern` primitive exists on the unpublished
@@ -33,17 +35,15 @@ timed.
 
 | Boundary | Median of 9 | Violations |
 | --- | ---: | ---: |
-| Weavatrix 1.4.0 / engine 2.3.0 | **152.67 ms** | 200 |
-| Dependency Cruiser 18.2.0 | 1,681.37 ms | 200 |
+| Weavatrix Rust 2.5.1 source | **134.31 ms** | 200 |
+| Dependency Cruiser 18.2.0 | 847.39 ms | 200 |
 
-The median of the nine paired ratios is **9.65x** in Weavatrix's favor; the
-ratio of the two medians is 11.0x. Samples varied with workstation load, so the
+The median of the nine paired ratios is **6.31x** in Weavatrix's favor; the
+ratio of the two medians is 6.31x. Samples varied with workstation load, so the
 paired result and every raw sample are retained. This is not a pure
 policy-evaluator comparison: Weavatrix builds a richer graph, while Dependency
-Cruiser builds a JavaScript import graph. The installed Weavatrix engine was
-used because disk pressure prevented a fresh 2.5.1 build; the direct-rule and
-cycle-budget implementation is unchanged between engine 2.3.0 and this source
-revision.
+Cruiser builds a JavaScript import graph. The benchmark used the local binary
+built from source revision `0cf80a3258be59bf4f186266effd909d14582205`.
 
 Raw samples and environment details are in
 [`benchmark-results/architecture-firewall-v1-vs-dependency-cruiser-18.2.0.json`](../benchmark-results/architecture-firewall-v1-vs-dependency-cruiser-18.2.0.json).
@@ -66,23 +66,52 @@ violation.
 | Rule behavior | Weavatrix v1 | Dependency Cruiser 18.2.0 |
 | --- | --- | --- |
 | Direct forbidden dependency | Yes | Yes |
-| Transitive forbidden reachability | No | Yes |
-| Required dependency | No | Yes |
+| Transitive forbidden reachability | Yes, with shortest path evidence | Yes |
+| Required dependency | Yes, direct or transitive | Yes |
 | Runtime cycle | Yes, as a budget | Yes, as a rule |
 | Unresolved dependency in policy | No | Yes |
 | Allow-list policy | No | Yes |
 
-For unsupported v1 cases, `No` means the rule cannot be expressed in the
+For unsupported cases, `No` means the rule cannot be expressed in the
 contract. It does not mean Weavatrix accepted a configured rule and silently
-missed its violation. Unknown relation kinds fail closed.
+missed its violation. Unknown actions, reachability modes, and relation kinds
+fail closed.
+
+`reachability` defaults to `direct`. A transitive forbid reports one
+deterministic shortest path per source file and rule. A required rule evaluates
+every source file selected by `from`; each must have at least one matching path
+to a component selected by `to`.
+
+```json
+{
+  "dependencyRules": [
+    {
+      "id": "ui-cannot-reach-infra",
+      "action": "forbid",
+      "reachability": "transitive",
+      "from": ["ui"],
+      "to": ["infra"],
+      "kinds": ["imports"]
+    },
+    {
+      "id": "controllers-require-auth",
+      "action": "require",
+      "reachability": "transitive",
+      "from": ["controllers"],
+      "to": ["auth"],
+      "kinds": ["imports"]
+    }
+  ]
+}
+```
 
 ## Capability matrix
 
 | Surface | Weavatrix today | Dependency Cruiser 18.2.0 |
 | --- | --- | --- |
-| Policy actions | Direct `forbid` | `forbidden`, `allowed`, `required` |
+| Policy actions | Direct/transitive `forbid`; direct/transitive `require` | `forbidden`, `allowed`, `required` |
 | Selection | Component IDs from longest path prefix | Regex `path` / `pathNot`, grouping, module and dependency conditions |
-| Traversal | Direct dependency edges | Direct plus `reachable`; cycle `via` / `viaOnly` |
+| Traversal | Direct or transitive; deterministic shortest file path | Direct plus `reachable`; cycle `via` / `viaOnly` |
 | Relations | Imports, calls, inheritance, reads/writes, messaging, deployment, and more | JavaScript module dependencies and package metadata |
 | Coupling | Runtime, type-only, or exact relation kind | Dependency types, dynamic/exotic imports, npm classes, licenses |
 | Cycles | Repository runtime-cycle budget | Module/folder cycle rules with path constraints |
@@ -106,7 +135,8 @@ documents baseline, affected mode, reporter formats, and build exit behavior.
 The current `.weavatrix/architecture.json` supports:
 
 - components selected by deterministic longest path prefix;
-- direct forbids across 18 graph relation kinds;
+- direct and transitive forbids across 18 graph relation kinds;
+- required direct or transitive dependencies for every selected source file;
 - runtime and type-only coupling filters;
 - runtime-cycle, file-size, and function-size budgets;
 - stable violation fingerprints;
@@ -124,8 +154,7 @@ immutable evidence graph.
 
 The important missing policy semantics are:
 
-- `allow_only` and `require` actions;
-- direct versus transitive evaluation with shortest violation paths;
+- `allow_only` policy semantics;
 - selectors for globs, tags, languages, node kinds, packages, visibility,
   generated/test code, and public API boundaries;
 - unresolved, dependency-class, dynamic-import, license, and stability

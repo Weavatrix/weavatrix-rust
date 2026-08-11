@@ -28,18 +28,19 @@ Use it to:
 ## Architecture Firewall status
 
 Weavatrix is growing an **Architecture Firewall** on top of the evidence graph.
-Today the engine supports direct component forbids, relation/coupling filters,
-runtime-cycle and source-size budgets, stable fingerprints, baselines,
-exceptions, capability drift, and agent preflight through `prepare_change` and
-`verified_change`.
+Current source supports direct and transitive component forbids, required
+direct or transitive dependencies, relation/coupling filters, runtime-cycle
+and source-size budgets, stable fingerprints, baselines, exceptions,
+capability drift, and agent preflight through `prepare_change` and
+`verified_change`. Transitive violations include the deterministic shortest
+file path that crossed the boundary.
 
 It is not yet Dependency Cruiser parity. The current policy language does not
-support allow lists, required dependencies, transitive reachability, rich
-selectors, per-rule severity, reusable rule sets, or a policy-specific CLI
-gate. A controlled 400-file benchmark measured the existing direct-rule path
-at 152.67 ms versus 1,681.37 ms for Dependency Cruiser 18.2.0, with a 9.65x
-median paired ratio. The rule probe showed Weavatrix covering 2 of 6 selected
-policy behaviors.
+support allow lists, rich selectors, per-rule severity, reusable rule sets, or
+a policy-specific CLI gate. A controlled 400-file benchmark measured the
+direct-rule path at 134.31 ms versus 847.39 ms for Dependency Cruiser 18.2.0,
+with a 6.31x median paired ratio. The rule probe showed this source revision
+covering 4 of 6 selected policy behaviors.
 
 Read the honest feature matrix, missing semantics, methodology, and raw result
 in [Architecture Firewall](docs/architecture-firewall.md). The feature remains
