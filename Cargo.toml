@@ -47,7 +47,7 @@ syn = { version = "3.0.3", default-features = false, features = ["clone-impls", 
 weavatrix-clone = { version = "0.1.4", optional = true }
 weavatrix-git = { version = "0.3.1", optional = true }
 weavatrix-graph = "0.6.3"
-weavatrix-parse = { version = "0.3.1", path = "../weavatrix-parse" }
+weavatrix-parse = { version = "0.3.1", git = "https://github.com/sergii-ziborov/weavatrix-parse.git", rev = "49d8bb64a4e744b03b767e77cbf4452a535904b8" }
 weavatrix-memory = { version = "0.3.2", optional = true }
 weavatrix-scan = "0.4.6"
 weavatrix-search = { version = "0.3.1", optional = true, default-features = false }
@@ -68,6 +68,5 @@ unsafe_code = "forbid"
 [lints.clippy]
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
-
 
 

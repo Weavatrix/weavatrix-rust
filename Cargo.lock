@@ -304,6 +304,7 @@ dependencies = [
 [[package]]
 name = "weavatrix-parse"
 version = "0.3.1"
+source = "git+https://github.com/sergii-ziborov/weavatrix-parse.git?rev=49d8bb64a4e744b03b767e77cbf4452a535904b8#49d8bb64a4e744b03b767e77cbf4452a535904b8"
 
 [[package]]
 name = "weavatrix-rust"
