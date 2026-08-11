@@ -15,7 +15,7 @@ use syntax::{attributes_mark_test, impl_owner, source_span, use_tree_targets};
 
 mod collector;
 mod endpoints;
-mod expression_macros;
+mod macro_calls;
 mod module_scope;
 mod syntax;
 
@@ -227,12 +227,12 @@ impl<'ast> Visit<'ast> for Collector<'_> {
     }
 
     fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-        expression_macros::visit_arguments(self, node);
+        macro_calls::for_each_standard_argument(node, |argument| self.visit_expr(argument));
         syn::visit::visit_expr_macro(self, node);
     }
 
     fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
-        // Qualified paths must not bind by their final segment without proof.
+        // Never bind a qualified path by its final segment alone.
         if node.qself.is_none()
             && node.path.segments.len() == 1
             && let Some(segment) = node.path.segments.last()
@@ -247,6 +247,5 @@ impl<'ast> Visit<'ast> for Collector<'_> {
         syn::visit::visit_type_path(self, node);
     }
 }
-
 #[cfg(test)]
 mod tests;

@@ -1,8 +1,6 @@
 use super::syntax::scoped_use_target;
 use super::*;
 
-mod expression_macros;
-
 #[test]
 fn extracts_declarations_imports_and_owned_calls() {
     let source = r"
