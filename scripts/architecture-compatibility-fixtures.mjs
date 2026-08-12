@@ -29,6 +29,9 @@ export function createSelectorCompatibilityCorpus(directory) {
   writeFiles(directory, {
     "src/presentation/entry.js": 'import "../data/store.js";\n',
     "src/data/store.js": "export const store = true;\n",
+    "src/alpha/ui/panel.js": 'import "../db/rows.js";\n',
+    "src/alpha/db/rows.js": "export const rows = [];\n",
+    "src/beta/ui/panel.js": 'import "../../alpha/db/rows.js";\n',
   });
   writeJson(join(directory, ".weavatrix/architecture.json"), {
     architectureContractV: 1,
@@ -39,11 +42,20 @@ export function createSelectorCompatibilityCorpus(directory) {
       fromPath: "^src/presentation/",
       toPath: "^src/data/",
       kinds: ["imports"],
+    }, {
+      id: "group-selector",
+      action: "forbid",
+      fromPath: "^src/([^/]+)/ui/",
+      toPath: "^src/$1/db/",
+      kinds: ["imports"],
     }],
     ratchet: baseline(),
   });
   writeJson(join(directory, ".dependency-cruiser.json"), {
-    forbidden: [forbidden("path-selector", "^src/presentation/", "^src/data/")],
+    forbidden: [
+      forbidden("path-selector", "^src/presentation/", "^src/data/"),
+      forbidden("group-selector", "^src/([^/]+)/ui/", "^src/$1/db/"),
+    ],
   });
   writeJson(join(directory, ".dependency-cruiser-invalid.json"), {
     forbidden: [{

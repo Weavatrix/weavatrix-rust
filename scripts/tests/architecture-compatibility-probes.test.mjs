@@ -19,13 +19,13 @@ test("core probe maps concrete violations to compatibility capabilities", () => 
 
 test("selector probe distinguishes selector behavior from strict validation", () => {
   const results = interpretSelectorProbe(
-    { state: "PASS", new: [] },
-    cruise(["path-selector"]),
-    0,
+    report(["group-selector"]),
+    cruise(["path-selector", "group-selector"]),
+    1,
     1,
   );
-  assert.deepEqual(results.map(({ weavatrix }) => weavatrix), [false, false]);
-  assert.deepEqual(results.map(({ dependencyCruiser }) => dependencyCruiser), [true, true]);
+  assert.deepEqual(results.map(({ weavatrix }) => weavatrix), [false, true, true]);
+  assert.deepEqual(results.map(({ dependencyCruiser }) => dependencyCruiser), [true, true, true]);
 });
 
 test("severity probe requires warning and error behavior to differ", () => {

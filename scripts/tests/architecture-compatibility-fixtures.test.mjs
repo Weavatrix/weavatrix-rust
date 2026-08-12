@@ -23,6 +23,7 @@ test("compatibility fixtures isolate core, selector, and severity behavior", () 
     const error = json(join(root, "severity-error/.weavatrix/architecture.json"));
     assert.equal(core.dependencyRules.length, 6);
     assert.equal(selector.dependencyRules[0].fromPath, "^src/presentation/");
+    assert.equal(selector.dependencyRules[1].toPath, "^src/$1/db/");
     assert.equal(warning.dependencyRules[0].severity, "warn");
     assert.equal(error.dependencyRules[0].severity, "error");
     assert.match(

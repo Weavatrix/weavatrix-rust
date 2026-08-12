@@ -51,6 +51,12 @@ export function interpretSelectorProbe(
       weavatrix: weavatrixInvalidExit !== 0,
       dependencyCruiser: dependencyCruiserInvalidExit !== 0,
     },
+    {
+      id: "group-selector",
+      capability: "selectors.group-matching",
+      weavatrix: weavatrixRules.has("group-selector"),
+      dependencyCruiser: dependencyCruiserRules.has("group-selector"),
+    },
   ];
 }
 

@@ -17,7 +17,7 @@
     { "id": "rules.extends", "weavatrix": { "status": "not_implemented" }, "evidence": ["source:src/operations/architecture/contract.rs"] },
     { "id": "selectors.path", "weavatrix": { "status": "partial" }, "evidence": ["differential:path-selector", "source:src/operations/architecture/policy_selectors.rs", "source:src/operations/architecture/path_pattern/mod.rs"] },
     { "id": "selectors.path-not", "weavatrix": { "status": "partial" }, "evidence": ["source:src/operations/architecture/policy_selectors.rs", "reference:configuration.schema.json#FromRestrictionType"] },
-    { "id": "selectors.group-matching", "weavatrix": { "status": "not_implemented" }, "evidence": ["reference:rules-reference.md#group-matching"] },
+    { "id": "selectors.group-matching", "weavatrix": { "status": "partial" }, "evidence": ["differential:group-selector", "source:src/operations/architecture/policy_templates.rs", "reference:rules-reference.md#group-matching"] },
     { "id": "selectors.orphan", "weavatrix": { "status": "not_implemented" }, "evidence": ["reference:configuration.schema.json#FromRestrictionType"] },
     { "id": "selectors.reachable", "weavatrix": { "status": "enhanced" }, "evidence": ["differential:reachable-proof", "source:src/operations/architecture/policy_reachability.rs"] },
     { "id": "selectors.could-not-resolve", "weavatrix": { "status": "partial" }, "evidence": ["differential:local-unresolved", "differential:external-unresolved", "source:src/operations/architecture/policy_diagnostics.rs"] },
