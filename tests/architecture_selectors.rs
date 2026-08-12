@@ -168,6 +168,54 @@ fn unsupported_rule_shapes_fail_closed() {
 }
 
 #[test]
+fn group_references_bind_the_target_to_the_captured_source() {
+    let fixture = GitFixture::new();
+    fixture.write("src/alpha/ui/panel.js", "import \"../db/rows.js\";\n");
+    fixture.write("src/alpha/db/rows.js", "export const rows = [];\n");
+    fixture.write(
+        "src/beta/ui/panel.js",
+        "import \"../../alpha/db/rows.js\";\n",
+    );
+    fixture.write(
+        ".weavatrix/architecture.json",
+        &contract(&json!([{
+            "id": "own-feature-db",
+            "action": "forbid",
+            "fromPath": "^src/([^/]+)/ui/",
+            "toPath": "^src/$1/db/",
+            "kinds": ["imports"]
+        }])),
+    );
+
+    let report = verify(&fixture);
+    assert_eq!(report["state"], "BLOCKED", "{report}");
+    let new = report["new"].as_array().unwrap();
+    assert_eq!(new.len(), 1, "only the same-feature edge matches: {report}");
+    assert!(
+        report.to_string().contains("src/alpha/ui/panel.js"),
+        "{report}"
+    );
+
+    let overflow = selector_fixture(&json!([{
+        "id": "overflow",
+        "action": "forbid",
+        "fromPath": "^src/([^/]+)/",
+        "toPath": "^src/$2/",
+        "kinds": ["imports"]
+    }]));
+    assert!(verify_error(&overflow).contains("$2"));
+
+    let unreferenced = selector_fixture(&json!([{
+        "id": "unreferenced",
+        "action": "forbid",
+        "fromPathNot": "^vendor/",
+        "toPath": "^src/$1/",
+        "kinds": ["imports"]
+    }]));
+    assert!(verify_error(&unreferenced).contains("fromPath"));
+}
+
+#[test]
 fn the_cli_exit_code_carries_a_blocked_verification() {
     let fixture = selector_fixture(&json!([{
         "id": "path-selector",

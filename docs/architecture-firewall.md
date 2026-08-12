@@ -128,6 +128,14 @@ backreferences, counted quantifiers, and lookarounds are rejected at
 validation time: a selector the engine cannot evaluate must fail loudly
 instead of silently selecting nothing.
 
+`toPath` and `toPathNot` may reference `fromPath` capture groups as
+`$1`..`$9` (group matching). `fromPath: "^src/([^/]+)/ui/"` with
+`toPath: "^src/$1/db/"` selects only dependencies into the same feature
+that was captured on the from side. Captured text is inserted literally -
+a captured `.` matches a dot, not any character - and an unmatched
+optional group inserts empty text. A reference without a `fromPath`, or
+beyond its group count, is rejected.
+
 ### Severity
 
 Every dependency rule accepts `severity`. `error`, the default, blocks

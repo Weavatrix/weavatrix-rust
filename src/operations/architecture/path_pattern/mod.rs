@@ -68,7 +68,6 @@ impl PathPattern {
         })
     }
 
-    #[cfg(test)]
     pub(super) fn group_count(&self) -> usize {
         self.groups
     }

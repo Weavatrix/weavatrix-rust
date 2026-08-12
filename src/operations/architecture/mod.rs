@@ -5,6 +5,7 @@ mod path_pattern;
 mod policy_diagnostics;
 mod policy_reachability;
 mod policy_selectors;
+mod policy_templates;
 mod rules;
 mod source_metrics;
 

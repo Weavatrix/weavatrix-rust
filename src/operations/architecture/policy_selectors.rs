@@ -4,10 +4,12 @@
 //! or directly through path selectors (`fromPath`/`toPath`, with optional
 //! `fromPathNot`/`toPathNot` exclusions), never both at once. Selector rules
 //! are Dependency-Cruiser-shaped: patterns use the declared subset compiled
-//! by `path_pattern`, and anything the engine cannot evaluate rejects the
-//! contract instead of silently selecting nothing.
+//! by `path_pattern`, the to side may reference `fromPath` capture groups as
+//! `$1`..`$9`, and anything the engine cannot evaluate rejects the contract
+//! instead of silently selecting nothing.
 
 use super::path_pattern::PathPattern;
+use super::policy_templates::{Target, TargetCache, TargetSelector};
 use super::rules::{rule_selects_edge, stable_hash};
 use crate::engine::RepositoryState;
 use crate::operations::node_path;
@@ -73,17 +75,7 @@ pub(super) fn validate(value: &Value) -> Result<(), String> {
         {
             unselective.insert(id.to_owned());
         }
-        for key in PATH_KEYS {
-            if let Some(pattern) = rule.get(*key) {
-                let Some(pattern) = pattern.as_str() else {
-                    patterns.push(format!("{id}.{key} must be a string pattern"));
-                    continue;
-                };
-                if let Err(error) = PathPattern::compile(pattern) {
-                    patterns.push(format!("{id}.{key}: {error}"));
-                }
-            }
-        }
+        patterns.extend(pattern_failures(rule, id));
     }
     let reject = |failures: BTreeSet<String>, reason: &str| -> Result<(), String> {
         if failures.is_empty() {
@@ -121,20 +113,83 @@ pub(super) fn validate(value: &Value) -> Result<(), String> {
     Err(patterns.join("; "))
 }
 
+fn pattern_failures(rule: &Value, id: &str) -> Vec<String> {
+    let mut failures = Vec::new();
+    let mut from_groups = None;
+    for key in ["fromPath", "fromPathNot"] {
+        let Some(raw) = string_pattern(rule, key, id, &mut failures) else {
+            continue;
+        };
+        match PathPattern::compile(raw) {
+            Ok(pattern) => {
+                if key == "fromPath" {
+                    from_groups = Some(pattern.group_count());
+                }
+            }
+            Err(error) => failures.push(format!("{id}.{key}: {error}")),
+        }
+    }
+    for key in ["toPath", "toPathNot"] {
+        let Some(raw) = string_pattern(rule, key, id, &mut failures) else {
+            continue;
+        };
+        let template = Target::parse(raw);
+        if template.max_ref() == 0 {
+            if let Err(error) = PathPattern::compile(raw) {
+                failures.push(format!("{id}.{key}: {error}"));
+            }
+            continue;
+        }
+        let Some(groups) = from_groups else {
+            failures.push(format!(
+                "{id}.{key} uses group references but the rule has no fromPath"
+            ));
+            continue;
+        };
+        if template.max_ref() > groups {
+            failures.push(format!(
+                "{id}.{key} references ${} but fromPath captures only {groups} group(s)",
+                template.max_ref()
+            ));
+            continue;
+        }
+        if let Err(error) = PathPattern::compile(&template.instantiate(&vec![None; groups])) {
+            failures.push(format!("{id}.{key}: {error}"));
+        }
+    }
+    failures
+}
+
+fn string_pattern<'rule>(
+    rule: &'rule Value,
+    key: &str,
+    id: &str,
+    failures: &mut Vec<String>,
+) -> Option<&'rule str> {
+    let value = rule.get(key)?;
+    if let Some(raw) = value.as_str() {
+        Some(raw)
+    } else {
+        failures.push(format!("{id}.{key} must be a string pattern"));
+        None
+    }
+}
+
 pub(super) fn violations(state: &RepositoryState, value: &Value) -> Vec<Value> {
-    let compiled: Vec<(&Value, Selector, Selector)> = rules(value)
+    let compiled: Vec<(&Value, SourceSelector, TargetSelector)> = rules(value)
         .filter(|rule| selects_by_path(rule))
         .filter_map(|rule| {
             Some((
                 rule,
-                Selector::compile(rule, "fromPath", "fromPathNot")?,
-                Selector::compile(rule, "toPath", "toPathNot")?,
+                SourceSelector::compile(rule)?,
+                TargetSelector::compile(rule)?,
             ))
         })
         .collect();
     if compiled.is_empty() {
         return Vec::new();
     }
+    let mut cache = TargetCache::new();
     let mut output = Vec::new();
     let mut seen = BTreeSet::new();
     for edge in state.graph().edges() {
@@ -154,10 +209,10 @@ pub(super) fn violations(state: &RepositoryState, value: &Value) -> Vec<Value> {
             continue;
         }
         for (rule, from, to) in &compiled {
-            if !from.selects(source_file)
-                || !to.selects(target_file)
-                || !rule_selects_edge(rule, edge)
-            {
+            let Some(captures) = from.captures(source_file) else {
+                continue;
+            };
+            if !to.selects(target_file, &captures, &mut cache) || !rule_selects_edge(rule, edge) {
                 continue;
             }
             let identity = format!(
@@ -184,35 +239,45 @@ pub(super) fn violations(state: &RepositoryState, value: &Value) -> Vec<Value> {
     output
 }
 
-struct Selector {
+struct SourceSelector {
     include: Option<PathPattern>,
     exclude: Option<PathPattern>,
 }
 
-impl Selector {
+impl SourceSelector {
     /// Returns `None` only for patterns `validate` already rejected.
-    fn compile(rule: &Value, include: &str, exclude: &str) -> Option<Self> {
-        let compile = |key: &str| -> Option<Option<PathPattern>> {
-            match rule.get(key).map(|pattern| pattern.as_str()) {
-                None => Some(None),
-                Some(Some(pattern)) => PathPattern::compile(pattern).ok().map(Some),
-                Some(None) => None,
-            }
-        };
+    fn compile(rule: &Value) -> Option<Self> {
         Some(Self {
-            include: compile(include)?,
-            exclude: compile(exclude)?,
+            include: compiled_pattern(rule, "fromPath").ok()?,
+            exclude: compiled_pattern(rule, "fromPathNot").ok()?,
         })
     }
 
-    fn selects(&self, path: &str) -> bool {
-        self.include
+    /// Returns the include captures when the path is selected.
+    fn captures(&self, path: &str) -> Option<Vec<Option<String>>> {
+        if self
+            .exclude
             .as_ref()
-            .is_none_or(|pattern| pattern.matches(path).is_some())
-            && self
-                .exclude
-                .as_ref()
-                .is_none_or(|pattern| pattern.matches(path).is_none())
+            .is_some_and(|pattern| pattern.matches(path).is_some())
+        {
+            return None;
+        }
+        match &self.include {
+            Some(pattern) => pattern.matches(path),
+            None => Some(Vec::new()),
+        }
+    }
+}
+
+/// `Err` marks a pattern `validate` already rejected; the selector is skipped.
+fn compiled_pattern(rule: &Value, key: &str) -> Result<Option<PathPattern>, ()> {
+    match rule.get(key).map(Value::as_str) {
+        None => Ok(None),
+        Some(Some(pattern)) => match PathPattern::compile(pattern) {
+            Ok(compiled) => Ok(Some(compiled)),
+            Err(_) => Err(()),
+        },
+        Some(None) => Err(()),
     }
 }
 
