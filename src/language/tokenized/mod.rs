@@ -3,6 +3,7 @@
 mod convert;
 mod domains;
 mod kinds;
+mod swift;
 #[cfg(test)]
 mod tests;
 
