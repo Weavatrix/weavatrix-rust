@@ -230,6 +230,11 @@ pub(super) fn infer_http_method(line: &str) -> Option<&'static str> {
         ("method: \"put\"", "PUT"),
         ("method: 'get'", "GET"),
         ("method: \"get\"", "GET"),
+        ("httpmethod = \"delete\"", "DELETE"),
+        ("httpmethod = \"patch\"", "PATCH"),
+        ("httpmethod = \"post\"", "POST"),
+        ("httpmethod = \"put\"", "PUT"),
+        ("httpmethod = \"get\"", "GET"),
     ] {
         if lower.contains(needle) {
             return Some(method);

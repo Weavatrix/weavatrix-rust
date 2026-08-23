@@ -19,7 +19,7 @@ pretend to provide the same semantic depth as a typed adapter.
 | C++ | C evidence plus namespace/class structure |
 | SQL | schemas, tables, fields, statements, and host references |
 | Bash / Zsh | commands, functions, variable references, and script structure |
-| Swift | imports, declarations, types, and calls |
+| Swift | same-module files, imports, types, heritage, calls, and URLSession/WebSocket client routes |
 | Solidity | contracts, functions, events, and calls |
 
 ## Contracts and configuration

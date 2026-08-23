@@ -88,6 +88,47 @@ fn stylesheet_and_document_share_selector_evidence() {
 }
 
 #[test]
+fn swift_client_paths_become_consumed_endpoints() {
+    let facts = adapter("swift")
+        .parse(SourceFile {
+            path: "apps/ios/GrantTap/RelayClient.swift",
+            text: "final class RelayClient: NSObject {\n\
+                 func open() {\n\
+                 comps.path = \"/ws\"\n\
+                 _ = endpoint(pairing, path: \"/push/register\")\n\
+                 }\n\
+                 }\n",
+        })
+        .expect("parses");
+    let endpoints = facts
+        .domains
+        .iter()
+        .filter(|domain| domain.kind == NodeKind::Endpoint)
+        .map(|domain| domain.name.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        endpoints.contains(&"WS /ws"),
+        "path assignment must consume /ws, got {endpoints:?}"
+    );
+    assert!(
+        endpoints.contains(&"ANY /push/register"),
+        "endpoint() must consume /push/register, got {endpoints:?}"
+    );
+    assert!(
+        !facts.symbols.iter().any(|symbol| symbol.name == "pairing"),
+        "a function-local name is not a graph symbol: {:?}",
+        facts.symbols
+    );
+    assert!(
+        facts.references.iter().any(|reference| reference.kind
+            == weavatrix_graph::EdgeKind::Inherits
+            && reference.name == "NSObject"),
+        "class colon heritage must survive conversion: {:?}",
+        facts.references
+    );
+}
+
+#[test]
 fn shell_scripts_are_parsed() {
     let facts = adapter("sh")
         .parse(SourceFile {

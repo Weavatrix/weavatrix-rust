@@ -5,6 +5,7 @@ mod configuration;
 mod languages;
 mod paths;
 mod resolution;
+mod swift;
 
 use super::support::{parsed_provenance, sanitize_id};
 use crate::language::{ImportFact, Language};
@@ -65,7 +66,9 @@ pub(super) fn resolve(
 ) -> Result<(ImportScopes, Vec<Diagnostic>)> {
     let context = ResolutionContext::new(files, repository_label, root, &imports);
     let forwards = resolve_reexports(graph, files, &context, reexports)?;
-    resolve_imports(graph, files, &context, imports, &forwards)
+    let (mut scopes, diagnostics) = resolve_imports(graph, files, &context, imports, &forwards)?;
+    swift::add_module_scopes(&mut scopes, files);
+    Ok((scopes, diagnostics))
 }
 
 /// Records re-export evidence and returns the barrel map: a file that

@@ -62,6 +62,11 @@ pub(crate) fn may_contain_transport_marker(source: &str) -> bool {
         "send_message",
         "receivemessage",
         "receive_message",
+        "urlsession",
+        "websocket",
+        "websockettask",
+        "wcsession",
+        "watchconnectivity",
     ];
     let lowercase = source.to_ascii_lowercase();
     MARKERS.iter().any(|marker| lowercase.contains(marker))
@@ -126,6 +131,9 @@ fn is_transport_call_name(name: &str) -> bool {
             | "send_message"
             | "receivemessage"
             | "receive_message"
+            | "urlsession"
+            | "websockettask"
+            | "wcsession"
     )
 }
 
