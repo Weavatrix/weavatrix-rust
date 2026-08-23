@@ -237,11 +237,7 @@ impl AnalysisState {
                         .cloned()
                 })
                 .unwrap_or_else(|| file_id.clone());
-            let id = NodeId::new(format!(
-                "domain:{}:{}",
-                fact.kind.as_str(),
-                sanitize_id(&fact.name)
-            ))?;
+            let id = self.domain_id(&fact.kind, &fact.name)?;
             self.graph
                 .add_node(Node::new(id.to_string(), fact.name, fact.kind)?)?;
             let provenance = parsed_provenance(extractor, Some(fact.span))?
@@ -250,5 +246,29 @@ impl AnalysisState {
                 .add_edge(Edge::new(source, id, fact.relation, provenance))?;
         }
         Ok(())
+    }
+
+    /// Two labels can sanitize to one identifier: `ANY /$` and `ANY /:` are
+    /// both `ANY___`. The graph refuses to merge nodes that differ only in
+    /// label, and one such pair must not abort the whole analysis, so the
+    /// later label takes a numbered identifier instead.
+    fn domain_id(&mut self, kind: &NodeKind, label: &str) -> Result<NodeId> {
+        let base = format!("domain:{}:{}", kind.as_str(), sanitize_id(label));
+        let mut candidate = base.clone();
+        let mut ordinal = 1_u32;
+        loop {
+            let id = NodeId::new(candidate)?;
+            match self.domain_labels.get(&id) {
+                Some(existing) if existing != label => {
+                    ordinal += 1;
+                    candidate = format!("{base}~{ordinal}");
+                }
+                Some(_) => return Ok(id),
+                None => {
+                    self.domain_labels.insert(id.clone(), label.to_owned());
+                    return Ok(id);
+                }
+            }
+        }
     }
 }

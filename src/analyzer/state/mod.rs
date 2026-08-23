@@ -24,6 +24,9 @@ pub(super) struct AnalysisState {
     root: std::path::PathBuf,
     diagnostics: Vec<Diagnostic>,
     file_index: BTreeMap<String, NodeId>,
+    /// Labels behind every domain identifier issued so far, so two labels
+    /// that sanitize alike get distinct identifiers instead of a conflict.
+    domain_labels: HashMap<NodeId, String>,
     symbol_index: HashMap<Language, HashMap<String, Vec<NodeId>>>,
     /// Per-file symbol tables preserve language scope during resolution.
     scoped_symbols: HashMap<String, HashMap<String, Vec<NodeId>>>,
@@ -80,6 +83,7 @@ impl AnalysisState {
             root: repository.to_path_buf(),
             diagnostics: Vec::new(),
             file_index: BTreeMap::new(),
+            domain_labels: HashMap::new(),
             symbol_index: HashMap::new(),
             scoped_symbols: HashMap::new(),
             pending_imports: Vec::new(),

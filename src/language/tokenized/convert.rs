@@ -20,14 +20,8 @@ fn owner_is_type(facts: &Facts, name: &str) -> bool {
     })
 }
 
-fn is_swift_source(path: &str) -> bool {
-    std::path::Path::new(path)
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("swift"))
-}
-
 fn keep_declaration(facts: &Facts, path: &str, kind: DeclarationKind, owner: Option<&str>) -> bool {
-    if !is_swift_source(path) {
+    if !super::swift::is_source(path) {
         return true;
     }
     if !matches!(kind, DeclarationKind::Constant | DeclarationKind::Variable) {
@@ -118,6 +112,9 @@ pub(super) fn convert(facts: &Facts, path: &str) -> FileFacts {
                 span: span(&reference.span, path),
                 owner: owner.clone(),
             }));
+    }
+    if super::swift::is_source(path) {
+        super::swift::apply_http_methods(facts, path, &mut converted.domains);
     }
 
     converted
