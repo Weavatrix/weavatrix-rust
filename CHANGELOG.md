@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.7.0 - 2026-08-23
+## 2.7.1 - 2026-08-23
 
 - Swift is a first-class language, not a generic braced table. Files in one
   Xcode target see each other without `import`: `Features/` sits under the
@@ -14,6 +14,8 @@
   bindings are dropped so they cannot become false god-nodes.
 - Foundation, Swift, SwiftUI, UIKit, WatchKit, WatchConnectivity, CryptoKit,
   Combine, and CoreData are treated as standard-library surfaces.
+- Swift client-route helpers live in their own module so `domains.rs` stays
+  under the 300-line architecture budget.
 
 ## 2.4.0 - 2026-08-10
 
