@@ -220,6 +220,7 @@ pub(super) fn extensions(language: &Language) -> &'static [&'static str] {
         Language::Cpp => &["cpp", "cc", "cxx", "h", "hpp", "hh"],
         Language::Bash => &["sh", "bash"],
         Language::Protobuf => &["proto"],
+        Language::Swift => &["swift"],
         _ => &[],
     }
 }

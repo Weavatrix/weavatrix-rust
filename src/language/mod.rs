@@ -36,6 +36,7 @@ pub enum Language {
     Python,
     Java,
     CSharp,
+    Swift,
     Custom(String),
 }
 
@@ -58,6 +59,7 @@ impl Language {
             Self::Python => "python",
             Self::Java => "java",
             Self::CSharp => "csharp",
+            Self::Swift => "swift",
             Self::Custom(value) => value,
         }
     }

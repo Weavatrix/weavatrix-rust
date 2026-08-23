@@ -4,7 +4,37 @@ use crate::language::{
     FileFacts, ImportBindingFact, ImportFact, ReferenceFact, SymbolFact, SymbolLocator,
 };
 use weavatrix_graph::EdgeKind;
-use weavatrix_parse::Facts;
+use weavatrix_parse::{DeclarationKind, Facts};
+
+fn owner_is_type(facts: &Facts, name: &str) -> bool {
+    facts.declarations.iter().any(|declaration| {
+        declaration.name == name
+            && matches!(
+                declaration.kind,
+                DeclarationKind::Class
+                    | DeclarationKind::Struct
+                    | DeclarationKind::Enum
+                    | DeclarationKind::Interface
+                    | DeclarationKind::Trait
+            )
+    })
+}
+
+fn is_swift_source(path: &str) -> bool {
+    std::path::Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("swift"))
+}
+
+fn keep_declaration(facts: &Facts, path: &str, kind: DeclarationKind, owner: Option<&str>) -> bool {
+    if !is_swift_source(path) {
+        return true;
+    }
+    if !matches!(kind, DeclarationKind::Constant | DeclarationKind::Variable) {
+        return true;
+    }
+    owner.is_some_and(|name| owner_is_type(facts, name))
+}
 
 /// Converts parser facts into the language-neutral graph-builder contract.
 pub(super) fn convert(facts: &Facts, path: &str) -> FileFacts {
@@ -12,6 +42,9 @@ pub(super) fn convert(facts: &Facts, path: &str) -> FileFacts {
     let class_route_prefixes = class_route_prefixes(facts);
 
     for declaration in &facts.declarations {
+        if !keep_declaration(facts, path, declaration.kind, declaration.owner.as_deref()) {
+            continue;
+        }
         converted.symbols.push(SymbolFact {
             name: declaration.name.clone(),
             kind: node_kind(declaration.kind),

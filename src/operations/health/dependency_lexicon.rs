@@ -48,6 +48,18 @@ pub(super) fn builtin(language: &str, package: &str) -> bool {
             package,
             "os" | "sys" | "json" | "time" | "typing" | "pathlib" | "collections" | "asyncio"
         ),
+        "swift" => matches!(
+            package,
+            "Foundation"
+                | "Swift"
+                | "SwiftUI"
+                | "UIKit"
+                | "WatchKit"
+                | "WatchConnectivity"
+                | "CryptoKit"
+                | "Combine"
+                | "CoreData"
+        ),
         _ => false,
     }
 }

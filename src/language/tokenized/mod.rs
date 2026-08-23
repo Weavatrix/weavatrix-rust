@@ -46,11 +46,7 @@ impl TokenizedAdapter {
             ),
             (Language::Sql, Parsed::Sql, &["sql", "psql"][..]),
             (Language::Bash, Parsed::Bash, &["sh", "bash", "zsh"][..]),
-            (
-                Language::Custom("swift".to_owned()),
-                Parsed::Swift,
-                &["swift"][..],
-            ),
+            (Language::Swift, Parsed::Swift, &["swift"][..]),
             (
                 Language::Custom("solidity".to_owned()),
                 Parsed::Solidity,

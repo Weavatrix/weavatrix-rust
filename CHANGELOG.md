@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.7.0 - 2026-08-23
+
+- Swift is a first-class language, not a generic braced table. Files in one
+  Xcode target see each other without `import`: `Features/` sits under the
+  target root, `Shared/` is visible to sibling targets, and a `*Tests` folder
+  can see the production target it names.
+- Client routes become `Consumes` endpoints: `path = "/ws"` is `WS /ws`,
+  `endpoint(..., "/push/register")` is `ANY /push/register`, and a bare
+  `webSocketTask` is `WS /ws`. `httpMethod = "PUT"` supplies the verb.
+- Qualified Swift calls such as `.map` are not bound repo-wide; unqualified
+  calls stay inside the same-module file scope. Function-local `let`/`var`
+  bindings are dropped so they cannot become false god-nodes.
+- Foundation, Swift, SwiftUI, UIKit, WatchKit, WatchConnectivity, CryptoKit,
+  Combine, and CoreData are treated as standard-library surfaces.
+
 ## 2.4.0 - 2026-08-10
 
 - Rust route attributes are read past their first argument. `#[get("/users/{id}",

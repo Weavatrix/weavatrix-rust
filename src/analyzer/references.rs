@@ -62,7 +62,10 @@ fn resolve_name(
     // unrelated declaration.
     if item.reference.kind == EdgeKind::Calls
         && item.reference.qualified
-        && matches!(item.language, Language::JavaScript | Language::TypeScript)
+        && matches!(
+            item.language,
+            Language::JavaScript | Language::TypeScript | Language::Swift
+        )
     {
         return None;
     }
@@ -97,7 +100,10 @@ fn resolve_name(
     // concrete name cannot be represented (`statSync(path).isFile`) without
     // losing exact Go/Python/Java package-level free calls.
     if item.reference.kind == EdgeKind::Calls
-        && matches!(item.language, Language::JavaScript | Language::TypeScript)
+        && matches!(
+            item.language,
+            Language::JavaScript | Language::TypeScript | Language::Swift
+        )
     {
         return None;
     }
