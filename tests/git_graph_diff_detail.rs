@@ -7,6 +7,71 @@ use support::GitFixture;
 use weavatrix_rust::{Weavatrix, tools};
 
 #[test]
+fn graph_diff_names_a_public_symbol_whose_body_changed() {
+    let fixture = GitFixture::new();
+    fixture.write(
+        "src/lib.rs",
+        "pub fn permission(a: i32, b: i32) -> i32 { a + b }\n\
+         fn private_helper() -> bool { false }\n",
+    );
+    fixture.commit("baseline");
+    fixture.write(
+        "src/lib.rs",
+        "pub fn permission(a: i32, b: i32) -> i32 { a - b }\n\
+         fn private_helper() -> bool { false }\n",
+    );
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let diff = tools::call(
+        &mut engine,
+        "graph_diff",
+        json!({"base_ref": "HEAD", "detail": "edges", "max_results": 20}),
+    )
+    .unwrap();
+    let changed = diff["nodes"]["changed"].as_array().unwrap();
+    let public = changed
+        .iter()
+        .find(|item| item["after"]["label"] == "permission")
+        .expect("the changed declaration is named, not only its file");
+
+    assert_eq!(public["after"]["attributes"]["exported"], true);
+    assert!(
+        changed
+            .iter()
+            .all(|item| item["after"]["label"] != "private_helper")
+    );
+}
+
+#[test]
+fn graph_diff_names_an_exported_go_symbol_whose_body_changed() {
+    let fixture = GitFixture::new();
+    fixture.write(
+        "service/auth.go",
+        "package service\n\nfunc CanDelete(viewer bool) bool { return !viewer }\n",
+    );
+    fixture.commit("baseline");
+    fixture.write(
+        "service/auth.go",
+        "package service\n\nfunc CanDelete(viewer bool) bool { return viewer }\n",
+    );
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let diff = tools::call(
+        &mut engine,
+        "graph_diff",
+        json!({"base_ref": "HEAD", "detail": "edges", "max_results": 20}),
+    )
+    .unwrap();
+    let changed = diff["nodes"]["changed"].as_array().unwrap();
+    let public = changed
+        .iter()
+        .find(|item| item["after"]["label"] == "CanDelete")
+        .expect("the changed Go declaration is named, not only its file");
+
+    assert_eq!(public["after"]["attributes"]["exported"], true);
+}
+
+#[test]
 fn graph_diff_rolls_edge_churn_up_to_file_pairs_by_default() {
     let fixture = GitFixture::new();
     fixture.write("src/lib.rs", "mod caller;\nmod target;\n");

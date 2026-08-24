@@ -17,6 +17,8 @@ Use it to:
 
 - embed repository analysis in a Rust application;
 - serialize a `Snapshot` for CI, indexing, or review;
+- identify changed declarations by a content-safe symbol fingerprint and retain
+  parser-proven `exported` evidence for public-surface consumers;
 - run 43 bounded read-only operations in the default full build;
 - enforce the current v1 architecture contract foundation;
 - power the separate `weavatrix` MCP product.
@@ -47,7 +49,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.7.1"
+weavatrix-rust = "2.7.2"
 ```
 
 ```rust
@@ -82,7 +84,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.7.1", default-features = false }
+weavatrix-rust = { version = "2.7.2", default-features = false }
 ```
 
 ## MCP product

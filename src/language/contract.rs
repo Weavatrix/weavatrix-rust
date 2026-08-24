@@ -155,6 +155,9 @@ pub(super) fn add_symbol(
         kind,
         span,
         test_only: false,
+        exported: true,
+        source_fingerprint: None,
+        source_extent: None,
         owner,
     });
     owners.insert(name, locator.clone());

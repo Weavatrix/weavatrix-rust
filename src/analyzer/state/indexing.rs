@@ -121,6 +121,12 @@ impl AnalysisState {
             if symbol.test_only {
                 node = node.with_attribute("test_only", true);
             }
+            if symbol.exported {
+                node = node.with_attribute("exported", true);
+            }
+            if let Some(fingerprint) = &symbol.source_fingerprint {
+                node = node.with_attribute("source_fingerprint", fingerprint.clone());
+            }
             let id = node.id.clone();
             local.insert(
                 locator_key(&symbol.kind, &symbol.name, &symbol.span),

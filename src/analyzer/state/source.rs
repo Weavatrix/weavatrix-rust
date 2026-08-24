@@ -56,6 +56,10 @@ pub(in crate::analyzer) fn parse_source(
         path: relative,
         text,
     })?;
+    for symbol in &mut facts.symbols {
+        let source_extent = symbol.source_extent.as_ref().unwrap_or(&symbol.span);
+        symbol.source_fingerprint = declaration_text(text, source_extent).map(stable_fingerprint);
+    }
     for reference in &mut facts.references {
         if reference.kind == EdgeKind::Calls
             && !reference.qualified
@@ -72,6 +76,39 @@ pub(in crate::analyzer) fn parse_source(
     });
     parsed.transport_candidate = transport_candidate;
     Ok(parsed)
+}
+
+fn declaration_text<'source>(
+    source: &'source str,
+    span: &crate::SourceSpan,
+) -> Option<&'source str> {
+    let start = byte_offset(source, span.start)?;
+    let end = byte_offset(source, span.end)?;
+    (start <= end).then(|| &source[start..end])
+}
+
+fn byte_offset(source: &str, position: crate::SourcePosition) -> Option<usize> {
+    let line_index = usize::try_from(position.line.checked_sub(1)?).ok()?;
+    let column = usize::try_from(position.column.checked_sub(1)?).ok()?;
+    let line_start = source
+        .split_inclusive('\n')
+        .take(line_index)
+        .map(str::len)
+        .sum::<usize>();
+    let line = source
+        .get(line_start..)?
+        .split_once('\n')
+        .map_or_else(|| source.get(line_start..), |(line, _)| Some(line))?;
+    (column <= line.len() && line.is_char_boundary(column)).then_some(line_start + column)
+}
+
+fn stable_fingerprint(source: &str) -> String {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in source.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("fnv1a64:{hash:016x}")
 }
 
 /// Expression receivers do not have a concrete name, but their member/path

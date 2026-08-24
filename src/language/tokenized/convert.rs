@@ -44,6 +44,9 @@ pub(super) fn convert(facts: &Facts, path: &str) -> FileFacts {
             kind: node_kind(declaration.kind),
             span: span(&declaration.span, path),
             test_only: facts.declaration_is_test_only(declaration.span),
+            exported: declaration.exported,
+            source_fingerprint: None,
+            source_extent: Some(span(&declaration.extent, path)),
             owner: declaration.owner.clone(),
         });
     }

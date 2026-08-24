@@ -85,6 +85,12 @@ pub struct SymbolFact {
     /// This declaration is compiled only for tests, either because it carries
     /// a test attribute itself or because it is nested below `#[cfg(test)]`.
     pub test_only: bool,
+    /// The language adapter proved this declaration is externally exported.
+    pub exported: bool,
+    /// Stable fingerprint of the declaration span, populated by the analyzer.
+    pub source_fingerprint: Option<String>,
+    /// Full parser-owned declaration extent used only to fingerprint content.
+    pub source_extent: Option<SourceSpan>,
     /// The type this symbol was declared inside, when it was.
     ///
     /// A class and its methods are joined by their own edge rather than by

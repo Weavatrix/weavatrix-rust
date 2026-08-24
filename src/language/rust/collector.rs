@@ -11,6 +11,7 @@ impl Collector<'_> {
         name: &syn::Ident,
         kind: NodeKind,
         definition_span: Span,
+        exported: bool,
     ) -> SymbolLocator {
         let mut span = source_span(self.path, name.span());
         span.end = source_span(self.path, definition_span).end;
@@ -24,6 +25,9 @@ impl Collector<'_> {
             kind: locator.kind.clone(),
             span: locator.span.clone(),
             test_only: self.test_context,
+            exported,
+            source_fingerprint: None,
+            source_extent: None,
             owner: (locator.kind == NodeKind::Method)
                 .then(|| self.owner.type_name.clone())
                 .flatten(),

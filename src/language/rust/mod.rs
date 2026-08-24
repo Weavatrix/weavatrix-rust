@@ -71,10 +71,19 @@ struct Collector<'source> {
     module_scope: ModuleScope,
 }
 
+fn is_public(visibility: &syn::Visibility) -> bool {
+    matches!(visibility, syn::Visibility::Public(_))
+}
+
 impl<'ast> Visit<'ast> for Collector<'_> {
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
         self.with_test_context(&node.attrs, |collector| {
-            let owner = collector.add_symbol(&node.sig.ident, NodeKind::Function, node.span());
+            let owner = collector.add_symbol(
+                &node.sig.ident,
+                NodeKind::Function,
+                node.span(),
+                is_public(&node.vis),
+            );
             collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
                 collector.add_attribute_endpoints(&node.attrs);
                 syn::visit::visit_item_fn(collector, node);
@@ -85,7 +94,12 @@ impl<'ast> Visit<'ast> for Collector<'_> {
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
         self.with_test_context(&node.attrs, |collector| {
             let type_name = collector.owner.type_name.clone();
-            let owner = collector.add_symbol(&node.sig.ident, NodeKind::Method, node.span());
+            let owner = collector.add_symbol(
+                &node.sig.ident,
+                NodeKind::Method,
+                node.span(),
+                is_public(&node.vis),
+            );
             collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
                 if let Some(type_name) = type_name {
                     collector.add_reference(
@@ -103,7 +117,7 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
         self.with_test_context(&node.attrs, |collector| {
-            let owner = collector.add_symbol(&node.sig.ident, NodeKind::Method, node.span());
+            let owner = collector.add_symbol(&node.sig.ident, NodeKind::Method, node.span(), false);
             collector.with_owner(OwnerUpdate::Symbol(owner), |collector| {
                 syn::visit::visit_trait_item_fn(collector, node);
             });
@@ -112,21 +126,36 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Struct, node.span());
+            collector.add_symbol(
+                &node.ident,
+                NodeKind::Struct,
+                node.span(),
+                is_public(&node.vis),
+            );
             syn::visit::visit_item_struct(collector, node);
         });
     }
 
     fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Enum, node.span());
+            collector.add_symbol(
+                &node.ident,
+                NodeKind::Enum,
+                node.span(),
+                is_public(&node.vis),
+            );
             syn::visit::visit_item_enum(collector, node);
         });
     }
 
     fn visit_item_trait(&mut self, node: &'ast syn::ItemTrait) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Trait, node.span());
+            collector.add_symbol(
+                &node.ident,
+                NodeKind::Trait,
+                node.span(),
+                is_public(&node.vis),
+            );
             collector.with_owner(OwnerUpdate::Type(node.ident.to_string()), |collector| {
                 syn::visit::visit_item_trait(collector, node);
             });
@@ -147,28 +176,48 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_item_type(&mut self, node: &'ast syn::ItemType) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::TypeAlias, node.span());
+            collector.add_symbol(
+                &node.ident,
+                NodeKind::TypeAlias,
+                node.span(),
+                is_public(&node.vis),
+            );
             syn::visit::visit_item_type(collector, node);
         });
     }
 
     fn visit_item_const(&mut self, node: &'ast syn::ItemConst) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Constant, node.span());
+            collector.add_symbol(
+                &node.ident,
+                NodeKind::Constant,
+                node.span(),
+                is_public(&node.vis),
+            );
             syn::visit::visit_item_const(collector, node);
         });
     }
 
     fn visit_item_static(&mut self, node: &'ast syn::ItemStatic) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Static, node.span());
+            collector.add_symbol(
+                &node.ident,
+                NodeKind::Static,
+                node.span(),
+                is_public(&node.vis),
+            );
             syn::visit::visit_item_static(collector, node);
         });
     }
 
     fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
         self.with_test_context(&node.attrs, |collector| {
-            collector.add_symbol(&node.ident, NodeKind::Module, node.span());
+            collector.add_symbol(
+                &node.ident,
+                NodeKind::Module,
+                node.span(),
+                is_public(&node.vis),
+            );
             if node.content.is_some() {
                 collector.module_scope.enter(node.ident.to_string());
             } else {
