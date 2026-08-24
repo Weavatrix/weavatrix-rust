@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.repository == 'sergii-ziborov/weavatrix-rust'
+    if: github.repository == 'Weavatrix/weavatrix-rust'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -57,7 +57,7 @@ jobs:
         run: cargo publish --locked --dry-run
 
   publish:
-    if: github.repository == 'sergii-ziborov/weavatrix-rust'
+    if: github.repository == 'Weavatrix/weavatrix-rust'
     needs: verify
     runs-on: ubuntu-24.04
     environment: crates-io
