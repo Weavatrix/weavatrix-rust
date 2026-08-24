@@ -1,10 +1,12 @@
 # weavatrix-rust
 
-[![CI](https://github.com/sergii-ziborov/weavatrix-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/sergii-ziborov/weavatrix-rust/actions/workflows/ci.yml)
+[![CI](https://github.com/Weavatrix/weavatrix-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/Weavatrix/weavatrix-rust/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/weavatrix-rust.svg)](https://crates.io/crates/weavatrix-rust)
 [![docs.rs](https://docs.rs/weavatrix-rust/badge.svg)](https://docs.rs/weavatrix-rust)
 [![MSRV](https://img.shields.io/badge/MSRV-1.89.0-orange.svg)](https://www.rust-lang.org/)
-[![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/sergii-ziborov/weavatrix-rust/blob/main/LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Weavatrix/weavatrix-rust/blob/main/LICENSE)
+
+The protocol-independent evidence engine of the [Weavatrix ecosystem](https://weavatrix.com/ecosystem); MCP remains in the separate `weavatrix` product.
 
 **Turn a repository into deterministic evidence your Rust code can trust.**
 
@@ -25,7 +27,7 @@ Use it to:
 
 > This crate is an engine, not an MCP server. Protocol transport, npm
 > packaging, profiles, and filesystem watching live in
-> [`weavatrix`](https://github.com/sergii-ziborov/weavatrix).
+> [`weavatrix`](https://github.com/Weavatrix/weavatrix).
 
 ## Architecture Firewall
 
@@ -205,9 +207,9 @@ weavatrix-rust tool verify_architecture .
 This repository owns analysis, evidence, repository state, and read-only
 operations. MCP transport and npm packaging belong to `weavatrix`; source
 editing belongs to
-[`weavatrix-refactor`](https://github.com/sergii-ziborov/weavatrix-refactor),
+[`weavatrix-refactor`](https://github.com/Weavatrix/weavatrix-refactor),
 and licensed network workflows belong to
-[`weavatrix-online`](https://github.com/sergii-ziborov/weavatrix-online).
+[`weavatrix-online`](https://github.com/Weavatrix/weavatrix-online).
 
 ## Safety boundary
 
