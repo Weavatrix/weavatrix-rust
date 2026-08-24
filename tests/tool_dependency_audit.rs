@@ -26,6 +26,32 @@ fn audit_compares_external_imports_with_supported_manifests() {
 }
 
 #[test]
+fn audit_matches_python_imports_to_distribution_names() {
+    let fixture = Fixture::new();
+    fixture.write("requirements.txt", "PyYAML>=6\n");
+    fixture.write(
+        "src/config.py",
+        "import yaml\n\ndef load_config(text):\n    return yaml.safe_load(text)\n",
+    );
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let audit = tools::call(
+        &mut engine,
+        "run_audit",
+        json!({"category": "dependencies"}),
+    )
+    .unwrap();
+    let findings = audit["dependency_report"]["findings"].as_array().unwrap();
+
+    assert!(
+        !findings
+            .iter()
+            .any(|finding| { finding["package"] == "yaml" || finding["package"] == "PyYAML" }),
+        "the yaml import is exact usage evidence for the PyYAML distribution: {findings:?}"
+    );
+}
+
+#[test]
 fn audit_recognizes_bare_and_prefixed_node_builtins() {
     let fixture = Fixture::new();
     fixture.write(

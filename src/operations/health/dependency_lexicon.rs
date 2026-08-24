@@ -8,8 +8,24 @@ pub(super) fn matches_declaration(item: &Declaration, ecosystem: &str, package: 
         return false;
     }
     let declared = normalize(ecosystem, &item.name);
-    let imported = normalize(ecosystem, package);
+    let imported = import_distribution_name(ecosystem, package);
     imported == declared || (ecosystem == "go" && imported.starts_with(&format!("{declared}/")))
+}
+
+fn import_distribution_name(ecosystem: &str, package: &str) -> String {
+    let normalized = normalize(ecosystem, package);
+    if ecosystem != "python" {
+        return normalized;
+    }
+    match normalized.as_str() {
+        "yaml" => "pyyaml",
+        "cv2" => "opencv_python",
+        "pil" => "pillow",
+        "sklearn" => "scikit_learn",
+        "skimage" => "scikit_image",
+        _ => return normalized,
+    }
+    .to_owned()
 }
 
 pub(super) fn ecosystem(language: &str) -> &str {
@@ -112,4 +128,41 @@ fn node_builtin(package: &str) -> bool {
             | "worker_threads"
             | "zlib"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn python(name: &str) -> Declaration {
+        Declaration {
+            ecosystem: "python",
+            name: name.to_owned(),
+            manifest: "requirements.txt".to_owned(),
+            scope: "requirements".to_owned(),
+        }
+    }
+
+    #[test]
+    fn python_import_names_match_their_distribution_names() {
+        for (distribution, imported) in [
+            ("PyYAML", "yaml"),
+            ("opencv-python", "cv2"),
+            ("Pillow", "PIL"),
+            ("scikit-learn", "sklearn"),
+            ("scikit-image", "skimage"),
+        ] {
+            assert!(matches_declaration(
+                &python(distribution),
+                "python",
+                imported
+            ));
+        }
+    }
+
+    #[test]
+    fn python_aliases_do_not_match_unrelated_distributions() {
+        assert!(!matches_declaration(&python("yaml"), "python", "PyYAML"));
+        assert!(!matches_declaration(&python("opencv"), "python", "cv2"));
+    }
 }
