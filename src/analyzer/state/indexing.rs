@@ -111,13 +111,17 @@ impl AnalysisState {
         let mut owners: BTreeMap<String, NodeId> = BTreeMap::new();
         let mut local = BTreeMap::new();
         for symbol in symbols {
+            let declaration_span = symbol
+                .source_extent
+                .clone()
+                .unwrap_or_else(|| symbol.span.clone());
             let mut node = Node::new(
                 symbol_id(relative, &symbol),
                 symbol.name.clone(),
                 symbol.kind.clone(),
             )?
             .with_language(language.as_str())
-            .with_span(symbol.span.clone());
+            .with_span(declaration_span);
             if symbol.test_only {
                 node = node.with_attribute("test_only", true);
             }

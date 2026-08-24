@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.4 - 2026-08-24
+
+- Symbol nodes from the shared JavaScript, TypeScript, Go, and other tokenized
+  parsers now expose the parser-owned full declaration extent. Consumers can
+  map line coverage to a function body without mistaking the name token for
+  the entire declaration. Symbol ids and containment provenance remain stable.
+
 ## 2.7.1 - 2026-08-23
 
 - Swift is a first-class language, not a generic braced table. Files in one
