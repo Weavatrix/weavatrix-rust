@@ -62,7 +62,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "cross_repo_git",
-        description: "Parallel histories, shared commits, or diffs across local repositories.",
+        description: "Parallel histories, shared commits, or diffs across named local repositories.",
         required: &["repositories"],
     },
     ToolSpec {
@@ -72,7 +72,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "trace_api_contract",
-        description: "Cross-repository HTTP, GraphQL, gRPC and event-transport contract evidence.",
+        description: "Cross-repository HTTP, GraphQL, gRPC and event-transport contract evidence for named backend and client roots.",
         required: &["backend", "clients"],
     },
     ToolSpec {
@@ -192,12 +192,12 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "open_repo",
-        description: "Retarget to another local repository.",
+        description: "Retarget to another local repository. Graphs unused for 20 minutes unload; asking for one again rescans that folder.",
         required: &["path"],
     },
     ToolSpec {
         name: "list_known_repos",
-        description: "List repositories opened by this server process.",
+        description: "List repositories with an in-process graph.",
         required: &[],
     },
     ToolSpec {

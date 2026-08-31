@@ -39,7 +39,7 @@
 
 ## Repository and optional analysis
 
-- `open_repo`, `list_known_repos`: local retargeting and cross-repository set.
-- `rebuild_graph`: explicit graph refresh or mode change.
+- `list_known_repos`: roots that already have an in-process graph.
+- `open_repo`, `rebuild_graph`: process-local retarget and refresh.
 - `vector_search`, `semantic_link`, `seo_link_suggestions`, `memory_context`:
   supplied-vector and supplied-event workflows.

@@ -8,8 +8,8 @@ use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use weavatrix_scan::{
-    ContentDiscoveryMode, ContentFileStatus, ContentVisitControl, ContentVisitEvent, ScanOptions,
-    ScanReport, Scanner,
+    ContentDiscoveryMode, ContentFileStatus, ContentVisitControl, ContentVisitEvent, EvidenceMode,
+    ScanOptions, ScanReport, Scanner,
 };
 
 /// Runs `fetch` across available cores and restores index order before the
@@ -200,6 +200,7 @@ impl Analyzer {
         let mut options = ScanOptions::default().with_extensions(extensions);
         options.max_file_bytes = self.config.max_file_bytes;
         options.content_discovery = ContentDiscoveryMode::BufferedParallel;
+        options.evidence = EvidenceMode::SelectedFiles;
         options
     }
 }

@@ -9,7 +9,7 @@ use blazingly_json::Value;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use weavatrix_graph::{Graph, NodeIndex};
 use weavatrix_scan::ScanReport;
 
@@ -27,5 +27,6 @@ pub struct Weavatrix {
     analyzer: Analyzer,
     state: RepositoryState,
     known_states: BTreeMap<PathBuf, RepositoryState>,
+    last_used: BTreeMap<PathBuf, Instant>,
     tool_cache: BTreeMap<String, Value>,
 }

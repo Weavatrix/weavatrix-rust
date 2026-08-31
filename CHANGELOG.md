@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Repository scans no longer retain a `SkippedEntry` for every ignored path.
+  `EvidenceMode::Complete` kept skip evidence for `target/`, `node_modules/`,
+  `.git/`, and the rest of the tree in the in-memory `ScanReport` for the
+  lifetime of the process, which could grow into multiple gigabytes.
+- Cached graphs that are not requested for 20 minutes are unloaded. A later
+  request for that root scans the folder from disk again. The live repository
+  and any root used in that window stay loaded.
+
 ## 2.7.4 - 2026-08-24
 
 - Symbol nodes from the shared JavaScript, TypeScript, Go, and other tokenized

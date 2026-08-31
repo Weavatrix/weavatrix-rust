@@ -26,6 +26,7 @@ use blazingly_json::{Value, json};
 /// failures without mutating repository source.
 #[allow(clippy::needless_pass_by_value)]
 pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<Value, String> {
+    weavatrix.prepare();
     let mut report = dispatch(weavatrix, name, &arguments)?;
     // A budget an operation cannot apply is reported, not refused: the answer
     // itself is never withheld.
@@ -95,7 +96,7 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
             }))
         }
         "list_known_repos" => Ok(json!({
-            "repositories": weavatrix.known_roots().collect::<Vec<_>>()
+            "repositories": weavatrix.known_roots().collect::<Vec<_>>(),
         })),
         _ => Err(format!("unknown tool: {name}")),
     }
