@@ -18,6 +18,7 @@ pub(crate) fn honoured() -> &'static [&'static str] {
         (true, true) => &[
             "context_bundle",
             "git_history",
+            "git_read_blob",
             "graph_diff",
             "query_graph",
             "read_source",
@@ -32,6 +33,7 @@ pub(crate) fn honoured() -> &'static [&'static str] {
         (false, true) => &[
             "context_bundle",
             "git_history",
+            "git_read_blob",
             "graph_diff",
             "query_graph",
             "read_source",

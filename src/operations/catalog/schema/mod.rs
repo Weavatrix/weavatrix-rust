@@ -83,6 +83,7 @@ fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
             "include_analytics",
             "token_budget",
         ]),
+        "git_read_blob" => Some(&["oid", "revision", "path", "max_bytes", "token_budget"]),
         "cross_repo_git" => Some(&[
             "action",
             "revision",

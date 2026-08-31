@@ -189,7 +189,10 @@ impl Weavatrix {
     }
 
     fn unload_idle(&mut self, max_idle: Duration) {
-        let now = Instant::now();
+        self.unload_idle_at(Instant::now(), max_idle);
+    }
+
+    fn unload_idle_at(&mut self, now: Instant, max_idle: Duration) {
         let active = self.state.root.clone();
         let before = self.known_states.len();
         // Keep the live graph and any root requested in the last window.
@@ -251,18 +254,19 @@ mod tests {
             })
             .expect("idle root")
             .to_path_buf();
-        let stale = Instant::now()
-            .checked_sub(IDLE_UNLOAD + Duration::from_secs(1))
+        // A fresh CI host may have booted seconds ago, so the past is not
+        // reachable by subtraction; the idle window is created by judging
+        // from a future instant instead.
+        let future = Instant::now()
+            .checked_add(IDLE_UNLOAD + Duration::from_secs(1))
             .expect("clock supports idle window");
         let roots: Vec<PathBuf> = engine.known_roots().map(Path::to_path_buf).collect();
         for root in roots {
-            if root == idle_root {
-                engine.last_used.insert(root, stale);
-            } else {
-                engine.last_used.insert(root, Instant::now());
+            if root != idle_root {
+                engine.last_used.insert(root, future);
             }
         }
-        engine.unload_idle(IDLE_UNLOAD);
+        engine.unload_idle_at(future, IDLE_UNLOAD);
 
         let remaining: Vec<_> = engine.known_roots().collect();
         assert_eq!(remaining.len(), 3, "only the working set should stay");

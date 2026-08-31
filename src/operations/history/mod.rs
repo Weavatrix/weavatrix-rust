@@ -10,14 +10,27 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(feature = "git")]
 use weavatrix_git::RepositorySet;
 #[cfg(feature = "git")]
-use weavatrix_git::{HistoryOptions, ObjectId, Repository};
+use weavatrix_git::{HistoryOptions, Repository};
 
 #[cfg(feature = "git")]
 mod analytics;
 #[cfg(feature = "git")]
+mod blob;
+#[cfg(feature = "git")]
 mod diff;
 #[cfg(feature = "git")]
 mod revision;
+
+#[cfg(feature = "git")]
+pub(in crate::operations) use blob::read_blob;
+
+#[cfg(not(feature = "git"))]
+pub(in crate::operations) fn read_blob(
+    _state: &RepositoryState,
+    _args: &Value,
+) -> Result<Value, String> {
+    Err("git capability is not compiled".to_owned())
+}
 
 #[cfg(feature = "git")]
 pub fn history(state: &RepositoryState, args: &Value) -> Result<Value, String> {
@@ -271,30 +284,4 @@ pub(super) fn worktree_changed_files(
 }
 
 #[cfg(feature = "git")]
-pub(super) fn resolve_revision(repository: &Repository, value: &str) -> Result<ObjectId, String> {
-    if let Some((base, hops)) = value.rsplit_once('~') {
-        let hops = hops
-            .parse::<usize>()
-            .map_err(|_| format!("invalid first-parent revision: {value}"))?;
-        let mut id = repository
-            .resolve(base)
-            .map_err(|error| error.to_string())?;
-        for _ in 0..hops {
-            id = first_parent(repository, id)?;
-        }
-        Ok(id)
-    } else {
-        repository.resolve(value).map_err(|error| error.to_string())
-    }
-}
-
-#[cfg(feature = "git")]
-fn first_parent(repository: &Repository, id: ObjectId) -> Result<ObjectId, String> {
-    repository
-        .commit_metadata(id)
-        .map_err(|error| error.to_string())?
-        .parents
-        .first()
-        .copied()
-        .ok_or_else(|| format!("commit {id} has no parent"))
-}
+pub(in crate::operations) use revision::{first_parent, resolve_revision};

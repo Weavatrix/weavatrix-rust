@@ -41,6 +41,7 @@ fn capability_is_compiled(tool: &str) -> bool {
         tool,
         "change_impact"
             | "git_history"
+            | "git_read_blob"
             | "cross_repo_git"
             | "verified_change"
             | "graph_diff"

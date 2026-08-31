@@ -28,6 +28,7 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "select_tests",
         "build_graph",
         "git_history",
+        "git_read_blob",
         "cross_repo_git",
         "verified_change",
         "trace_api_contract",

@@ -61,6 +61,11 @@ pub(super) const SPECS: &[ToolSpec] = &[
         required: &[],
     },
     ToolSpec {
+        name: "git_read_blob",
+        description: "Bounded UTF-8 file content at an immutable Git revision or blob OID; binary blobs are refused.",
+        required: &[],
+    },
+    ToolSpec {
         name: "cross_repo_git",
         description: "Parallel histories, shared commits, or diffs across named local repositories.",
         required: &["repositories"],

@@ -2,8 +2,41 @@ use crate::analyzer::{Analyzer, SourceInput};
 use crate::engine::RepositoryState;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use weavatrix_git::{EntryKind, ObjectKind, Repository};
+use weavatrix_git::{EntryKind, ObjectId, ObjectKind, Repository};
 use weavatrix_graph::Graph;
+
+pub(in crate::operations) fn resolve_revision(
+    repository: &Repository,
+    value: &str,
+) -> Result<ObjectId, String> {
+    if let Some((base, hops)) = value.rsplit_once('~') {
+        let hops = hops
+            .parse::<usize>()
+            .map_err(|_| format!("invalid first-parent revision: {value}"))?;
+        let mut id = repository
+            .resolve(base)
+            .map_err(|error| error.to_string())?;
+        for _ in 0..hops {
+            id = first_parent(repository, id)?;
+        }
+        Ok(id)
+    } else {
+        repository.resolve(value).map_err(|error| error.to_string())
+    }
+}
+
+pub(in crate::operations) fn first_parent(
+    repository: &Repository,
+    id: ObjectId,
+) -> Result<ObjectId, String> {
+    repository
+        .commit_metadata(id)
+        .map_err(|error| error.to_string())?
+        .parents
+        .first()
+        .copied()
+        .ok_or_else(|| format!("commit {id} has no parent"))
+}
 
 /// Analyzes an immutable revision and retains its source for baseline reviews.
 pub(in crate::operations) fn revision_evidence(

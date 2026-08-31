@@ -95,7 +95,7 @@ fn search_code_reports_budget_truncation_honestly() {
 fn honoured() -> Vec<&'static str> {
     let mut names = vec!["context_bundle", "query_graph", "read_source"];
     if cfg!(feature = "git") {
-        names.extend(["git_history", "graph_diff"]);
+        names.extend(["git_history", "git_read_blob", "graph_diff"]);
     }
     if cfg!(feature = "search") {
         names.push("search_code");
