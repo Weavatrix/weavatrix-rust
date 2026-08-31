@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.9.0 - 2026-08-31
+
+- New `git_read_blob` tool: bounded UTF-8 file content at an immutable Git
+  revision (`path` plus optional `revision`, default `HEAD`, `~N` supported)
+  or by blob `oid`, so a diff can be followed by "the file as it was"
+  without a checkout. Reports kind, true size and truncation; binary blobs
+  fail closed; `token_budget` is honoured.
+- The idle-unload engine test no longer subtracts the idle window from the
+  monotonic clock, which underflowed on freshly booted Windows CI hosts.
+
 ## 2.8.0 - 2026-08-31
 
 - JavaScript/TypeScript references no longer fall back to a repository-wide
