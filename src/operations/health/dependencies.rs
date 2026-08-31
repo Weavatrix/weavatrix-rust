@@ -81,6 +81,11 @@ fn missing_declaration_findings(
     let mut findings = Vec::new();
     for (language, packages) in &imports.external {
         let ecosystem = ecosystem(language);
+        // Only a language with a supported manifest ecosystem can be missing
+        // a declaration; anything else has nowhere to declare one.
+        if languages(ecosystem).is_empty() {
+            continue;
+        }
         for package in packages {
             if builtin(language, package)
                 || project_identity::contains(state, ecosystem, package)

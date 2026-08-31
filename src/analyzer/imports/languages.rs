@@ -37,7 +37,16 @@ pub(super) fn candidate_paths(
     let parent = Path::new(&item.source_path)
         .parent()
         .unwrap_or_else(|| Path::new(""));
-    if target.starts_with('.')
+    // Markup and style references are always paths: `src`, `href`, `@import`
+    // and `url()` resolve against the referencing document, and a leading `/`
+    // anchors at the served root rather than naming an absolute disk path.
+    if matches!(item.language.as_str(), "html" | "css") {
+        if let Some(rest) = target.strip_prefix('/') {
+            push_unique(&mut bases, normalize_join(Path::new(""), rest));
+        } else {
+            push_unique(&mut bases, normalize_join(parent, &target));
+        }
+    } else if target.starts_with('.')
         || matches!(
             item.language,
             Language::C | Language::Cpp | Language::Bash | Language::Protobuf
@@ -221,6 +230,7 @@ pub(super) fn extensions(language: &Language) -> &'static [&'static str] {
         Language::Bash => &["sh", "bash"],
         Language::Protobuf => &["proto"],
         Language::Swift => &["swift"],
+        _ if language.as_str() == "css" => &["css", "scss", "sass", "less"],
         _ => &[],
     }
 }

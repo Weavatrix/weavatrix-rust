@@ -5,13 +5,15 @@ mod configuration;
 mod languages;
 mod paths;
 mod resolution;
+mod specifiers;
 mod swift;
 
 use super::support::{parsed_provenance, sanitize_id};
 use crate::language::{ImportFact, Language};
 use crate::model::{Diagnostic, Result};
-use paths::{clean_specifier, package_name};
+use paths::package_name;
 use resolution::ResolutionContext;
+use specifiers::{SpecifierClass, classify_specifier};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use weavatrix_graph::{Edge, EdgeKind, GraphBuilder, Node, NodeId, NodeKind};
@@ -127,17 +129,7 @@ fn resolve_imports(
         }
         let locals = context.local_targets(&item);
         let is_local = !locals.is_empty();
-        // A specifier that points inside the repository but resolves to
-        // nothing is a resolver gap, not an external package.
-        if !is_local && !external_specifier(&item) {
-            diagnostics.push(Diagnostic {
-                code: "import.unresolved".into(),
-                message: format!(
-                    "{}: import specifier {} points inside the repository but no file matched",
-                    item.source_path, item.import.target
-                ),
-                span: Some(item.import.span.clone()),
-            });
+        if !is_local && settle_unresolved(graph, context, &item, &mut diagnostics)? {
             continue;
         }
         if is_local && let Some(path) = context.local_path(&item) {
@@ -231,14 +223,61 @@ fn add_forwarded_imports(
     Ok(())
 }
 
-/// Whether a specifier names something outside this repository. Relative,
-/// rooted, alias and subpath-import forms all address repository files.
-fn external_specifier(item: &PendingImport) -> bool {
-    if !matches!(item.language, Language::JavaScript | Language::TypeScript) {
-        return true;
+/// Settles a specifier no indexed file matched. Returns `true` when the
+/// import is fully handled here: an asset reference (an image, a font, a URL)
+/// proves nothing and is dropped; a path that exists on disk was excluded by
+/// scan policy and gets a node and an edge; a path matching nothing is a
+/// resolver-gap diagnostic. Only a bare package specifier flows on.
+fn settle_unresolved(
+    graph: &mut GraphBuilder,
+    context: &ResolutionContext<'_>,
+    item: &PendingImport,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<bool> {
+    match classify_specifier(item) {
+        SpecifierClass::Asset => Ok(true),
+        SpecifierClass::Local => {
+            if let Some(path) = context.on_disk(item) {
+                add_excluded_file_edge(graph, item, &path)?;
+            } else {
+                diagnostics.push(Diagnostic {
+                    code: "import.unresolved".into(),
+                    message: format!(
+                        "{}: import specifier {} points inside the repository but no file matched",
+                        item.source_path, item.import.target
+                    ),
+                    span: Some(item.import.span.clone()),
+                });
+            }
+            Ok(true)
+        }
+        SpecifierClass::Package => Ok(false),
     }
-    let target = clean_specifier(&item.import.target);
-    !(target.starts_with('.') || target.starts_with('/') || target.starts_with('#'))
+}
+
+/// Links a referenced repository file the scan policy left unindexed. The
+/// node carries `scan_excluded` so consumers know it has no parsed evidence.
+fn add_excluded_file_edge(
+    graph: &mut GraphBuilder,
+    item: &PendingImport,
+    path: &str,
+) -> Result<()> {
+    let file = Node::new(format!("file:{path}"), path, NodeKind::File)?
+        .with_attribute("scan_excluded", true);
+    let id = file.id.clone();
+    graph.add_node(file)?;
+    let provenance = parsed_provenance(item.extractor, Some(item.import.span.clone()))?
+        .with_detail(format!(
+            "repository file excluded by scan policy; specifier: {}",
+            item.import.target
+        ));
+    graph.add_edge(Edge::new(
+        item.source.clone(),
+        id,
+        EdgeKind::Imports,
+        provenance,
+    ))?;
+    Ok(())
 }
 
 fn add_package(graph: &mut GraphBuilder, item: &PendingImport) -> Result<NodeId> {

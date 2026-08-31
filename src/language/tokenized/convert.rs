@@ -21,17 +21,28 @@ fn owner_is_type(facts: &Facts, name: &str) -> bool {
 }
 
 fn keep_declaration(facts: &Facts, path: &str, kind: DeclarationKind, owner: Option<&str>) -> bool {
-    if !super::swift::is_source(path) {
-        return true;
-    }
     if !matches!(kind, DeclarationKind::Constant | DeclarationKind::Variable) {
         return true;
     }
-    owner.is_some_and(|name| owner_is_type(facts, name))
+    if super::swift::is_source(path) {
+        return owner.is_some_and(|name| owner_is_type(facts, name));
+    }
+    if super::node_http::is_script_source(path) {
+        // Module-level bindings are real module symbols (often exported), but
+        // a `const`/`let` inside a function is lexical scope: keeping it would
+        // offer every same-named local as a repository resolution target.
+        return owner.is_none_or(|name| owner_is_type(facts, name));
+    }
+    true
 }
 
 /// Converts parser facts into the language-neutral graph-builder contract.
-pub(super) fn convert(facts: &Facts, path: &str) -> FileFacts {
+pub(super) fn convert(
+    facts: &Facts,
+    path: &str,
+    text: &str,
+    parse: weavatrix_parse::Language,
+) -> FileFacts {
     let mut converted = FileFacts::default();
     let class_route_prefixes = class_route_prefixes(facts);
 
@@ -118,6 +129,9 @@ pub(super) fn convert(facts: &Facts, path: &str) -> FileFacts {
     }
     if super::swift::is_source(path) {
         super::swift::apply_http_methods(facts, path, &mut converted.domains);
+    }
+    if super::node_http::is_script_source(path) {
+        super::node_http::apply(path, text, parse, &mut converted);
     }
 
     converted

@@ -2,6 +2,49 @@ mod language_fixture;
 
 use language_fixture::Fixture;
 
+/// The repo-lens Electron regression: `BrowserWindow.loadFile(...)` opens the
+/// renderer page, and the page's `<script src>` loads renderer code. Without
+/// that chain the whole renderer looks dead.
+#[test]
+fn a_renderer_loaded_by_the_main_process_is_reachable() {
+    use blazingly_json::json;
+    use weavatrix_rust::{Weavatrix, tools};
+
+    let fixture = Fixture::new();
+    fixture.write("package.json", r#"{"name":"shell","main":"main.cjs"}"#);
+    fixture.write(
+        "main.cjs",
+        "const path = require('node:path');\n\
+         function open(window) {\n\
+           window.loadFile(path.join(__dirname, \"renderer/index.html\"));\n\
+         }\n\
+         module.exports = { open };\n",
+    );
+    fixture.write(
+        "renderer/index.html",
+        "<html><body><script src=\"boot.js\"></script></body></html>\n",
+    );
+    fixture.write("renderer/boot.js", "export function boot() { return 1; }\n");
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(&mut engine, "find_dead_code", json!({"top_n": 50})).unwrap();
+    let candidates = report["candidates"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item["node"]["id"].as_str().map(str::to_owned))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    for reachable in ["file:renderer/index.html", "file:renderer/boot.js"] {
+        assert!(
+            !candidates.iter().any(|id| id == reachable),
+            "{reachable} is loaded by the shell and must not be dead, got {candidates:?}"
+        );
+    }
+}
+
 /// Dead-code review must answer "unreachable from any way in", not "nothing
 /// imports it": the latter flags a package's own executables and its CI.
 #[test]

@@ -2,6 +2,8 @@ use weavatrix_rust::{Analyzer, EdgeKind, Snapshot, SourceInput};
 
 #[path = "analyze_call_resolution/python_syntax.rs"]
 mod python_syntax;
+#[path = "analyze_call_resolution/script_scope.rs"]
+mod script_scope;
 
 #[test]
 fn member_calls_do_not_bind_to_repository_wide_name_matches() {

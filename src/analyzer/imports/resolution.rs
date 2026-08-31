@@ -9,13 +9,24 @@ use std::ops::Bound;
 use std::path::Path;
 use weavatrix_graph::NodeId;
 
+/// Languages whose runtimes load modules from case-insensitive filesystems,
+/// so a unique case-insensitive match is how the program actually runs.
+fn folding_resolver(language: &Language) -> bool {
+    matches!(language, Language::JavaScript | Language::TypeScript)
+        || matches!(language.as_str(), "html" | "css")
+}
+
 pub(super) struct ResolutionContext<'a> {
     files: &'a BTreeMap<String, NodeId>,
+    root: std::path::PathBuf,
     repository_label: String,
     /// Workspace crate roots: normalized crate name -> `src` directory.
     rust_roots: BTreeMap<String, String>,
     /// Java classpath index: `com/x/Y.java` suffix -> repository path.
     java_index: BTreeMap<String, String>,
+    /// Case-folded path -> unique indexed path, for resolvers that load from
+    /// case-insensitive filesystems. `None` marks a case collision.
+    folded_files: BTreeMap<String, Option<String>>,
     script: ScriptResolver,
 }
 
@@ -82,13 +93,49 @@ impl<'a> ResolutionContext<'a> {
                 java_index.insert(key.to_owned(), path.clone());
             }
         }
+        let mut folded_files = BTreeMap::new();
+        if imports.iter().any(|item| folding_resolver(&item.language)) {
+            for path in files.keys() {
+                folded_files
+                    .entry(path.to_ascii_lowercase())
+                    .and_modify(|unique| *unique = None)
+                    .or_insert_with(|| Some(path.clone()));
+            }
+        }
         Self {
             files,
+            root: root.to_path_buf(),
             repository_label: repository_label.to_owned(),
             rust_roots,
             java_index,
+            folded_files,
             script,
         }
+    }
+
+    /// The first candidate that exists on disk even though the scan did not
+    /// index it - a real repository file under an excluded directory such as
+    /// a source folder named `coverage`.
+    pub(super) fn on_disk(&self, item: &PendingImport) -> Option<String> {
+        self.candidate_paths(item)
+            .into_iter()
+            .take(8)
+            .find(|candidate| self.root.join(candidate).is_file())
+    }
+
+    /// The indexed path a candidate names, including the unique
+    /// case-insensitive match Node and browsers accept on the filesystems
+    /// these files are loaded from.
+    fn existing(&self, candidate: &str, fold: bool) -> Option<String> {
+        if self.files.contains_key(candidate) {
+            return Some(candidate.to_owned());
+        }
+        if !fold {
+            return None;
+        }
+        self.folded_files
+            .get(&candidate.to_ascii_lowercase())?
+            .clone()
     }
 
     pub(super) fn local_targets(&self, item: &PendingImport) -> Vec<NodeId> {
@@ -96,7 +143,7 @@ impl<'a> ResolutionContext<'a> {
             Language::Go => self.go_targets(item),
             Language::Java => self.java_targets(item),
             _ => self
-                .first_existing(self.candidate_paths(item))
+                .first_existing(self.candidate_paths(item), folding_resolver(&item.language))
                 .into_iter()
                 .collect(),
         }
@@ -123,16 +170,18 @@ impl<'a> ResolutionContext<'a> {
         candidates
     }
 
-    fn first_existing(&self, candidates: Vec<String>) -> Option<NodeId> {
+    fn first_existing(&self, candidates: Vec<String>, fold: bool) -> Option<NodeId> {
         candidates
             .into_iter()
-            .find_map(|candidate| self.files.get(&candidate).cloned())
+            .find_map(|candidate| self.existing(&candidate, fold))
+            .and_then(|path| self.files.get(&path).cloned())
     }
 
     pub(super) fn local_path(&self, item: &PendingImport) -> Option<String> {
+        let fold = folding_resolver(&item.language);
         self.candidate_paths(item)
             .into_iter()
-            .find(|candidate| self.files.contains_key(candidate))
+            .find_map(|candidate| self.existing(&candidate, fold))
     }
 
     /// Files reached by following the barrel chain from this import, bounded

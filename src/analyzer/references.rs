@@ -15,10 +15,10 @@ pub(super) struct PendingReference {
 /// Resolves a referenced name in the scope the language actually gives it:
 /// the defining file first, then the files it imports (including everything
 /// reached through re-export barrels). A non-script free reference may finally
-/// use an unambiguous repository-wide declaration, but a script member call
-/// may not: `JSON.parse`, `statSync(path).isFile` or `values.includes` does not
-/// name an unrelated project function merely because its final segment is
-/// unique.
+/// use an unambiguous repository-wide declaration, but a script reference may
+/// not: `JSON.parse`, `statSync(path).isFile`, `values.includes`, or a bare
+/// `lines` parameter does not name an unrelated project symbol merely because
+/// its final segment is unique somewhere in the repository.
 pub(super) fn resolve(
     graph: &mut GraphBuilder,
     symbols: &HashMap<Language, HashMap<String, Vec<NodeId>>>,
@@ -59,9 +59,10 @@ fn resolve_name(
     // Without a receiver-to-type binding, a final member segment is not a
     // scoped symbol name. Checking `parse` in the current/imported file for
     // `JSON.parse` would still erase semantic evidence and can bind to an
-    // unrelated declaration.
-    if item.reference.kind == EdgeKind::Calls
-        && item.reference.qualified
+    // unrelated declaration. Property reads such as `report.lines` are member
+    // segments exactly like member calls, so every qualified script reference
+    // is refused, not only calls.
+    if item.reference.qualified
         && matches!(
             item.language,
             Language::JavaScript | Language::TypeScript | Language::Swift
@@ -95,16 +96,17 @@ fn resolve_name(
     if let Some(resolution) = imported_file_resolution(item, name, per_file, visible_imports) {
         return Some(resolution);
     }
-    // A script call not found in its lexical/import scope has no evidence for
-    // a repository-wide binding. This also covers complex receivers whose
-    // concrete name cannot be represented (`statSync(path).isFile`) without
-    // losing exact Go/Python/Java package-level free calls.
-    if item.reference.kind == EdgeKind::Calls
-        && matches!(
-            item.language,
-            Language::JavaScript | Language::TypeScript | Language::Swift
-        )
-    {
+    // A script reference not found in its lexical/import scope has no
+    // evidence for a repository-wide binding: modules do not share a global
+    // namespace, so a bare local such as a parameter named `lines` must not
+    // bind to a same-named symbol in an unrelated file. This also covers
+    // complex receivers whose concrete name cannot be represented
+    // (`statSync(path).isFile`) without losing exact Go/Python/Java
+    // package-level free calls.
+    if matches!(
+        item.language,
+        Language::JavaScript | Language::TypeScript | Language::Swift
+    ) {
         return None;
     }
     // 4. Non-script free calls and non-call references can still use a
@@ -206,7 +208,8 @@ fn unique_in_file(
     }
     let mut callable = defined.iter().filter(|target| {
         let id = target.as_str();
-        ["#function:", "#method:", "#class:"]
+        // Script classes are indexed as struct nodes, so both spellings count.
+        ["#function:", "#method:", "#class:", "#struct:"]
             .iter()
             .any(|kind| id.contains(kind))
     });

@@ -1,7 +1,6 @@
 use crate::language::{FileFacts, Language, LanguageRegistry};
 use crate::model::Result;
 use std::path::Path;
-use weavatrix_graph::EdgeKind;
 
 /// A file parsed off the graph thread; integration stays sequential and
 /// deterministic while parsing fans out across cores.
@@ -60,11 +59,10 @@ pub(in crate::analyzer) fn parse_source(
         let source_extent = symbol.source_extent.as_ref().unwrap_or(&symbol.span);
         symbol.source_fingerprint = declaration_text(text, source_extent).map(stable_fingerprint);
     }
+    // Property reads carry the same member operator as member calls, so the
+    // repair applies to every reference kind, not only `Calls`.
     for reference in &mut facts.references {
-        if reference.kind == EdgeKind::Calls
-            && !reference.qualified
-            && qualified_at_span(text, &reference.span)
-        {
+        if !reference.qualified && qualified_at_span(text, &reference.span) {
             reference.qualified = true;
         }
     }

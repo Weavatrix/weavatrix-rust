@@ -3,6 +3,7 @@
 mod convert;
 mod domains;
 mod kinds;
+mod node_http;
 mod swift;
 #[cfg(test)]
 mod tests;
@@ -127,6 +128,8 @@ impl LanguageAdapter for TokenizedAdapter {
         Ok(convert::convert(
             &weavatrix_parse::extract(source.text, self.parse),
             source.path,
+            source.text,
+            self.parse,
         ))
     }
 }

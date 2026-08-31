@@ -29,6 +29,76 @@ fn spring_class_and_method_mappings_form_the_served_route() {
     );
 }
 
+/// The repo-lens regression: routes written as `createServer` conditionals
+/// (`req.method === "GET" && url.pathname === "/ping"`) were invisible
+/// because only router-call shapes were extracted.
+#[test]
+fn hand_rolled_create_server_conditions_form_endpoints() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "control-server.js",
+        "const { createServer } = require('node:http');\n\
+         createServer((req, res) => {\n\
+           const url = new URL(req.url, 'http://localhost');\n\
+           if (req.method === \"GET\" && url.pathname === \"/ping\") {\n\
+             res.end('pong');\n\
+           } else if (req.method === \"GET\" && (url.pathname === \"/job\" || url.pathname === \"/jobs\")) {\n\
+             res.end('[]');\n\
+           } else if (req.method === \"POST\" && url.pathname === \"/action\") {\n\
+             res.end('ok');\n\
+           } else if (req.method !== \"DELETE\" && url.pathname === \"/never\") {\n\
+             res.end('negated');\n\
+           }\n\
+         }).listen(0);\n",
+    );
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    for label in ["GET /ping", "GET /job", "GET /jobs", "POST /action"] {
+        assert!(
+            snapshot
+                .nodes
+                .iter()
+                .any(|node| node.kind == NodeKind::Endpoint && node.label == label),
+            "missing hand-rolled endpoint {label}"
+        );
+    }
+    assert!(
+        !snapshot
+            .nodes
+            .iter()
+            .any(|node| node.kind == NodeKind::Endpoint && node.label == "DELETE /never"),
+        "a negated method comparison must not claim that method"
+    );
+    assert!(
+        snapshot
+            .nodes
+            .iter()
+            .any(|node| node.kind == NodeKind::Endpoint && node.label == "ANY /never"),
+        "the served path is still evidence when only the excluded method is known"
+    );
+}
+
+/// A client-side router compares paths without ever building a server; its
+/// conditions must not become endpoints.
+#[test]
+fn client_side_path_comparisons_are_not_endpoints() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "renderer/router.js",
+        "export function route(pathname) {\n\
+           if (pathname === \"/settings\") { return 'settings'; }\n\
+           return 'home';\n\
+         }\n",
+    );
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    assert!(
+        !snapshot
+            .nodes
+            .iter()
+            .any(|node| node.kind == NodeKind::Endpoint),
+        "a file that never builds a server exposes nothing"
+    );
+}
+
 #[test]
 fn resolves_express_mount_chains_to_full_paths() {
     let fixture = Fixture::new();
