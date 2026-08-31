@@ -117,6 +117,17 @@ fn read_repository_file(root: &Path, relative: &str) -> Result<String, String> {
     fs::read_to_string(&canonical).map_err(|error| format!("{}: {error}", canonical.display()))
 }
 
+/// Physical extent in lines of the declaration starting at `start_line`,
+/// measured from source. Shared with reviews that must not treat a
+/// single-line declaration span as a one-line function.
+pub(in crate::operations) fn function_lines(
+    source: &str,
+    start_line: u32,
+    language: Option<&str>,
+) -> u64 {
+    function_extent::lines(source, start_line, language)
+}
+
 fn physical_lines(source: &str) -> u64 {
     if source.is_empty() {
         return 0;

@@ -64,12 +64,24 @@ pub(super) fn path_class(path: &str) -> PathClass {
     {
         return PathClass::Classified;
     }
-    if has(&[
+    if is_auxiliary_content(&segments, file) {
+        return PathClass::Classified;
+    }
+    PathClass::Product
+}
+
+/// Generated, vendored, mock/mockup, documentation and build-support content:
+/// inventoried, but never part of a production-first answer.
+fn is_auxiliary_content(segments: &[&str], file: &str) -> bool {
+    let has = |names: &[&str]| segments.iter().any(|segment| names.contains(segment));
+    has(&[
         "generated",
         "vendor",
         "vendored",
         "mock",
         "mocks",
+        "mockup",
+        "mockups",
         "fixture",
         "fixtures",
         "fuzz",
@@ -104,10 +116,6 @@ pub(super) fn path_class(path: &str) -> PathClass {
         .any(|extension| file.ends_with(extension))
         || file.contains(".min.")
         || file.contains(".openapi.")
-    {
-        return PathClass::Classified;
-    }
-    PathClass::Product
 }
 
 fn is_tool_configuration(segments: &[&str], file: &str) -> bool {

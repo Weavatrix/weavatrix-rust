@@ -43,7 +43,8 @@ fn graph_fields(tool: &str) -> Option<&'static [&'static str]> {
         "god_nodes" => Some(&["top_n", "include_classified"]),
         "shortest_path" => Some(&["max_hops"]),
         "get_community" => Some(&["max_nodes", "cursor"]),
-        "list_communities" | "module_map" => Some(&["top_n", "include_non_product"]),
+        "list_communities" => Some(&["top_n", "include_non_product"]),
+        "module_map" => Some(&["top_n", "depth", "include_non_product"]),
         "build_graph" => Some(&["max_members"]),
         _ => None,
     }
@@ -179,13 +180,7 @@ fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str]> {
             "after",
             "token_budget",
         ]),
-        "inspect_symbol" => Some(&[
-            "precision",
-            "max_references",
-            "max_containers",
-            "context_lines",
-            "timeout_ms",
-        ]),
+        "inspect_symbol" => Some(&["precision", "max_references", "context_lines", "timeout_ms"]),
         "context_bundle" => Some(&[
             "precision",
             "max_references",

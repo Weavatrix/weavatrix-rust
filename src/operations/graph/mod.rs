@@ -65,7 +65,7 @@ pub fn get_node(state: &RepositoryState, args: &Value) -> Result<Value, String> 
 
 pub fn neighbors(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let index = state.resolve_node(arg_str(args, "label")?)?;
-    let filter = arg_str(args, "relation_filter").ok();
+    let filter = relation_filter(args)?;
     let offset = page_offset(args)?;
     let max_results = usize::try_from(arg_u64(args, "max_results").unwrap_or(50)).unwrap_or(50);
     if max_results == 0 || max_results > 500 {
@@ -85,7 +85,10 @@ pub fn neighbors(state: &RepositoryState, args: &Value) -> Result<Value, String>
         ),
     ] {
         for edge in edges {
-            if filter.is_some_and(|value| edge.kind.as_str() != value) {
+            if filter
+                .as_ref()
+                .is_some_and(|kinds| !kinds.contains(edge.kind.as_str()))
+            {
                 continue;
             }
             if total >= offset && items.len() < max_results {
@@ -138,7 +141,7 @@ pub fn query(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         _ => Direction::Both,
     };
     let dfs = arg_str(args, "mode").unwrap_or("bfs") == "dfs";
-    let relations = relation_filter(args);
+    let relations = relation_filter(args)?;
     let (visited, traversed) = traverse(
         state,
         seeds,
@@ -275,17 +278,22 @@ pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String
     }))
 }
 
-fn relation_filter(args: &Value) -> Option<std::collections::BTreeSet<String>> {
-    let value = args.get("relation_filter")?;
+fn relation_filter(args: &Value) -> Result<Option<std::collections::BTreeSet<String>>, String> {
+    const EXPECTED: &str = "relation_filter must be a relation name or a non-empty array of them";
+    let Some(value) = args.get("relation_filter") else {
+        return Ok(None);
+    };
     if let Some(value) = value.as_str() {
-        return Some(std::collections::BTreeSet::from([value.to_owned()]));
+        return Ok(Some(std::collections::BTreeSet::from([value.to_owned()])));
     }
-    Some(
-        value
-            .as_array()?
-            .iter()
-            .filter_map(Value::as_str)
-            .map(str::to_owned)
-            .collect(),
-    )
+    let items = value.as_array().ok_or_else(|| EXPECTED.to_owned())?;
+    let kinds = items
+        .iter()
+        .map(|item| item.as_str().map(str::to_owned))
+        .collect::<Option<std::collections::BTreeSet<String>>>()
+        .ok_or_else(|| EXPECTED.to_owned())?;
+    if kinds.is_empty() {
+        return Err(EXPECTED.to_owned());
+    }
+    Ok(Some(kinds))
 }

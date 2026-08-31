@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use weavatrix_graph::NodeKind;
 
 pub fn communities(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    let components = state.weak_components();
+    let components = state.coupled_components();
     if let Ok(id) = arg_u64(args, "community_id") {
         let id = usize::try_from(id).map_err(|_| "community_id is too large")?;
         let component = components
@@ -51,6 +51,11 @@ pub fn communities(state: &RepositoryState, args: &Value) -> Result<Value, Strin
 pub fn module_map(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let top = usize::try_from(optional_u64(args, "top_n")?.unwrap_or(25))
         .map_err(|_| "top_n is too large")?;
+    let depth = usize::try_from(optional_u64(args, "depth")?.unwrap_or(1))
+        .map_err(|_| "depth is too large")?;
+    if !(1..=8).contains(&depth) {
+        return Err("depth must be between 1 and 8".to_owned());
+    }
     let include_non_product = optional_bool(args, "include_non_product")?.unwrap_or(false);
     let mut modules = BTreeMap::<String, (u64, u64)>::new();
     for node in state.graph().nodes() {
@@ -65,7 +70,15 @@ pub fn module_map(state: &RepositoryState, args: &Value) -> Result<Value, String
         if !include_non_product && crate::operations::health::is_non_product(path) {
             continue;
         }
-        let module = path.split('/').next().unwrap_or("(root)").to_owned();
+        // The final segment is the file itself; a module is its directory
+        // chain cut at the requested depth.
+        let segments = path.split('/').collect::<Vec<_>>();
+        let directories = segments.len().saturating_sub(1);
+        let module = if directories == 0 {
+            "(root)".to_owned()
+        } else {
+            segments[..directories.min(depth)].join("/")
+        };
         let entry = modules.entry(module).or_default();
         if node.kind == NodeKind::File {
             entry.0 += 1;

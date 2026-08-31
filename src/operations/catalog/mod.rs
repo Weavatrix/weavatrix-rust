@@ -65,19 +65,32 @@ fn tool(
     description: &'static str,
     required: &[&'static str],
 ) -> ToolDefinition {
-    let mut properties = Map::from_iter([(
-        "output_format".to_owned(),
-        json!({
-            "type": "string",
-            "enum": ["text", "json", "structured"],
-            "default": "json",
-            "description": "text returns the concise text block only; json returns \
-                            structured output and mirrors it into text for clients that \
-                            read only content; structured drops that mirror, which is the \
-                            larger copy, and is safe only where the client reads \
-                            structuredContent"
-        }),
-    )]);
+    let mut properties = Map::from_iter([
+        (
+            "output_format".to_owned(),
+            json!({
+                "type": "string",
+                "enum": ["text", "json", "structured"],
+                "default": "json",
+                "description": "text returns the concise text block only; json returns \
+                                structured output and mirrors it into text for clients that \
+                                read only content; structured drops that mirror, which is the \
+                                larger copy, and is safe only where the client reads \
+                                structuredContent"
+            }),
+        ),
+        (
+            "expected_repository".to_owned(),
+            json!({
+                "type": "string",
+                "description": "Path or folder name of the repository this call is about; \
+                                the call fails instead of answering when the active \
+                                repository differs. Every answer also carries a \
+                                repository_context block naming its root, revision and \
+                                graph age."
+            }),
+        ),
+    ]);
     for name in schema::optional_fields(tool_name) {
         properties.insert((*name).to_owned(), schema::field_schema(tool_name, name));
     }

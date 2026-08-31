@@ -27,11 +27,58 @@ use blazingly_json::{Value, json};
 #[allow(clippy::needless_pass_by_value)]
 pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<Value, String> {
     weavatrix.prepare();
+    expect_repository(weavatrix, &arguments)?;
     let mut report = dispatch(weavatrix, name, &arguments)?;
     // A budget an operation cannot apply is reported, not refused: the answer
     // itself is never withheld.
     token_budget::annotate_unapplied(name, &arguments, &mut report)?;
+    attach_repository_context(weavatrix, &mut report);
     Ok(report)
+}
+
+/// Fails fast when the caller names the repository it expects and this
+/// process is targeting a different one. A stateful server that silently
+/// answers about the previously opened repository produces confidently wrong
+/// evidence, which is worse than an error.
+fn expect_repository(weavatrix: &Weavatrix, args: &Value) -> Result<(), String> {
+    let Some(expected) = optional_str(args, "expected_repository")? else {
+        return Ok(());
+    };
+    let active = weavatrix.state().root();
+    let canonical = std::path::Path::new(expected).canonicalize().ok();
+    if canonical.as_deref() == Some(active) {
+        return Ok(());
+    }
+    let folder = |path: &std::path::Path| {
+        path.file_name()
+            .map(|name| name.to_string_lossy().to_ascii_lowercase())
+    };
+    if folder(std::path::Path::new(expected)) == folder(active) {
+        return Ok(());
+    }
+    Err(format!(
+        "active repository is {}, not the expected {expected}; call open_repo first",
+        active.display()
+    ))
+}
+
+/// Every answer names the repository, revision and graph age it came from, so
+/// a caller can detect a stale graph or a wrong active repository without a
+/// second round trip.
+fn attach_repository_context(weavatrix: &Weavatrix, report: &mut Value) {
+    let state = weavatrix.state();
+    let Some(object) = report.as_object_mut() else {
+        return;
+    };
+    object.insert(
+        "repository_context".to_owned(),
+        json!({
+            "root": state.root(),
+            "scan_revision": state.snapshot().revision,
+            "git_head": crate::engine::git_head(state.root()),
+            "graph_age_seconds": state.graph_age_seconds()
+        }),
+    );
 }
 
 fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<Value, String> {

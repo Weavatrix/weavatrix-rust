@@ -85,6 +85,24 @@ pub(super) const RULES: &[Rule] = &[
     },
 ];
 
+/// Whether the empty handler carries an inline comment. `runtime_code` blanks
+/// comments in place byte for byte, so any position where the original line
+/// differs from the runtime view after the handler keyword is a written
+/// reason (`/* best-effort */`, `# already gone`), not silence.
+pub(super) fn handler_is_commented(original: &str, code: &str) -> bool {
+    if original.len() != code.len() {
+        return false;
+    }
+    let Some(start) = ["catch", "except", "=>"]
+        .iter()
+        .filter_map(|marker| code.rfind(marker))
+        .max()
+    else {
+        return false;
+    };
+    original.as_bytes()[start..] != code.as_bytes()[start..]
+}
+
 /// A finding identity that survives line shifts.
 pub(super) fn finding_id(rule: &str, path: &str, line: &str) -> String {
     let normalized = line.split_whitespace().collect::<Vec<_>>().join(" ");

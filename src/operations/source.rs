@@ -1,7 +1,7 @@
 use crate::engine::RepositoryState;
 #[cfg(feature = "search")]
 use crate::operations::arg_bool;
-use crate::operations::{arg_str, arg_u64};
+use crate::operations::{arg_str, arg_u64, optional_u64};
 use blazingly_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -155,7 +155,15 @@ pub fn inspect(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let label = arg_str(args, "label")?;
     let index = state.resolve_node(label)?;
     let node = state.node(index)?;
-    let relationships = super::graph::neighbors(state, &json!({"label": node.id.as_str()}))?;
+    let max_references = optional_u64(args, "max_references")?;
+    if max_references.is_some_and(|value| value == 0 || value > 500) {
+        return Err("max_references must be between 1 and 500".to_owned());
+    }
+    let neighbor_args = max_references.map_or_else(
+        || json!({"label": node.id.as_str()}),
+        |max| json!({"label": node.id.as_str(), "max_results": max}),
+    );
+    let relationships = super::graph::neighbors(state, &neighbor_args)?;
     let source = node
         .span
         .as_ref()
@@ -214,12 +222,55 @@ pub fn context(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         "related_source": sources,
         "bounded": true
     });
+    // The target node and its own source are never trimmed: a bundle that
+    // drops its subject to keep its periphery answers the wrong question.
     super::token_budget::fit(
         &mut report,
         budget,
-        &["/related_source", "/inspection/source/lines"],
+        &["/inspection/relationships/neighbors", "/related_source"],
     );
+    if let Some(budget) = budget {
+        let estimated = super::token_budget::estimate(&report);
+        if estimated > budget {
+            return Err(format!(
+                "token_budget {budget} is below the target symbol itself (~{estimated} tokens \
+                 with every related item dropped); raise the budget or use read_source"
+            ));
+        }
+        repage_relationships(&mut report);
+    }
     Ok(report)
+}
+
+/// Restores honest pagination counters after a budget trim of the
+/// relationships array.
+fn repage_relationships(report: &mut Value) {
+    let Some(returned) = report
+        .pointer("/inspection/relationships/neighbors")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+    else {
+        return;
+    };
+    let Some(page) = report
+        .pointer_mut("/inspection/relationships/page")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    let total = page.get("total").and_then(Value::as_u64).unwrap_or(0);
+    let offset = page.get("offset").and_then(Value::as_u64).unwrap_or(0);
+    let end = offset.saturating_add(returned as u64);
+    page.insert("returned".to_owned(), json!(returned));
+    page.insert("has_more".to_owned(), json!(end < total));
+    page.insert(
+        "next_cursor".to_owned(),
+        if end < total {
+            json!(format!("v1:{end}"))
+        } else {
+            Value::Null
+        },
+    );
 }
 
 fn secure_path(root: &Path, relative: &str) -> Result<PathBuf, String> {

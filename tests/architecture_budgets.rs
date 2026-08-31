@@ -5,6 +5,34 @@ use blazingly_json::{Value, json};
 use support::GitFixture;
 use weavatrix_rust::{Weavatrix, tools};
 
+/// The repo-lens regression: `.prettierrc.json`, `README.md` and `ROADMAP.md`
+/// each became a standalone architecture component in the derived starter.
+#[test]
+fn the_starter_contract_derives_components_from_production_modules_only() {
+    let fixture = GitFixture::new();
+    fixture.write("README.md", "# app\n");
+    fixture.write("ROADMAP.md", "later\n");
+    fixture.write(".prettierrc.json", "{}\n");
+    fixture.write("tsconfig.json", "{}\n");
+    fixture.write("index.js", "export const boot = 1;\n");
+    fixture.write("src/app.js", "export const app = 1;\n");
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(&mut engine, "get_architecture_contract", json!({})).unwrap();
+    assert_eq!(report["state"], "NOT_CONFIGURED");
+    let ids = report["starter"]["components"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|component| component["id"].as_str().map(str::to_owned))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ids,
+        vec!["src".to_owned(), "root".to_owned()],
+        "documentation and tool configuration are not components: {report}"
+    );
+}
+
 #[test]
 fn oversized_file_and_function_budgets_block_with_stable_evidence() {
     let fixture = GitFixture::new();

@@ -7,7 +7,7 @@ mod policy_reachability;
 mod policy_selectors;
 mod policy_templates;
 mod rules;
-mod source_metrics;
+pub(in crate::operations) mod source_metrics;
 
 use crate::engine::RepositoryState;
 use crate::operations::arg_str;

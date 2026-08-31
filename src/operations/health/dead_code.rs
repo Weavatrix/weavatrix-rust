@@ -60,7 +60,7 @@ pub(in crate::operations) fn dead_code(
                 .incoming_at(index)
                 .filter(|edge| edge.kind != EdgeKind::Contains)
                 .count();
-            let (confidence, confidence_score) = confidence(&node.kind);
+            let (confidence, confidence_score) = confidence(node);
             if references != 0 || confidence_score < min_confidence {
                 return None;
             }
@@ -101,11 +101,23 @@ fn requested_kinds(args: &Value) -> Result<Option<BTreeSet<String>>, String> {
     Ok(Some(kinds))
 }
 
-const fn confidence(kind: &NodeKind) -> (&'static str, u64) {
-    if matches!(kind, NodeKind::File) {
-        ("low", 25)
-    } else {
+/// Evidence-tiered confidence on a real 0-100 scale: 25 for whole files
+/// (entry conventions are incomplete), 50 for exported symbols (external
+/// consumers are invisible), 85 for private symbols nothing references (the
+/// strongest claim bounded static analysis can make; reflection and dynamic
+/// dispatch keep it below 100).
+fn confidence(node: &weavatrix_graph::Node) -> (&'static str, u64) {
+    if node.kind == NodeKind::File {
+        return ("low", 25);
+    }
+    let exported = matches!(
+        node.attributes.get("exported"),
+        Some(weavatrix_graph::AttributeValue::Bool(true))
+    );
+    if exported {
         ("medium", 50)
+    } else {
+        ("high", 85)
     }
 }
 

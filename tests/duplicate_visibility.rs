@@ -8,6 +8,50 @@ use tool_fixture::Fixture;
 #[cfg(feature = "clone")]
 use weavatrix_rust::{Weavatrix, tools};
 
+/// The repo-lens regression: a `mockups/` folder is auxiliary content, so its
+/// copies stay out of the default production answer and return on opt-in.
+#[test]
+#[cfg(feature = "clone")]
+fn mockup_copies_are_classified_and_hidden_by_default() {
+    let fixture = Fixture::new();
+    let source = "\
+export function layout(value) {
+  if (value > 10) {
+    return value * 2;
+  }
+  return value + 1;
+}
+";
+    fixture.write("src/panel.js", source);
+    fixture.write("mockups/panel.js", source);
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    let production = tools::call(
+        &mut engine,
+        "find_duplicates",
+        json!({"mode": "strict", "min_tokens": 12, "top_n": 50}),
+    )
+    .unwrap();
+    assert_eq!(
+        production["pairs"].as_array().unwrap().len(),
+        0,
+        "a mockup copy is not a production duplicate: {production:?}"
+    );
+
+    let widened = tools::call(
+        &mut engine,
+        "find_duplicates",
+        json!({"mode": "strict", "min_tokens": 12, "top_n": 50, "include_classified": true}),
+    )
+    .unwrap();
+    assert!(
+        widened["pairs"]
+            .as_array()
+            .is_some_and(|pairs| !pairs.is_empty()),
+        "opting in must reveal the mockup copy: {widened:?}"
+    );
+}
+
 #[test]
 #[cfg(feature = "clone")]
 fn duplicate_filter_rebuilds_families_without_test_members_or_dangling_pairs() {

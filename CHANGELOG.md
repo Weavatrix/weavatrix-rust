@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+- JavaScript/TypeScript references no longer fall back to a repository-wide
+  unique-name match: `body.join("\n")` cannot bind to an unrelated `join`
+  function in another file, and a bare parameter such as `lines` cannot bind
+  across files. Property reads now carry the same member-operator refusal as
+  member calls, and script function-local `const`/`let` bindings are no
+  longer graph symbols.
+- HTML `src`/`href` and CSS `@import` resolve relative to the referencing
+  document (a leading `/` anchors at the repository root), so local page
+  resources become import edges instead of npm packages. References to
+  non-indexed assets - images, fonts, URLs - are dropped rather than
+  reported, and `dependency.missing` is emitted only for languages with a
+  supported manifest ecosystem.
+- Script and page imports accept a unique case-insensitive file match, the
+  way Node and browsers load these files from the filesystems they run on.
+- Hand-rolled Node routes are extracted from `req.method === "GET" &&
+  url.pathname === "/x"` conditions inside files that build their own
+  server, and `BrowserWindow.loadFile("renderer/index.html")` plus the
+  page's `<script src>` chain now make desktop renderer code reachable for
+  dead-code review.
+- `get_neighbors` applies an array-valued `relation_filter` (an empty array
+  is an error); `context_bundle` and `inspect_symbol` apply
+  `max_references`; `hot_path_review` applies `min_score`,
+  `cyclomatic_threshold`, `call_threshold` and `loop_depth_threshold`. The
+  undeliverable `time_rank_threshold` and `max_containers` parameters are
+  withdrawn from the schema.
+- `context_bundle` trims relationships and related source first and never
+  drops the target's own source. A budget below the target symbol itself is
+  an explicit error, and pagination counters describe the trimmed answer.
+- `hot_path_review` ranks functions by `complexity_cost x (1 + resolved call
+  fan-in)`, with cyclomatic and loop-nesting metrics measured from source;
+  the old lines-plus-graph-degree score is gone.
+- `find_dead_code` confidence is evidence-tiered across the advertised
+  0-100 scale: 25 for whole files, 50 for exported symbols, 85 for private
+  symbols nothing references.
+- An empty `catch`/`except` carrying an inline comment reports as `low`
+  severity - stated best-effort intent is review, not an error; silent ones
+  stay `high`.
+- Every answer carries a `repository_context` block naming its root, scan
+  revision, Git `HEAD` and graph age, and the new `expected_repository`
+  argument fails the call when the active repository differs.
+- `list_communities` and `get_community` are computed over coupling edges
+  only: containment, method membership and shared external packages no
+  longer merge the repository into one component. `module_map` accepts
+  `depth` for maps below the top-level folders.
+- Duplicate review classifies `mockup/`/`mockups/` as auxiliary content, and
+  the derived architecture starter builds components from production modules
+  only - documentation and tool configuration are inventory, not components.
 - Repository scans no longer retain a `SkippedEntry` for every ignored path.
   `EvidenceMode::Complete` kept skip evidence for `target/`, `node_modules/`,
   `.git/`, and the rest of the tree in the in-memory `ScanReport` for the

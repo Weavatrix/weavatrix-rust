@@ -37,7 +37,6 @@ pub(super) fn health_fields(tool: &str) -> Option<&'static [&'static str]> {
             "cyclomatic_threshold",
             "call_threshold",
             "loop_depth_threshold",
-            "time_rank_threshold",
             "include_tests",
             "include_classified",
         ]),

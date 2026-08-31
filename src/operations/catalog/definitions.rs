@@ -77,7 +77,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "get_community",
-        description: "Return one weak graph component.",
+        description: "Return one coupling community (containment and package edges excluded).",
         required: &["community_id"],
     },
     ToolSpec {
@@ -122,17 +122,17 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "hot_path_review",
-        description: "Rank high-connectivity and large source symbols.",
+        description: "Rank functions by static complexity times resolved call fan-in.",
         required: &[],
     },
     ToolSpec {
         name: "list_communities",
-        description: "List deterministic weak graph components.",
+        description: "List deterministic coupling communities (containment and package edges excluded).",
         required: &[],
     },
     ToolSpec {
         name: "module_map",
-        description: "Production folder and dependency map.",
+        description: "Production folder map at a requested directory depth.",
         required: &[],
     },
     ToolSpec {
@@ -142,7 +142,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "list_endpoints",
-        description: "Inventory statically extracted HTTP endpoints.",
+        description: "Inventory statically extracted HTTP endpoints, including hand-rolled req.method/pathname conditions.",
         required: &[],
     },
     ToolSpec {

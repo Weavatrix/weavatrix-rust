@@ -4,7 +4,7 @@ use crate::model::{Error, Result, Snapshot};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
-use weavatrix_graph::{Graph, Node, NodeIndex, weakly_connected_components};
+use weavatrix_graph::{EdgeKind, Graph, Node, NodeIndex, NodeKind};
 use weavatrix_scan::ScanReport;
 
 impl RepositoryState {
@@ -22,6 +22,7 @@ impl RepositoryState {
             graph: Arc::new(graph),
             scan,
             build_time: started.elapsed(),
+            built_at: Instant::now(),
             weak_components: Arc::new(OnceLock::new()),
         })
     }
@@ -36,8 +37,15 @@ impl RepositoryState {
             graph: Arc::new(graph),
             scan,
             build_time: started.elapsed(),
+            built_at: Instant::now(),
             weak_components: Arc::new(OnceLock::new()),
         })
+    }
+
+    /// Age of this in-memory graph: seconds since it was built from disk.
+    #[must_use]
+    pub fn graph_age_seconds(&self) -> u64 {
+        self.built_at.elapsed().as_secs()
     }
 
     #[must_use]
@@ -65,13 +73,9 @@ impl RepositoryState {
         &self.scan
     }
 
-    pub(crate) fn weak_components(&self) -> &[Vec<NodeIndex>] {
+    pub(crate) fn coupled_components(&self) -> &[Vec<NodeIndex>] {
         self.weak_components
-            .get_or_init(|| {
-                let mut components = weakly_connected_components(self.graph.as_ref());
-                components.sort_unstable_by_key(|right| std::cmp::Reverse(right.len()));
-                components
-            })
+            .get_or_init(|| coupled_components(self.graph.as_ref()))
             .as_slice()
     }
 
@@ -84,11 +88,7 @@ impl RepositoryState {
         let destination = Arc::clone(&self.weak_components);
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(10));
-            destination.get_or_init(|| {
-                let mut components = weakly_connected_components(graph.as_ref());
-                components.sort_unstable_by_key(|right| std::cmp::Reverse(right.len()));
-                components
-            });
+            destination.get_or_init(|| coupled_components(graph.as_ref()));
         });
     }
 
@@ -125,4 +125,106 @@ impl RepositoryState {
             .node_at(index)
             .ok_or_else(|| format!("node index out of range: {}", index.index()))
     }
+}
+
+/// The commit `HEAD` names in the repository at `root`, read from Git's own
+/// files without executing anything. `None` outside a Git checkout or on any
+/// unreadable layout; linked worktrees resolve through `commondir`.
+#[must_use]
+pub fn git_head(root: &Path) -> Option<String> {
+    let mut git_dir = root.join(".git");
+    if git_dir.is_file() {
+        let text = std::fs::read_to_string(&git_dir).ok()?;
+        let relative = text.strip_prefix("gitdir:")?.trim();
+        let candidate = Path::new(relative);
+        git_dir = if candidate.is_absolute() {
+            candidate.to_path_buf()
+        } else {
+            root.join(candidate)
+        };
+    }
+    let head = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let head = head.trim();
+    let Some(reference) = head.strip_prefix("ref:") else {
+        return Some(head.to_owned());
+    };
+    let reference = reference.trim();
+    let common = std::fs::read_to_string(git_dir.join("commondir"))
+        .map_or_else(|_| git_dir.clone(), |dir| git_dir.join(dir.trim()));
+    for base in [&git_dir, &common] {
+        if let Ok(hash) = std::fs::read_to_string(base.join(reference)) {
+            return Some(hash.trim().to_owned());
+        }
+    }
+    let packed = std::fs::read_to_string(common.join("packed-refs")).ok()?;
+    packed
+        .lines()
+        .filter_map(|line| line.split_once(' '))
+        .find(|(_, name)| *name == reference)
+        .map(|(hash, _)| hash.trim().to_owned())
+}
+
+/// Connected components over coupling evidence only, largest first.
+/// Containment, method membership and shared external packages connect
+/// everything to everything, so they cannot define a community; singleton
+/// components carry no coupling and are dropped.
+fn coupled_components(graph: &Graph) -> Vec<Vec<NodeIndex>> {
+    fn find(parent: &mut [usize], node: usize) -> usize {
+        let mut root = node;
+        while parent[root] != root {
+            root = parent[root];
+        }
+        let mut current = node;
+        while parent[current] != root {
+            let next = parent[current];
+            parent[current] = root;
+            current = next;
+        }
+        root
+    }
+    let nodes = graph.nodes();
+    let mut parent = (0..nodes.len()).collect::<Vec<_>>();
+    let is_package = |slot: usize| {
+        nodes
+            .get(slot)
+            .is_some_and(|node| node.kind == NodeKind::Package)
+    };
+    for slot in 0..nodes.len() {
+        let index = NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX));
+        for edge in graph.outgoing_at(index) {
+            if matches!(edge.kind, EdgeKind::Contains | EdgeKind::Method) {
+                continue;
+            }
+            let Some(target) = graph.node_index(edge.target.as_str()) else {
+                continue;
+            };
+            if is_package(slot) || is_package(target.index()) {
+                continue;
+            }
+            let left = find(&mut parent, slot);
+            let right = find(&mut parent, target.index());
+            if left != right {
+                parent[left.max(right)] = left.min(right);
+            }
+        }
+    }
+    let mut groups = std::collections::BTreeMap::<usize, Vec<NodeIndex>>::new();
+    for slot in 0..nodes.len() {
+        let root = find(&mut parent, slot);
+        groups
+            .entry(root)
+            .or_default()
+            .push(NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX)));
+    }
+    let mut components = groups
+        .into_values()
+        .filter(|members| members.len() > 1)
+        .collect::<Vec<_>>();
+    components.sort_by_key(|members| {
+        (
+            std::cmp::Reverse(members.len()),
+            members.first().map_or(0, |index| index.index()),
+        )
+    });
+    components
 }

@@ -12,7 +12,11 @@ then use repository-native tests or benchmarks for behavioral proof.
 ## Start
 
 1. Call `graph_stats` to confirm the active repository and graph revision.
-2. Use `module_map` for orientation or `search_code` for a known literal.
+   Every answer also carries `repository_context`; when the conversation
+   names a repository, pass `expected_repository` so a stale retarget fails
+   loudly instead of answering about the wrong root.
+2. Use `module_map` (optionally `depth`) for orientation or `search_code`
+   for a known literal.
 3. Pin an exact symbol with `inspect_symbol` or `context_bundle`.
 4. Expand only with `get_neighbors`, `get_dependents`, `query_graph`, or
    `shortest_path` when the task needs relationship evidence.

@@ -37,23 +37,44 @@ pub(super) fn not_configured(state: &RepositoryState, reason: &str) -> Value {
 }
 
 pub(super) fn starter(state: &RepositoryState) -> Value {
+    // Components describe production modules. Documentation, CI descriptors
+    // and tool configuration are inventory, not architecture, and a root-level
+    // entry script is one `root` component rather than a component per file.
     let mut roots = BTreeSet::new();
+    let mut root_files = BTreeSet::new();
     for node in state
         .graph()
         .nodes()
         .iter()
         .filter(|node| node.kind == weavatrix_graph::NodeKind::File)
+        .filter(|node| !crate::operations::health::is_non_product(&node.label))
     {
-        roots.insert(node.label.split('/').next().unwrap_or("root").to_owned());
+        match node.label.split_once('/') {
+            Some((first, _)) => {
+                roots.insert(first.to_owned());
+            }
+            None => {
+                root_files.insert(node.label.clone());
+            }
+        }
+    }
+    let mut components = roots
+        .into_iter()
+        .map(|root| json!({"id": root.replace('_', "-"), "name": root, "paths": [root]}))
+        .collect::<Vec<_>>();
+    if !root_files.is_empty() {
+        components.push(json!({
+            "id": "root",
+            "name": "root",
+            "paths": root_files.into_iter().collect::<Vec<_>>()
+        }));
     }
     json!({
         "architectureContractV": 1,
         "name": "Derived no-regressions architecture",
         "style": "modular-components",
         "enforcement": "ratchet",
-        "components": roots.into_iter().map(|root| {
-            json!({"id": root.replace('_', "-"), "name": root, "paths": [root]})
-        }).collect::<Vec<_>>(),
+        "components": components,
         "dependencyRules": [],
         "budgets": {
             "runtimeCycles": 0,

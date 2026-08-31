@@ -13,6 +13,8 @@ use std::time::{Duration, Instant};
 use weavatrix_graph::{Graph, NodeIndex};
 use weavatrix_scan::ScanReport;
 
+pub use repository_state::git_head;
+
 #[derive(Debug, Clone)]
 pub struct RepositoryState {
     root: PathBuf,
@@ -20,6 +22,7 @@ pub struct RepositoryState {
     graph: Arc<Graph>,
     scan: ScanReport,
     build_time: Duration,
+    built_at: Instant,
     weak_components: Arc<OnceLock<Vec<Vec<NodeIndex>>>>,
 }
 

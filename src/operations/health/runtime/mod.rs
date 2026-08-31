@@ -54,7 +54,10 @@ fn runtime_findings_with_minimum(
                 if !rule.languages.is_empty() && !rule.languages.contains(&language.as_str()) {
                     continue;
                 }
-                if !severity_at_least(rule.severity, min_severity) {
+                // The empty-catch severity depends on the matched line, so its
+                // minimum-severity gate runs after the match.
+                let adjustable = rule.id == "runtime.empty_catch";
+                if !adjustable && !severity_at_least(rule.severity, min_severity) {
                     continue;
                 }
                 if rule.id == "runtime.blocking_call_in_async"
@@ -63,6 +66,19 @@ fn runtime_findings_with_minimum(
                     continue;
                 }
                 if (rule.matches)(code_line) {
+                    let (severity, message) =
+                        if adjustable && rules::handler_is_commented(line, code_line) {
+                            (
+                                "low",
+                                "empty catch/except carries an inline comment; stated \
+                                 best-effort or cleanup intent - review, not an error",
+                            )
+                        } else {
+                            (rule.severity, rule.message)
+                        };
+                    if !severity_at_least(severity, min_severity) {
+                        continue;
+                    }
                     if findings.len() >= max {
                         truncated = true;
                         break;
@@ -71,11 +87,11 @@ fn runtime_findings_with_minimum(
                         "id": finding_id(rule.id, &path, line),
                         "rule": rule.id,
                         "category": "runtime",
-                        "severity": rule.severity,
+                        "severity": severity,
                         "file": path,
                         "line": offset + 1,
                         "language": language,
-                        "message": rule.message,
+                        "message": message,
                         "evidence": line.trim(),
                     }));
                 }
