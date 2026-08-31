@@ -1,6 +1,6 @@
 [package]
 name = "weavatrix-rust"
-version = "2.7.4"
+version = "2.8.0"
 edition = "2024"
 rust-version = "1.89"
 description = "Protocol-independent Rust repository intelligence: typed evidence graphs for impact, architecture, APIs, Git, search, and memory"

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.8.0 - 2026-08-31
 
 - JavaScript/TypeScript references no longer fall back to a repository-wide
   unique-name match: `body.join("\n")` cannot bind to an unrelated `join`
