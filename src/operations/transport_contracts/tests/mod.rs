@@ -13,5 +13,6 @@ use weavatrix_parse::Language;
 use super::transport_fixture::TempRepository;
 
 mod extraction;
+mod http;
 mod integration;
 mod runtime;

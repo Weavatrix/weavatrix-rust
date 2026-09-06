@@ -4,7 +4,32 @@ use blazingly_json::{Value, json};
 use std::collections::BTreeSet;
 use weavatrix_graph::NodeKind;
 
+/// Tool-specific keys `change_impact` accepts (plus shared catalog keys).
+pub(super) const CHANGE_IMPACT_KEYS: &[&str] = &[
+    "base",
+    "base_ref",
+    "head_ref",
+    "diff",
+    "files",
+    "target",
+    "depth",
+    "max_nodes",
+    "precision",
+    "max_references",
+    "timeout_ms",
+];
+
 pub(in crate::operations) fn change_impact(
+    state: &RepositoryState,
+    args: &Value,
+) -> Result<Value, String> {
+    crate::operations::reject_unknown_arguments("change_impact", args, CHANGE_IMPACT_KEYS)?;
+    change_impact_unchecked(state, args)
+}
+
+/// Same as `change_impact` without tool-key rejection, for composite callers that
+/// forward a larger argument object (for example `verified_change`).
+pub(super) fn change_impact_unchecked(
     state: &RepositoryState,
     args: &Value,
 ) -> Result<Value, String> {
@@ -81,21 +106,44 @@ pub(super) fn worktree_changes(
 }
 
 pub(super) fn explicit_changed_files(args: &Value) -> Result<Option<Vec<String>>, String> {
-    if let Some(value) = args.get("files") {
-        let files = value
-            .as_array()
-            .ok_or_else(|| "files must be an array of strings".to_owned())?;
-        return Ok(Some(
-            files
-                .iter()
-                .map(|item| {
-                    item.as_str()
-                        .map(normalize_path)
-                        .ok_or_else(|| "files must contain only strings".to_owned())
-                })
-                .collect::<Result<Vec<_>, String>>()?,
-        ));
+    let files = parse_files_array(args)?;
+    let target = optional_str(args, "target")?.map(normalize_path);
+    match (files, target) {
+        (Some(files), Some(target)) => {
+            if files == [target.as_str()] {
+                Ok(Some(files))
+            } else {
+                Err(format!(
+                    "target and files disagree: target={target:?}, files={files:?}"
+                ))
+            }
+        }
+        (Some(files), None) => Ok(Some(files)),
+        (None, Some(target)) => Ok(Some(vec![target])),
+        (None, None) => parse_diff_files(args),
     }
+}
+
+fn parse_files_array(args: &Value) -> Result<Option<Vec<String>>, String> {
+    let Some(value) = args.get("files") else {
+        return Ok(None);
+    };
+    let files = value
+        .as_array()
+        .ok_or_else(|| "files must be an array of strings".to_owned())?;
+    Ok(Some(
+        files
+            .iter()
+            .map(|item| {
+                item.as_str()
+                    .map(normalize_path)
+                    .ok_or_else(|| "files must contain only strings".to_owned())
+            })
+            .collect::<Result<Vec<_>, String>>()?,
+    ))
+}
+
+fn parse_diff_files(args: &Value) -> Result<Option<Vec<String>>, String> {
     let Some(diff) = optional_str(args, "diff")? else {
         return Ok(None);
     };
@@ -134,4 +182,44 @@ fn changed_files(git: &Value) -> Vec<String> {
 
 fn normalize_path(path: &str) -> String {
     path.replace('\\', "/").trim_start_matches("./").to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CHANGE_IMPACT_KEYS, explicit_changed_files};
+    use crate::operations::reject_unknown_arguments;
+    use blazingly_json::json;
+
+    #[test]
+    fn target_aliases_a_single_files_entry() {
+        let files = explicit_changed_files(&json!({"target": "src/db.ts"})).unwrap();
+        assert_eq!(files, Some(vec!["src/db.ts".to_owned()]));
+    }
+
+    #[test]
+    fn agreeing_target_and_files_are_accepted() {
+        let files = explicit_changed_files(&json!({"target": "src/db.ts", "files": ["src/db.ts"]}))
+            .unwrap();
+        assert_eq!(files, Some(vec!["src/db.ts".to_owned()]));
+    }
+
+    #[test]
+    fn disagreeing_target_and_files_error() {
+        let error = explicit_changed_files(&json!({"target": "src/a.ts", "files": ["src/b.ts"]}))
+            .unwrap_err();
+        assert!(error.contains("disagree"), "{error}");
+    }
+
+    #[test]
+    fn unknown_argument_names_the_key_and_supported_set() {
+        let error = reject_unknown_arguments(
+            "change_impact",
+            &json!({"max_reslts": 3}),
+            CHANGE_IMPACT_KEYS,
+        )
+        .unwrap_err();
+        assert!(error.contains("max_reslts"), "{error}");
+        assert!(error.contains("files"), "{error}");
+        assert!(error.contains("target"), "{error}");
+    }
 }

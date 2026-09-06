@@ -167,7 +167,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "trace_endpoint",
-        description: "Resolve an endpoint and its bounded call neighborhood.",
+        description: "Resolve an HTTP endpoint by exact method/path and return its bounded execution/call path.",
         required: &["path"],
     },
     ToolSpec {

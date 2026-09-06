@@ -1,4 +1,7 @@
-use super::{BTreeSet, NodeKind, RepositoryState, Value, json, optional_str, optional_u64};
+use super::{
+    BTreeSet, NodeKind, RepositoryState, Value, http_evidence::SourceCache, http_route, json,
+    optional_str, optional_u64,
+};
 
 pub(in crate::operations) fn http_contracts(
     backend: &RepositoryState,
@@ -46,7 +49,7 @@ pub(in crate::operations) fn http_contracts(
             .label
             .split_once(' ')
             .unwrap_or(("ANY", endpoint.label.as_str()));
-        let query = route_query(route);
+        let query = http_route::route_query(route);
         if query.is_empty() {
             // A root route has no selective literal to search for. Passing an
             // empty query to the search engine is a tool error; searching for
@@ -129,8 +132,9 @@ fn find_endpoint_calls(
     for (client, client_state) in clients {
         let result = super::super::source::search(
             client_state,
-            &json!({"query": route_query(route), "max_results": max_matches}),
+            &json!({"query": http_route::route_query(route), "max_results": max_matches}),
         )?;
+        let mut cache = SourceCache::new();
         for evidence in result["matches"]
             .as_array()
             .into_iter()
@@ -143,104 +147,45 @@ fn find_endpoint_calls(
             .filter(|evidence| {
                 evidence["text"]
                     .as_str()
-                    .is_some_and(|line| route_matches(route, line))
+                    .is_some_and(|line| http_route::route_matches(route, line))
             })
         {
-            let call_method = evidence["text"].as_str().and_then(infer_http_method);
-            let mismatch = call_method.is_some_and(|method| {
-                backend_method != "ANY" && backend_method != "ALL" && method != backend_method
-            });
+            let Some(path) = evidence["path"].as_str() else {
+                continue;
+            };
+            let Some(line) = evidence["line"]
+                .as_u64()
+                .and_then(|value| u32::try_from(value).ok())
+            else {
+                continue;
+            };
+            // Text search only nominates candidates. Proven external callsites
+            // require token evidence of an HTTP call with a literal URL.
+            let Some(callsite) = cache.resolve_callsite(client_state, path, line, route) else {
+                continue;
+            };
+            let mismatch = callsite.method.mismatches(backend_method);
             calls.method_mismatches += usize::from(mismatch);
             calls.total += 1;
-            if let Some(path) = evidence["path"].as_str() {
-                calls.affected_files.insert(path.to_owned());
-            }
+            calls.affected_files.insert(path.to_owned());
             if calls.callsites.len() < per_item {
                 calls.callsites.push(json!({
                     "client": client,
-                    "file": evidence["path"].clone(),
-                    "line": evidence["line"].clone(),
-                    "method": call_method,
+                    "file": path,
+                    "line": callsite.line,
+                    "method": callsite.method.as_json(),
                     "method_mismatch": mismatch,
-                    "match": if evidence["text"].as_str().is_some_and(|line| line.contains(route)) {
+                    "match": if callsite.exact_literal {
                         "EXACT_LITERAL"
                     } else {
                         "TEMPLATE_PREFIX"
                     },
-                    "text": evidence["text"].clone()
+                    "text": callsite.evidence
                 }));
             }
         }
     }
     Ok(calls)
-}
-
-pub(super) fn route_query(route: &str) -> &str {
-    let boundary = route
-        .char_indices()
-        .find(|(_, character)| matches!(character, ':' | '{' | '$' | '*'))
-        .map_or(route.len(), |(index, _)| index);
-    let prefix = &route[..boundary];
-    prefix.trim_end_matches('/').rsplit_once('/').map_or_else(
-        || prefix.trim_end_matches('/'),
-        |(_, tail)| {
-            if tail.is_empty() {
-                prefix.trim_end_matches('/')
-            } else {
-                prefix
-            }
-        },
-    )
-}
-
-pub(super) fn route_matches(route: &str, line: &str) -> bool {
-    if line.contains(route) {
-        return true;
-    }
-    let static_parts = route
-        .split('/')
-        .filter(|part| {
-            !part.is_empty()
-                && !part.starts_with(':')
-                && !part.starts_with('{')
-                && !part.contains('$')
-                && *part != "*"
-        })
-        .collect::<Vec<_>>();
-    !static_parts.is_empty() && static_parts.iter().all(|part| line.contains(part))
-}
-
-pub(super) fn infer_http_method(line: &str) -> Option<&'static str> {
-    let lower = line.to_ascii_lowercase();
-    for (needle, method) in [
-        (".delete(", "DELETE"),
-        (".patch(", "PATCH"),
-        (".post(", "POST"),
-        (".put(", "PUT"),
-        (".head(", "HEAD"),
-        (".options(", "OPTIONS"),
-        (".get(", "GET"),
-        ("method: 'delete'", "DELETE"),
-        ("method: \"delete\"", "DELETE"),
-        ("method: 'patch'", "PATCH"),
-        ("method: \"patch\"", "PATCH"),
-        ("method: 'post'", "POST"),
-        ("method: \"post\"", "POST"),
-        ("method: 'put'", "PUT"),
-        ("method: \"put\"", "PUT"),
-        ("method: 'get'", "GET"),
-        ("method: \"get\"", "GET"),
-        ("httpmethod = \"delete\"", "DELETE"),
-        ("httpmethod = \"patch\"", "PATCH"),
-        ("httpmethod = \"post\"", "POST"),
-        ("httpmethod = \"put\"", "PUT"),
-        ("httpmethod = \"get\"", "GET"),
-    ] {
-        if lower.contains(needle) {
-            return Some(method);
-        }
-    }
-    lower.contains("fetch(").then_some("GET")
 }
 
 fn normalize_http_path(path: &str) -> String {

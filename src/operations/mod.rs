@@ -16,6 +16,7 @@ mod vector;
 mod workflow;
 
 pub use catalog::{ToolDefinition, ToolProfile, catalog, catalog_for_profile};
+pub(crate) use catalog::{reject_unknown_arguments, require_valid_output_format};
 
 use crate::engine::{RepositoryState, Weavatrix};
 use blazingly_json::{Value, json};
@@ -29,6 +30,7 @@ use blazingly_json::{Value, json};
 #[allow(clippy::needless_pass_by_value)]
 pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<Value, String> {
     weavatrix.prepare();
+    require_valid_output_format(&arguments)?;
     expect_repository(weavatrix, &arguments)?;
     let mut report = dispatch(weavatrix, name, &arguments)?;
     // A budget an operation cannot apply is reported, not refused: the answer

@@ -68,6 +68,7 @@ fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
             "head_ref",
             "diff",
             "files",
+            "target",
             "depth",
             "max_nodes",
             "precision",
@@ -120,6 +121,7 @@ fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
             "head_ref",
             "diff",
             "files",
+            "target",
             "depth",
             "max_nodes",
             "max_tests",
@@ -186,6 +188,7 @@ fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str]> {
         "list_endpoints" => Some(&["method", "path", "max_results", "include_classified"]),
         "trace_endpoint" => Some(&[
             "method",
+            "match",
             "handler_file",
             "max_depth",
             "max_nodes",
@@ -216,7 +219,8 @@ pub(super) fn field_schema(tool: &str, name: &str) -> Value {
         return json!({"type": "array", "items": {"type": "string"}});
     }
     if matches!(name, "vectors" | "pages" | "events" | "repositories") {
-        return json!({"type": "array", "items": {"type": "object"}});
+        return documented_object_array(tool, name)
+            .unwrap_or_else(|| json!({"type": "array", "items": {"type": "object"}}));
     }
     if tool == "vector_search" && name == "query" {
         return json!({"type": "array", "items": {"type": "number"}});
@@ -274,4 +278,49 @@ pub(super) fn field_schema(tool: &str, name: &str) -> Value {
         return json!({"type": "integer", "minimum": 0});
     }
     json!({"type": "string"})
+}
+
+fn documented_object_array(tool: &str, name: &str) -> Option<Value> {
+    match (tool, name) {
+        ("semantic_link" | "vector_search" | "seo_link_suggestions", "vectors") => Some(json!({
+            "type": "array",
+            "description": "Caller-supplied embedding rows. Each object requires node (string graph id) and values (array of numbers). Do not send id/vector.",
+            "items": {
+                "type": "object",
+                "required": ["node", "values"],
+                "properties": {
+                    "node": {"type": "string"},
+                    "values": {"type": "array", "items": {"type": "number"}}
+                }
+            }
+        })),
+        ("seo_link_suggestions", "pages") => Some(json!({
+            "type": "array",
+            "description": "Page profiles for SEO linking. Each object requires node, site, and canonical; language and title are optional.",
+            "items": {
+                "type": "object",
+                "required": ["node", "site", "canonical"],
+                "properties": {
+                    "node": {"type": "string"},
+                    "site": {"type": "string"},
+                    "canonical": {"type": "string"},
+                    "language": {"type": "string"},
+                    "title": {"type": "string"}
+                }
+            }
+        })),
+        ("memory_context", "events") => Some(json!({
+            "type": "array",
+            "description": "StoredEvent-shaped rows (not empty objects). Each event needs metadata with at least id, stream_id, stream_version, global_position, event_type, occurred_at, recorded_at, agent_id, and session_id, plus a typed payload.",
+            "items": {
+                "type": "object",
+                "required": ["metadata", "payload"],
+                "properties": {
+                    "metadata": {"type": "object"},
+                    "payload": {"type": "object"}
+                }
+            }
+        })),
+        _ => None,
+    }
 }

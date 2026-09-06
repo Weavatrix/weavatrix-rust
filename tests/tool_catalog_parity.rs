@@ -116,6 +116,34 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
     let seo = tools::catalog_for_profile(tools::ToolProfile::Seo);
     assert!(seo.iter().any(|tool| tool.name == "seo_link_suggestions"));
     assert!(seo.iter().all(|tool| tool.name != "verified_change"));
+
+    #[cfg(feature = "vector")]
+    {
+        let vector_search = catalog
+            .iter()
+            .find(|tool| tool.name == "vector_search")
+            .unwrap();
+        let vectors = &vector_search.input_schema["properties"]["vectors"];
+        assert_eq!(vectors["items"]["required"], json!(["node", "values"]));
+        assert!(
+            vectors["description"]
+                .as_str()
+                .unwrap()
+                .contains("Do not send id/vector"),
+            "{vectors}"
+        );
+    }
+    #[cfg(feature = "git")]
+    {
+        let change_impact = catalog
+            .iter()
+            .find(|tool| tool.name == "change_impact")
+            .unwrap();
+        assert_eq!(
+            change_impact.input_schema["properties"]["target"]["type"],
+            "string"
+        );
+    }
 }
 
 #[test]

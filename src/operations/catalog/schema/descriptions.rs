@@ -120,6 +120,24 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
             "default": true,
             "description": "High-recall by default; false suppresses data-only catalogs but retains model, schema, and contract clones"
         })),
+        ("trace_endpoint", "match") => Some(json!({
+            "type": "string",
+            "enum": ["exact", "prefix", "suffix"],
+            "default": "exact",
+            "description": "How the path argument compares to the served route; exact is the default and refuses ends-with or starts-with shortcuts"
+        })),
+        ("trace_endpoint", "handler_file") => Some(json!({
+            "type": "string",
+            "description": "Repo-relative file (or unambiguous path suffix) that must expose the route; filters candidates and resolves same-route declarations across files"
+        })),
+        ("trace_endpoint", "method") => Some(json!({
+            "type": "string",
+            "description": "Normalized exact HTTP method such as GET or POST; partial prefixes like PO do not match POST"
+        })),
+        ("change_impact" | "select_tests", "target") => Some(json!({
+            "type": "string",
+            "description": "Deprecated alias for a single path in files; equivalent to files:[target]. Errors when both are present and disagree"
+        })),
         _ => None,
     }
 }

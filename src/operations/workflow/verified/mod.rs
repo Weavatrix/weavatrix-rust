@@ -24,7 +24,7 @@ pub(in crate::operations) fn verified_change(
         return Err("phase must be plan or verify".to_owned());
     }
     let base_ref = optional_str(args, "base_ref")?.unwrap_or("HEAD");
-    let impact = super::change::change_impact(state, args)?;
+    let impact = super::change::change_impact_unchecked(state, args)?;
     let files = impact["changed_files"]
         .as_array()
         .into_iter()

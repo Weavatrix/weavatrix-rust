@@ -103,14 +103,15 @@ impl RepositoryState {
             .enumerate()
             .filter(|(_, node)| node.label == label)
             .collect::<Vec<_>>();
-        match matches.as_slice() {
+        let candidates = prefer_non_test_only(&matches);
+        match candidates.as_slice() {
             [] => Err(format!("node not found: {label}")),
             [(index, _)] => Ok(NodeIndex::new(
                 u32::try_from(*index).map_err(|_| "node index overflow")?,
             )),
             _ => Err(format!(
                 "ambiguous node label {label:?}; use one of: {}",
-                matches
+                candidates
                     .iter()
                     .take(8)
                     .map(|(_, node)| node.id.as_str())
@@ -124,6 +125,29 @@ impl RepositoryState {
         self.graph
             .node_at(index)
             .ok_or_else(|| format!("node index out of range: {}", index.index()))
+    }
+}
+
+fn prefer_non_test_only<'a>(matches: &'a [(usize, &'a Node)]) -> Vec<(usize, &'a Node)> {
+    if matches.len() <= 1 {
+        return matches.to_vec();
+    }
+    let production = matches
+        .iter()
+        .copied()
+        .filter(|(_, node)| {
+            !matches!(
+                node.attributes.get("test_only"),
+                Some(weavatrix_graph::AttributeValue::Bool(true))
+            )
+        })
+        .collect::<Vec<_>>();
+    if production.len() == 1 {
+        production
+    } else if production.is_empty() {
+        matches.to_vec()
+    } else {
+        production
     }
 }
 

@@ -17,6 +17,8 @@ mod detection;
 mod event;
 mod fallback;
 mod http;
+mod http_evidence;
+mod http_route;
 mod jms;
 mod kafka;
 mod matching;
@@ -55,9 +57,9 @@ use runtime_normalization::{
 };
 use scan::{ScanLimits, language_for_path, scan_repository};
 use syntax::{
-    assigned_variable, call_chain, call_name_index, first_value, literal_value, matching_close,
-    non_empty_resources, positional_identifier, positional_values, property, receiver_name,
-    resource_values, source_line,
+    argument_segments, assigned_variable, call_chain, call_name_index, first_value, literal_value,
+    matching_close, non_empty_resources, positional_identifier, positional_values, property,
+    receiver_name, resource_values, source_line,
 };
 use time::timestamp_millis;
 use typed_matching::{

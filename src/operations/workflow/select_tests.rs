@@ -13,6 +13,22 @@ pub(in crate::operations) fn select_tests(
     state: &RepositoryState,
     args: &Value,
 ) -> Result<Value, String> {
+    crate::operations::reject_unknown_arguments(
+        "select_tests",
+        args,
+        &[
+            "base",
+            "base_ref",
+            "head_ref",
+            "diff",
+            "files",
+            "target",
+            "depth",
+            "max_nodes",
+            "max_tests",
+            "precision",
+        ],
+    )?;
     crate::operations::require_graph_precision(args)?;
     let explicit_head = optional_str(args, "head_ref")?;
     let requested = change::explicit_changed_files(args)?;

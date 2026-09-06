@@ -50,6 +50,7 @@ pub(in crate::operations) fn dead_code(
             )
         })
         .filter(|(slot, _)| crate::operations::node_is_visible(state, *slot, args))
+        .filter(|(_, node)| !is_packaging_manifest_noise(node))
         .filter_map(|(slot, node)| {
             let index = NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX));
             if reachable.contains(&index) {
@@ -99,6 +100,25 @@ fn requested_kinds(args: &Value) -> Result<Option<BTreeSet<String>>, String> {
         kinds.insert(kind.to_ascii_lowercase());
     }
     Ok(Some(kinds))
+}
+
+/// Plugin packaging manifests and directories are inventory, not reviewable code.
+fn is_packaging_manifest_noise(node: &weavatrix_graph::Node) -> bool {
+    let Some(path) = crate::operations::node_path(node) else {
+        return false;
+    };
+    let path = path.replace('\\', "/");
+    let file_name = path.rsplit('/').next().unwrap_or(path.as_str());
+    if matches!(file_name, "plugin.json" | "marketplace.json") || path == "server.json" {
+        return true;
+    }
+    node.kind == NodeKind::File
+        && path.split('/').any(|segment| {
+            matches!(
+                segment,
+                ".cursor-plugin" | ".claude-plugin" | ".agents" | ".grok-plugin"
+            )
+        })
 }
 
 /// Evidence-tiered confidence on a real 0-100 scale: 25 for whole files

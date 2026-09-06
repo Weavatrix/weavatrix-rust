@@ -7,6 +7,7 @@ mod schema;
 mod validation;
 
 pub use profile::ToolProfile;
+pub(crate) use validation::{reject_unknown_arguments, require_valid_output_format};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

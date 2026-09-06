@@ -2,6 +2,28 @@
 
 ## 2.10.0 - 2026-09-02
 
+- F2: HTTP contract linking no longer treats comment-only route mentions as
+  proven callsites, keeps whitespace-insensitive `fetch` method literals as
+  POST/GET, and reports dynamic options as `UNRESOLVED` instead of a false
+  method mismatch.
+- F3: `trace_endpoint` defaults to exact method/path matching (with explicit
+  prefix/suffix opt-in), accepts `handler_file` to disambiguate same-route
+  declarations, and documents those parameters in the catalog schema.
+- F4: `change_impact` accepts legacy `target` as a single-path alias for
+  `files`, rejects unknown tool-specific arguments (and `select_tests` does
+  the same), and fails invalid `output_format` values instead of returning an
+  empty `COMPLETE` when a typo such as `max_reslts` is the only argument.
+- Catalog schemas for `vector_search`, `semantic_link`, `seo_link_suggestions`,
+  and `memory_context` document real item shapes (`node`/`values`, SEO
+  `node`/`site`/`canonical`, StoredEvent metadata) so agents do not send
+  `id`/`vector` or empty `[{}]` events.
+- Short-name `resolve_node` prefers a unique non-`test_only` match when a label
+  collides with test fixtures, and still reports ambiguity among production
+  ids when more than one remains.
+- `find_dead_code` skips obvious plugin packaging manifests (`plugin.json`,
+  `marketplace.json`, root `server.json`) and file nodes under
+  `.cursor-plugin` / `.claude-plugin` / `.agents` / `.grok-plugin`.
+
 - New `go_to_definition` and `find_references` operations, and
   `inspect_symbol` / `context_bundle` now accept a source position as well as
   a label. An agent that holds a usage at `(path, line, column)` resolves the
