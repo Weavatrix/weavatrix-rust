@@ -82,7 +82,7 @@ pub fn find_references(state: &RepositoryState, args: &Value) -> Result<Value, S
     {
         merge_scip_references(&mut rows, index, symbol);
     }
-    rows.sort_by(|left, right| value_span_key(left).cmp(&value_span_key(right)));
+    rows.sort_by_key(value_span_key);
     rows.dedup_by(|left, right| value_span_key(left) == value_span_key(right));
     let total = rows.len();
     let page = rows.into_iter().skip(offset).take(max).collect::<Vec<_>>();
@@ -206,7 +206,7 @@ fn graph_references(state: &RepositoryState, index: NodeIndex) -> Result<Vec<Val
 fn merge_scip_references(rows: &mut Vec<Value>, index: &scip::Loaded, symbol: &str) {
     let known = rows
         .iter()
-        .filter_map(|row| row.get("span").and_then(|span| span_from_value(span)))
+        .filter_map(|row| row.get("span").and_then(span_from_value))
         .collect::<Vec<_>>();
     for span in index.references(symbol) {
         if known
@@ -261,7 +261,7 @@ fn scip_only_or_unresolved(
         let (offset, max) = page_limit(args)?;
         let mut rows = Vec::new();
         merge_scip_references(&mut rows, index, &hit.symbol);
-        rows.sort_by(|left, right| value_span_key(left).cmp(&value_span_key(right)));
+        rows.sort_by_key(value_span_key);
         let total = rows.len();
         let page = rows.into_iter().skip(offset).take(max).collect::<Vec<_>>();
         let returned = page.len();

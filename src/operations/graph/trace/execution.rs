@@ -24,16 +24,16 @@ pub(super) fn execution_path(
     retain_expose_edges(state, endpoint, handlers, &mut edges);
 
     for handler in handlers {
-        expand_handler_seeds(
+        expand_handler_seeds(&mut HandlerSeedExpand {
             state,
-            *handler,
-            &mut ordered,
-            &mut seen,
-            &mut edges,
-            &mut omitted,
+            handler: *handler,
+            ordered: &mut ordered,
+            seen: &mut seen,
+            edges: &mut edges,
+            omitted: &mut omitted,
             max_nodes,
-            &mut call_seeds,
-        );
+            call_seeds: &mut call_seeds,
+        });
     }
     if ordered.len() > max_nodes {
         omitted += ordered.len() - max_nodes;
@@ -84,21 +84,23 @@ pub(super) fn execution_path(
     (ordered, edges, omitted > 0, omitted)
 }
 
-fn expand_handler_seeds(
-    state: &RepositoryState,
+struct HandlerSeedExpand<'a> {
+    state: &'a RepositoryState,
     handler: NodeIndex,
-    ordered: &mut Vec<NodeIndex>,
-    seen: &mut BTreeSet<NodeIndex>,
-    edges: &mut BTreeSet<EdgeIndex>,
-    omitted: &mut usize,
+    ordered: &'a mut Vec<NodeIndex>,
+    seen: &'a mut BTreeSet<NodeIndex>,
+    edges: &'a mut BTreeSet<EdgeIndex>,
+    omitted: &'a mut usize,
     max_nodes: usize,
-    call_seeds: &mut Vec<NodeIndex>,
-) {
-    let Some(node) = state.graph().node_at(handler) else {
+    call_seeds: &'a mut Vec<NodeIndex>,
+}
+
+fn expand_handler_seeds(ctx: &mut HandlerSeedExpand<'_>) {
+    let Some(node) = ctx.state.graph().node_at(ctx.handler) else {
         return;
     };
     if matches!(node.kind, NodeKind::Function | NodeKind::Method) {
-        call_seeds.push(handler);
+        ctx.call_seeds.push(ctx.handler);
         return;
     }
     if node.kind != NodeKind::File {
@@ -107,43 +109,43 @@ fn expand_handler_seeds(
     // Route files expose endpoints without a function owner. Prefer imported
     // modules and their functions over Contains children, so a sibling GET in
     // the same file cannot displace middleware/handler under a node cap.
-    for edge in state.graph().outgoing_edges(handler) {
-        let Some(item) = state.graph().edge_at(edge) else {
+    for edge in ctx.state.graph().outgoing_edges(ctx.handler) {
+        let Some(item) = ctx.state.graph().edge_at(edge) else {
             continue;
         };
         if item.kind != EdgeKind::Imports {
             continue;
         }
-        let Some(target) = state.graph().node_index(item.target.as_str()) else {
+        let Some(target) = ctx.state.graph().node_index(item.target.as_str()) else {
             continue;
         };
-        let Some(target_node) = state.graph().node_at(target) else {
+        let Some(target_node) = ctx.state.graph().node_at(target) else {
             continue;
         };
         if is_structural(&target_node.kind) {
             continue;
         }
-        edges.insert(edge);
-        if push_node(ordered, seen, omitted, max_nodes, target) {
-            for nested in state.graph().outgoing_edges(target) {
-                let Some(nested_edge) = state.graph().edge_at(nested) else {
+        ctx.edges.insert(edge);
+        if push_node(ctx.ordered, ctx.seen, ctx.omitted, ctx.max_nodes, target) {
+            for nested in ctx.state.graph().outgoing_edges(target) {
+                let Some(nested_edge) = ctx.state.graph().edge_at(nested) else {
                     continue;
                 };
                 if nested_edge.kind != EdgeKind::Contains {
                     continue;
                 }
-                let Some(symbol) = state.graph().node_index(nested_edge.target.as_str()) else {
+                let Some(symbol) = ctx.state.graph().node_index(nested_edge.target.as_str()) else {
                     continue;
                 };
-                let Some(symbol_node) = state.graph().node_at(symbol) else {
+                let Some(symbol_node) = ctx.state.graph().node_at(symbol) else {
                     continue;
                 };
                 if !matches!(symbol_node.kind, NodeKind::Function | NodeKind::Method) {
                     continue;
                 }
-                edges.insert(nested);
-                if push_node(ordered, seen, omitted, max_nodes, symbol) {
-                    call_seeds.push(symbol);
+                ctx.edges.insert(nested);
+                if push_node(ctx.ordered, ctx.seen, ctx.omitted, ctx.max_nodes, symbol) {
+                    ctx.call_seeds.push(symbol);
                 }
             }
         }

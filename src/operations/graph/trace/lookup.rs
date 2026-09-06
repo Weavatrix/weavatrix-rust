@@ -148,7 +148,7 @@ pub(super) fn exposing_handlers(
     handlers.sort_by_key(|index| {
         let node = state.graph().node_at(*index);
         (
-            handler_rank(node.map(|node| &node.kind).unwrap_or(&NodeKind::File)),
+            handler_rank(node.map_or(&NodeKind::File, |node| &node.kind)),
             node.and_then(node_path).unwrap_or_default().to_owned(),
             node.map(|node| node.id.as_str().to_owned())
                 .unwrap_or_default(),
@@ -186,7 +186,7 @@ pub(super) fn is_structural(kind: &NodeKind) -> bool {
     )
 }
 
-pub(super) fn not_found(state: &RepositoryState, query: Value) -> Value {
+pub(super) fn not_found(state: &RepositoryState, query: &Value) -> Value {
     let available = state
         .graph()
         .nodes()
@@ -221,7 +221,7 @@ pub(super) fn not_found(state: &RepositoryState, query: Value) -> Value {
     })
 }
 
-pub(super) fn ambiguous(state: &RepositoryState, query: Value, candidates: &[NodeIndex]) -> Value {
+pub(super) fn ambiguous(state: &RepositoryState, query: &Value, candidates: &[NodeIndex]) -> Value {
     let rows = candidates
         .iter()
         .take(20)
@@ -239,18 +239,18 @@ pub(super) fn ambiguous(state: &RepositoryState, query: Value, candidates: &[Nod
             }))
         })
         .collect::<Vec<_>>();
-    ambiguous_body(query, rows)
+    ambiguous_body(query, &rows)
 }
 
-pub(super) fn ambiguous_handlers(query: Value, files: &BTreeSet<String>) -> Value {
+pub(super) fn ambiguous_handlers(query: &Value, files: &BTreeSet<String>) -> Value {
     let rows = files
         .iter()
         .map(|file| json!({"handler_file": file}))
         .collect::<Vec<_>>();
-    ambiguous_body(query, rows)
+    ambiguous_body(query, &rows)
 }
 
-fn ambiguous_body(query: Value, candidates: Vec<Value>) -> Value {
+fn ambiguous_body(query: &Value, candidates: &[Value]) -> Value {
     json!({
         "state": "AMBIGUOUS",
         "query": query,

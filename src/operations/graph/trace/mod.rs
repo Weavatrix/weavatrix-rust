@@ -30,20 +30,20 @@ pub fn endpoint(state: &RepositoryState, args: &Value) -> Result<Value, String> 
         candidates.retain(|index| endpoint_matches_handler(state, *index, hint));
     }
     if candidates.is_empty() {
-        return Ok(not_found(state, query));
+        return Ok(not_found(state, &query));
     }
     if candidates.len() > 1 {
-        return Ok(ambiguous(state, query, &candidates));
+        return Ok(ambiguous(state, &query, &candidates));
     }
 
     let endpoint_index = candidates[0];
     let handlers = exposing_handlers(state, endpoint_index, handler_hint.as_deref());
     if handlers.is_empty() && handler_hint.is_some() {
-        return Ok(not_found(state, query));
+        return Ok(not_found(state, &query));
     }
     let handler_files = distinct_handler_files(state, &handlers);
     if handler_hint.is_none() && handler_files.len() > 1 {
-        return Ok(ambiguous_handlers(query, &handler_files));
+        return Ok(ambiguous_handlers(&query, &handler_files));
     }
 
     let depth = usize::try_from(arg_u64(args, "max_depth").unwrap_or(4)).unwrap_or(4);

@@ -66,6 +66,10 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
     if let Some(schema) = occurrence_field(tool, name) {
         return Some(schema);
     }
+    tool_field(tool, name)
+}
+
+fn tool_field(tool: &str, name: &str) -> Option<Value> {
     match (tool, name) {
         ("find_dead_code", "min_confidence") => Some(json!({
             "type": "integer",

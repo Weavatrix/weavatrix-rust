@@ -12,10 +12,10 @@ pub(super) enum HttpMethodEvidence {
 }
 
 impl HttpMethodEvidence {
-    pub(super) fn as_json(self) -> Option<&'static str> {
+    pub(super) fn as_json(self) -> &'static str {
         match self {
-            Self::Proven(method) => Some(method),
-            Self::Unresolved => Some("UNRESOLVED"),
+            Self::Proven(method) => method,
+            Self::Unresolved => "UNRESOLVED",
         }
     }
 
@@ -183,8 +183,7 @@ pub(super) fn resolve_method(call: &Call<'_, '_>) -> HttpMethodEvidence {
     }
     if let Some(value) = property(call, &["method", "httpmethod"]) {
         return normalize_method(&value)
-            .map(HttpMethodEvidence::Proven)
-            .unwrap_or(HttpMethodEvidence::Unresolved);
+            .map_or(HttpMethodEvidence::Unresolved, HttpMethodEvidence::Proven);
     }
     if has_method_key(call) {
         return HttpMethodEvidence::Unresolved;

@@ -40,16 +40,16 @@ fn an_on_disk_scip_index_resolves_what_the_graph_left_unresolved() {
 
     std::fs::write(
         fixture.root.join("index.scip"),
-        encode_scip(
-            "src/orphan.js",
-            line,
-            column,
-            column + width,
-            "src/hidden.js",
+        encode_scip(&ScipFixture {
+            usage_path: "src/orphan.js",
+            usage_line: line,
+            usage_column: column,
+            usage_end: column + width,
+            def_path: "src/hidden.js",
             def_line,
             def_column,
-            def_column + width,
-        ),
+            def_end: def_column + width,
+        }),
     )
     .unwrap();
     engine.rebuild().unwrap();
@@ -84,22 +84,36 @@ fn cargo_manifest_does_not_depend_on_archived_stack_graphs() {
     assert!(!manifest.contains("scip-"));
 }
 
-fn encode_scip(
-    usage_path: &str,
+struct ScipFixture<'a> {
+    usage_path: &'a str,
     usage_line: u32,
     usage_column: u32,
     usage_end: u32,
-    def_path: &str,
+    def_path: &'a str,
     def_line: u32,
     def_column: u32,
     def_end: u32,
-) -> Vec<u8> {
+}
+
+fn encode_scip(fixture: &ScipFixture<'_>) -> Vec<u8> {
     let symbol = "local mystery";
-    let usage = occurrence(symbol, 0, usage_line, usage_column, usage_end);
-    let definition = occurrence(symbol, 1, def_line, def_column, def_end);
+    let usage = occurrence(
+        symbol,
+        0,
+        fixture.usage_line,
+        fixture.usage_column,
+        fixture.usage_end,
+    );
+    let definition = occurrence(
+        symbol,
+        1,
+        fixture.def_line,
+        fixture.def_column,
+        fixture.def_end,
+    );
     let mut index = Vec::new();
-    write_len(&mut index, 2, &document(usage_path, &[usage]));
-    write_len(&mut index, 2, &document(def_path, &[definition]));
+    write_len(&mut index, 2, &document(fixture.usage_path, &[usage]));
+    write_len(&mut index, 2, &document(fixture.def_path, &[definition]));
     index
 }
 

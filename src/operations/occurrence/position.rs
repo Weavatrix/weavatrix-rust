@@ -254,10 +254,10 @@ fn is_declarable(kind: &NodeKind) -> bool {
     )
 }
 
-pub(super) fn incoming_references<'graph>(
-    state: &'graph RepositoryState,
+pub(super) fn incoming_references(
+    state: &RepositoryState,
     index: NodeIndex,
-) -> impl Iterator<Item = &'graph Edge> {
+) -> impl Iterator<Item = &Edge> {
     state
         .graph()
         .incoming_at(index)

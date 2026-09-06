@@ -171,7 +171,7 @@ fn post_trace_prefers_execution_path_over_neighborhood() {
     assert_eq!(report["state"], "COMPLETE", "{report}");
     let node_labels = labels(&report);
     assert!(
-        !node_labels.iter().any(|label| *label == "GET /api/health"),
+        !node_labels.contains(&"GET /api/health"),
         "neighboring GET must not appear: {report}"
     );
     assert!(
@@ -227,9 +227,7 @@ fn bounded_trace_keeps_handler_and_marks_truncation() {
         "bounded answers must expose truncation honestly: {report}"
     );
     assert!(
-        !labels(&report)
-            .iter()
-            .any(|label| *label == "GET /api/health"),
+        !labels(&report).contains(&"GET /api/health"),
         "health must not displace the handler under the cap: {report}"
     );
     assert!(
