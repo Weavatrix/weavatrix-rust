@@ -73,5 +73,5 @@ pub fn search(_args: &Value) -> Result<Value, String> {
 
 #[cfg(feature = "vector")]
 fn values(value: &Value) -> Result<Vec<f32>, String> {
-    super::vector_values(value, "vector values must be an array")
+    super::args::vector_values(value, "vector values must be an array")
 }

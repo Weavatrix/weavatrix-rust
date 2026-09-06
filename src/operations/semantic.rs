@@ -68,7 +68,7 @@ fn vectors(args: &Value) -> Result<Vec<SemanticVector>, String> {
                 .get("values")
                 .ok_or_else(|| "vector.values must be an array".to_owned())
                 .and_then(|values| {
-                    super::vector_values(values, "vector.values must be an array")
+                    super::args::vector_values(values, "vector.values must be an array")
                 })?;
             SemanticVector::new(node, values).map_err(|error| error.to_string())
         })

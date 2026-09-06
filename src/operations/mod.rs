@@ -1,4 +1,5 @@
 mod architecture;
+mod args;
 mod build;
 mod catalog;
 mod graph;
@@ -13,12 +14,18 @@ mod syntax;
 mod token_budget;
 mod transport_contracts;
 mod vector;
+mod visibility;
 mod workflow;
 
 pub use catalog::{ToolDefinition, ToolProfile, catalog, catalog_for_profile};
 pub(crate) use catalog::{reject_unknown_arguments, require_valid_output_format};
 
-use crate::engine::{RepositoryState, Weavatrix};
+pub(crate) use args::{
+    arg_bool, arg_str, arg_u64, optional_bool, optional_str, optional_u64, require_graph_precision,
+};
+pub(crate) use visibility::{node_is_visible, node_path};
+
+use crate::engine::Weavatrix;
 use blazingly_json::{Value, json};
 
 /// Executes one bounded read-only repository tool.
@@ -155,147 +162,4 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         })),
         _ => Err(format!("unknown tool: {name}")),
     }
-}
-
-fn arg_value<'value, T>(
-    args: &'value Value,
-    key: &str,
-    expected: &str,
-    extract: impl FnOnce(&'value Value) -> Option<T>,
-) -> Result<T, String> {
-    args.get(key)
-        .and_then(extract)
-        .ok_or_else(|| format!("{key} must be {expected}"))
-}
-
-pub(crate) fn arg_str<'value>(args: &'value Value, key: &str) -> Result<&'value str, String> {
-    arg_value(args, key, "a string", Value::as_str)
-}
-
-pub(crate) fn arg_u64(args: &Value, key: &str) -> Result<u64, String> {
-    arg_value(args, key, "a non-negative integer", Value::as_u64)
-}
-
-pub(crate) fn arg_bool(args: &Value, key: &str) -> Result<bool, String> {
-    arg_value(args, key, "a boolean", Value::as_bool)
-}
-
-pub(crate) fn optional_str<'value>(
-    args: &'value Value,
-    key: &str,
-) -> Result<Option<&'value str>, String> {
-    args.get(key)
-        .map(|value| {
-            value
-                .as_str()
-                .ok_or_else(|| format!("{key} must be a string"))
-        })
-        .transpose()
-}
-
-pub(crate) fn optional_u64(args: &Value, key: &str) -> Result<Option<u64>, String> {
-    args.get(key)
-        .map(|value| {
-            value
-                .as_u64()
-                .ok_or_else(|| format!("{key} must be a non-negative integer"))
-        })
-        .transpose()
-}
-
-pub(crate) fn optional_bool(args: &Value, key: &str) -> Result<Option<bool>, String> {
-    args.get(key)
-        .map(|value| {
-            value
-                .as_bool()
-                .ok_or_else(|| format!("{key} must be a boolean"))
-        })
-        .transpose()
-}
-
-pub(crate) fn require_graph_precision(args: &Value) -> Result<(), String> {
-    let Some(precision) = optional_str(args, "precision")? else {
-        return Ok(());
-    };
-    if precision == "graph" {
-        return Ok(());
-    }
-    Err(format!(
-        "precision '{precision}' is unsupported; this operation supports only 'graph' bounded static precision"
-    ))
-}
-
-#[cfg(any(feature = "semantic", feature = "vector"))]
-fn vector_values(value: &Value, array_error: &str) -> Result<Vec<f32>, String> {
-    value
-        .as_array()
-        .ok_or_else(|| array_error.to_owned())?
-        .iter()
-        .map(|value| {
-            let value = value
-                .as_f64()
-                .filter(|value| value.is_finite())
-                .ok_or_else(|| "vector value must be finite".to_owned())?;
-            if !(f64::from(f32::MIN)..=f64::from(f32::MAX)).contains(&value) {
-                return Err("vector value is outside finite f32 range".to_owned());
-            }
-            value
-                .to_string()
-                .parse::<f32>()
-                .map_err(|error| format!("invalid vector value: {error}"))
-        })
-        .collect()
-}
-
-/// The repository path a node's evidence comes from, if any.
-pub(crate) fn node_path(node: &weavatrix_graph::Node) -> Option<&str> {
-    node.span
-        .as_ref()
-        .map(|span| span.file.as_str())
-        .or_else(|| (node.kind == weavatrix_graph::NodeKind::File).then_some(node.label.as_str()))
-}
-
-/// Whether a node belongs in a production-first answer.
-///
-/// Every tool whose schema offers `include_classified` or `include_tests` must
-/// route through this, otherwise the parameter is advertised and ignored and
-/// the answer silently mixes test and generated evidence into production
-/// review.
-pub(crate) fn node_is_visible(state: &RepositoryState, slot: usize, args: &Value) -> bool {
-    let index = weavatrix_graph::NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX));
-    let Some(node) = state.graph().node_at(index) else {
-        return true;
-    };
-    if node_path(node).is_some() {
-        return evidence_node_is_visible(node, args);
-    }
-    // Domain nodes such as endpoints, tables and topics carry no span: they are
-    // classified by the files that declare them, so a route declared only in a
-    // test is not part of a production-first answer.
-    let mut declared = false;
-    for edge in state.graph().incoming_at(index) {
-        let Some(source) = state.graph().node(edge.source.as_str()) else {
-            continue;
-        };
-        if node_path(source).is_none() {
-            continue;
-        }
-        declared = true;
-        if evidence_node_is_visible(source, args) {
-            return true;
-        }
-    }
-    // Repository and package nodes have no declaring file; keep them rather
-    // than hide evidence.
-    !declared
-}
-
-fn evidence_node_is_visible(node: &weavatrix_graph::Node, args: &Value) -> bool {
-    if matches!(
-        node.attributes.get("test_only"),
-        Some(weavatrix_graph::AttributeValue::Bool(true))
-    ) {
-        return args.get("include_tests").and_then(Value::as_bool) == Some(true);
-    }
-    node_path(node).is_none_or(|path| health::path_is_visible(path, args))
 }
