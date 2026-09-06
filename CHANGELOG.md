@@ -1,5 +1,80 @@
 # Changelog
 
+## 2.10.0 - 2026-09-02
+
+- New `go_to_definition` and `find_references` operations, and
+  `inspect_symbol` / `context_bundle` now accept a source position as well as
+  a label. An agent that holds a usage at `(path, line, column)` resolves the
+  occurrence already recorded on the graph - not a same-named overload or
+  re-export - and `find_references` lists those occurrences. When an `index.scip`
+  or `.scip/index.scip` file is already on disk it is read; `scip-*` is never
+  spawned. github/stack-graphs was archived on 2025-09-09 and is not taken as
+  a live dependency. A position the graph (and SCIP, if present) cannot pin
+  stays `UNRESOLVED`; a unique repository name is not a definition.
+
+- Rust calls no longer bind by their final path segment. A method call carries
+  its receiver and is qualified, so `values.push(item)` is `Vec::push` rather
+  than an unrelated `fn push` in the same file, and a path call binds only when
+  it is written in the referencing file's own scope - a bare name, or a `self`,
+  `super` or `crate` path. `self.method()` still resolves, because inside an
+  impl block the receiver type is proven by position, and it resolves only to a
+  method. The 2.8.0 release removed exactly this repository-wide unique-name
+  fallback for JavaScript and TypeScript; the Rust adapter had kept it, and
+  `visit_type_path` had already refused to bind a qualified path by its final
+  segment for types.
+
+  On this repository the fix removes 2242 false call edges (4050 to 1808) and
+  1573 of the total. `god_nodes` and `hot_path_review` were both dominated by
+  standard-library method names - `push` reported 237 incoming calls to a
+  private four-line helper - and now rank real declarations. `get_dependents`
+  and `change_impact` were affected by the same edges.
+
+  The rule under-approximates rather than guesses: an associated call to a type
+  this repository does own, such as `Analyzer::default()`, is now left
+  unresolved. The owning segment of a two-segment path is still recorded as a
+  type reference, so the coupling survives.
+
+- New `perf_attribution` tool: correlate a caller-supplied measurement series
+  with the declarations that changed between the revisions that produced it.
+  It reads a repository-relative tab- or comma-separated table, reports every
+  row it could not use instead of shortening the series, walks adjacent
+  measurements as steps, and credits each changed declaration with the step
+  delta divided by its co-change count. A step whose two revisions are
+  identical measures the harness, not the code, and is collected into a
+  `noise_floor` block rather than attributed. Body rewrites that move no span
+  are detected by comparing each declaration's own source extent, read only
+  from the files whose Git blob IDs differ.
+- The standalone CLI is drivable by an unattended loop. `tool` accepts
+  `--compact` for one appendable line of JSON, `--stdin` for arguments that do
+  not pass through the shell's quoting rules, and `--select=POINTER` to print
+  one RFC 6901 field - strings unquoted for a results column, everything else
+  as JSON. A pointer that is absent from the report is an error rather than a
+  blank line that would be recorded as a measurement.
+- **Behaviour change:** the `tool` exit code now separates a negative verdict
+  from a failure. `0` means the operation answered, `1` that it could not run,
+  and `2` that it answered with a top-level `state` or `verdict` of
+  `BLOCKED`. Previously a blocked `verify_architecture` or
+  `verify_capabilities` exited `1`, which a loop could not tell apart from a
+  crash. Scripts that test for success or failure are unaffected; scripts that
+  compare the code to `1` exactly must now accept `2`.
+- New `weavatrix-rust report` command and public `report::compose`. It writes
+  `index.html`, `REPORT.md` and `data.json` into `.weavatrix/report`: the
+  architecture verdict and its violations, a deterministic module-coupling
+  map, connectivity, hot paths, the dead-code review queue, clone families and
+  endpoints. The page carries its own stylesheet, script and map inline,
+  reaches no external host, and escapes everything it reads out of the
+  repository. Two runs over one revision produce the same page byte for byte.
+  The composer returns bytes and writes nothing; the CLI is the only component
+  in the crate with a write path, it writes those three names, and nothing in
+  the crate deletes. The application-boundary test now asserts that rather than
+  banning writes outright.
+- `src/report` is a component of the self-verified architecture contract, and
+  a new rule forbids it from depending on the public facade or the CLI.
+- The canonical-path containment reader is shared by architecture budgets and
+  the measurement series instead of being written twice.
+- The operation count in `README.md` and `docs/tool-reference.md` was two and
+  three behind the catalog; both now state the verified 47.
+
 ## 2.9.0 - 2026-08-31
 
 - New `git_read_blob` tool: bounded UTF-8 file content at an immutable Git

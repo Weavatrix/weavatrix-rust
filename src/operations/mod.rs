@@ -5,6 +5,8 @@ mod graph;
 mod health;
 mod history;
 mod memory;
+mod occurrence;
+mod perf;
 mod semantic;
 mod source;
 mod syntax;
@@ -105,12 +107,15 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "search_code" => source::search(state, arguments),
         "read_source" => source::read_source(state, arguments),
         "inspect_symbol" => source::inspect(state, arguments),
+        "go_to_definition" => occurrence::go_to_definition(state, arguments),
+        "find_references" => occurrence::find_references(state, arguments),
         "context_bundle" => source::context(state, arguments),
         "find_duplicates" => health::duplicates(state, arguments),
         "find_dead_code" => health::dead_code(state, arguments),
         "run_audit" => health::audit(state, arguments),
         "coverage_map" => health::coverage(state, arguments),
         "hot_path_review" => health::hot_paths(state, arguments),
+        "perf_attribution" => perf::attribution(state, arguments),
         "module_map" => graph::module_map(state, arguments),
         "build_graph" => build::build_graph(state, arguments),
         "list_endpoints" => graph::endpoints(state, arguments),

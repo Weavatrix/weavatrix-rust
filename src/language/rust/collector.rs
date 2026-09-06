@@ -1,8 +1,10 @@
 use super::{
-    Collector, DomainFact, OwnerUpdate, ReferenceFact, SymbolFact, SymbolLocator, attribute_routes,
-    source_span,
+    Collector, DomainFact, OwnerUpdate, ReferenceFact, SymbolFact, SymbolLocator,
+    associated_owner_name, attribute_routes, bare_path_name, call_is_locally_scoped, callable_name,
+    route_call, source_span,
 };
 use proc_macro2::Span;
+use syn::spanned::Spanned;
 use weavatrix_graph::{EdgeKind, NodeKind};
 
 impl Collector<'_> {
@@ -64,6 +66,69 @@ impl Collector<'_> {
             kind,
             receiver: None,
             qualified,
+            span: source_span(self.path, span),
+            owner: self.owner.symbol.clone(),
+        });
+    }
+
+    /// The call itself, the bare-path arguments it names, and any route it
+    /// registers.
+    pub(super) fn collect_method_call(&mut self, node: &syn::ExprMethodCall) {
+        self.add_qualified_call(
+            node.method.to_string(),
+            bare_path_name(&node.receiver),
+            node.span(),
+        );
+        for argument in &node.args {
+            if let Some(name) = bare_path_name(argument) {
+                self.add_reference(name, EdgeKind::References, false, argument.span());
+            }
+        }
+        if node.method == "route" {
+            for (method, path) in route_call(node) {
+                self.add_endpoint(method, &path, node.span());
+            }
+        }
+    }
+
+    /// A call through a path or a field expression.
+    ///
+    /// A bare name, or a `self`, `super` or `crate` path, is written in this
+    /// file's own scope. `Repository::open(..)` ends in somebody else's path,
+    /// and binding it by that final segment alone is how one unrelated `open`
+    /// collects every `File::open` in a repository - the same mistake
+    /// `visit_type_path` already refuses to make for types. The owning segment
+    /// of a two-segment path is still recorded as a reference, so the coupling
+    /// survives without the invented call.
+    pub(super) fn collect_call(&mut self, node: &syn::ExprCall) {
+        if let Some(name) = callable_name(&node.func) {
+            if call_is_locally_scoped(&node.func) {
+                self.add_reference(name, EdgeKind::Calls, false, node.span());
+            } else {
+                self.add_qualified_call(name, None, node.span());
+            }
+        }
+        if let Some(name) = associated_owner_name(&node.func) {
+            self.add_reference(name, EdgeKind::References, false, node.func.span());
+        }
+    }
+
+    /// Records a call whose target lives in a namespace this file does not
+    /// own: a method on the receiver's type, or the tail of somebody else's
+    /// path. It is marked qualified and carries the receiver it was written
+    /// on, which is what keeps `values.push(item)` away from an unrelated
+    /// `fn push`.
+    pub(super) fn add_qualified_call(
+        &mut self,
+        name: String,
+        receiver: Option<String>,
+        span: Span,
+    ) {
+        self.facts.references.push(ReferenceFact {
+            name,
+            kind: EdgeKind::Calls,
+            receiver,
+            qualified: true,
             span: source_span(self.path, span),
             owner: self.owner.symbol.clone(),
         });

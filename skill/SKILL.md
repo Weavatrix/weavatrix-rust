@@ -17,7 +17,10 @@ then use repository-native tests or benchmarks for behavioral proof.
    loudly instead of answering about the wrong root.
 2. Use `module_map` (optionally `depth`) for orientation or `search_code`
    for a known literal.
-3. Pin an exact symbol with `inspect_symbol` or `context_bundle`.
+3. Pin an exact symbol with `inspect_symbol` or `context_bundle`. When the
+   evidence is a usage, call `go_to_definition` with `(path, line, column)`
+   instead of a name; `find_references` lists the occurrences of that
+   resolved symbol.
 4. Expand only with `get_neighbors`, `get_dependents`, `query_graph`, or
    `shortest_path` when the task needs relationship evidence.
 

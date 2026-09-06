@@ -1,5 +1,6 @@
 /target/
 /npm/dist/
+/.weavatrix/report/
 *.tmp
 *.swp
 .DS_Store

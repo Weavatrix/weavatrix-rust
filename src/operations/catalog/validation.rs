@@ -11,6 +11,8 @@ pub(super) fn is_integer(name: &str) -> bool {
                 | "before"
                 | "after"
                 | "start_line"
+                | "line"
+                | "column"
                 | "context_lines"
                 | "months"
                 | "token_budget"
@@ -38,6 +40,7 @@ pub(super) fn enum_schema(tool: &str, name: &str) -> Option<Value> {
         }
         ("run_audit", "min_severity") => &["low", "medium", "high", "critical"],
         ("verified_change", "phase") => &["plan", "verify"],
+        ("perf_attribution", "direction") => &["lower_is_better", "higher_is_better"],
         ("get_dependents" | "change_impact" | "select_tests", "precision") => &["graph"],
         ("trace_api_contract", "transport") => &["all", "http", "graphql", "grpc", "event"],
         ("trace_api_contract" | "get_neighbors", "response_detail") => &["compact", "full"],

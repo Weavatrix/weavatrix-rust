@@ -44,6 +44,65 @@ pub(super) fn health_fields(tool: &str) -> Option<&'static [&'static str]> {
     }
 }
 
+pub(super) fn perf_fields(tool: &str) -> Option<&'static [&'static str]> {
+    match tool {
+        "perf_attribution" => Some(&[
+            "revision_column",
+            "direction",
+            "max_revisions",
+            "min_delta_percent",
+            "top_n",
+            "path",
+            "include_tests",
+            "include_classified",
+        ]),
+        _ => None,
+    }
+}
+
+pub(super) fn occurrence_fields(tool: &str) -> Option<&'static [&'static str]> {
+    match tool {
+        "inspect_symbol" => Some(&[
+            "label",
+            "path",
+            "line",
+            "column",
+            "scip_path",
+            "precision",
+            "max_references",
+            "context_lines",
+            "timeout_ms",
+        ]),
+        "go_to_definition" => Some(&["scip_path"]),
+        "find_references" => Some(&[
+            "label",
+            "path",
+            "line",
+            "column",
+            "scip_path",
+            "max_results",
+            "cursor",
+        ]),
+        "context_bundle" => Some(&[
+            "label",
+            "path",
+            "line",
+            "column",
+            "scip_path",
+            "precision",
+            "max_references",
+            "max_related",
+            "max_reexports",
+            "max_source_files",
+            "context_lines",
+            "include_classified",
+            "timeout_ms",
+            "token_budget",
+        ]),
+        _ => None,
+    }
+}
+
 pub(super) fn extension_fields(tool: &str) -> Option<&'static [&'static str]> {
     match tool {
         "rebuild_graph" => Some(&["mode", "precision", "scope"]),

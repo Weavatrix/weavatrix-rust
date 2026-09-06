@@ -21,7 +21,7 @@ Use it to:
 - serialize a `Snapshot` for CI, indexing, or review;
 - identify changed declarations by a content-safe symbol fingerprint and retain
   parser-proven `exported` evidence for public-surface consumers;
-- run 43 bounded read-only operations in the default full build;
+- run 47 bounded read-only operations in the default full build;
 - enforce the current v1 architecture contract foundation;
 - power the separate `weavatrix` MCP product.
 
@@ -51,7 +51,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.7.4"
+weavatrix-rust = "2.10.0"
 ```
 
 ```rust
@@ -86,7 +86,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.7.4", default-features = false }
+weavatrix-rust = { version = "2.10.0", default-features = false }
 ```
 
 ## MCP product
@@ -178,14 +178,15 @@ See the [evidence model](docs/evidence-model.md) and
 
 ## Operations
 
-The default full build exposes 43 operations:
+The default full build exposes 47 operations:
 
 | Workflow | Operations |
 | --- | --- |
 | Graph | `graph_stats`, `get_node`, `get_neighbors`, `query_graph`, `god_nodes`, `shortest_path`, communities, `module_map`, `build_graph` |
 | Change | `get_dependents`, `change_impact`, `select_tests`, `verified_change`, `prepare_change`, `graph_diff` |
-| Source | `search_code`, `read_source`, `inspect_symbol`, `context_bundle`, `map_stacktrace` |
+| Source | `search_code`, `read_source`, `inspect_symbol`, `go_to_definition`, `find_references`, `context_bundle`, `map_stacktrace` |
 | Health | `find_duplicates`, `find_dead_code`, `run_audit`, `coverage_map`, `hot_path_review` |
+| Measurement | `perf_attribution` |
 | APIs | `list_endpoints`, `trace_endpoint`, `trace_api_contract` |
 | Architecture | `get_architecture_contract`, `verify_architecture`, `verify_capabilities`, explain/propose exception |
 | Repository | Git history, cross-repo, open/list/rebuild operations |
@@ -202,6 +203,31 @@ weavatrix-rust list-tools
 weavatrix-rust tool verify_architecture .
 ```
 
+For an unattended loop, `tool` writes one-line JSON with `--compact`, takes
+its arguments from standard input with `--stdin`, and prints a single field
+with `--select=/pointer` so a result can be written straight into a table.
+Exit `0` means the operation answered, `1` that it could not run, and `2` that
+it answered with a `BLOCKED` state or verdict.
+
+## Report
+
+```sh
+weavatrix-rust report .
+```
+
+Writes `index.html`, `REPORT.md`, and `data.json` into `.weavatrix/report`.
+The page is self-contained: it carries its own stylesheet, script, and module
+map, references no external host, and escapes everything it reads out of the
+repository. It leads with the architecture verdict, which is the part a
+discovery tool cannot produce, and the map outlines the modules carrying a
+violation.
+
+The composer is `report::compose`, which returns bytes and writes nothing.
+Publishing a document is an explicit act by a person at a command line, never
+a side effect of a query, so the read-only operation surface stays read-only
+and the CLI is the only component with a write path. It writes those three
+names and removes nothing.
+
 ## Product boundary
 
 This repository owns analysis, evidence, repository state, and read-only
@@ -214,7 +240,9 @@ and licensed network workflows belong to
 ## Safety boundary
 
 - `#![forbid(unsafe_code)]` in the engine;
-- no network implementation or application-source writes;
+- no network implementation and no application-source writes; the standalone
+  CLI writes only the report a person asks for by name, and nothing in the
+  crate deletes;
 - no execution of analyzed repository code;
 - no spawning Git, ripgrep, Node, Python, or language servers;
 - canonical-path containment for repository reads;

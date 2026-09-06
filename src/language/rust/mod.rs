@@ -8,7 +8,8 @@ use syn::visit::Visit;
 use weavatrix_graph::{EdgeKind, NodeKind};
 
 use endpoints::{
-    associated_owner_name, attribute_routes, bare_path_name, callable_name, route_call,
+    associated_owner_name, attribute_routes, bare_path_name, call_is_locally_scoped, callable_name,
+    route_call,
 };
 use module_scope::{ModuleScope, OwnerScope, OwnerUpdate, sort_facts};
 use syntax::{attributes_mark_test, impl_owner, source_span, use_tree_targets};
@@ -251,27 +252,12 @@ impl<'ast> Visit<'ast> for Collector<'_> {
     }
 
     fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
-        if let Some(name) = callable_name(&node.func) {
-            self.add_reference(name, EdgeKind::Calls, false, node.span());
-        }
-        if let Some(name) = associated_owner_name(&node.func) {
-            self.add_reference(name, EdgeKind::References, false, node.func.span());
-        }
+        self.collect_call(node);
         syn::visit::visit_expr_call(self, node);
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
-        self.add_reference(node.method.to_string(), EdgeKind::Calls, false, node.span());
-        for argument in &node.args {
-            if let Some(name) = bare_path_name(argument) {
-                self.add_reference(name, EdgeKind::References, false, argument.span());
-            }
-        }
-        if node.method == "route" {
-            for (method, path) in route_call(node) {
-                self.add_endpoint(method, &path, node.span());
-            }
-        }
+        self.collect_method_call(node);
         syn::visit::visit_expr_method_call(self, node);
     }
 

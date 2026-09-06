@@ -70,6 +70,9 @@ fn resolve_name(
     {
         return None;
     }
+    if item.reference.qualified && item.language == Language::Rust {
+        return self_method_resolution(item, name, per_file);
+    }
     // 1. The defining file wins: a local definition shadows every import.
     if let Some(target) = unique_in_file(
         &item.source_path,
@@ -120,6 +123,33 @@ fn resolve_name(
     repository_wide.next().is_none().then(|| Resolution {
         target: only.clone(),
         detail: "unique repository symbol match",
+    })
+}
+
+/// The one Rust method call whose receiver type is proven by position.
+///
+/// `values.push(item)` names `Vec::push`, not a free `fn push` that happens to
+/// share the name, and this engine does not infer the type of `values`. Inside
+/// an impl block `self` is the type being implemented, so `self.step()` binds
+/// to a method the same file defines and every other receiver stays
+/// unresolved. Only method nodes are eligible: a method call can never name a
+/// free function.
+fn self_method_resolution(
+    item: &PendingReference,
+    name: &str,
+    per_file: &HashMap<String, HashMap<String, Vec<NodeId>>>,
+) -> Option<Resolution> {
+    if item.reference.receiver.as_deref() != Some("self") {
+        return None;
+    }
+    let defined = per_file.get(&item.source_path)?.get(name)?;
+    let mut methods = defined
+        .iter()
+        .filter(|target| target.as_str().contains("#method:"));
+    let only = methods.next()?;
+    methods.next().is_none().then(|| Resolution {
+        target: only.clone(),
+        detail: "resolved as a method on the implementing type",
     })
 }
 

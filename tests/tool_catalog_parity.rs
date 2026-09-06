@@ -36,6 +36,8 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "search_code",
         "read_source",
         "inspect_symbol",
+        "go_to_definition",
+        "find_references",
         "context_bundle",
         "find_duplicates",
         "find_dead_code",

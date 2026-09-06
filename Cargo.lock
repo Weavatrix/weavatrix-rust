@@ -278,9 +278,9 @@ dependencies = [
 
 [[package]]
 name = "weavatrix-git"
-version = "0.3.1"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dce29c0f582ffc64d1a6c29811da58a33e8c7a4301217143db44c48a3d437ce"
+checksum = "6bad0e9707010215856da6a11fcb346da0bcdeef111f637ca3c3c2c2601edef3"
 
 [[package]]
 name = "weavatrix-graph"
@@ -309,7 +309,7 @@ checksum = "0b033bf477f1a615abdabb19de3b851fd4d64fe1914b4be583124608e8dbfb4f"
 
 [[package]]
 name = "weavatrix-rust"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "blazingly-json",
  "proc-macro2",

@@ -1,6 +1,6 @@
 use blazingly_json::Value;
 
-pub(super) fn page_offset(args: &Value) -> Result<usize, String> {
+pub(crate) fn page_offset(args: &Value) -> Result<usize, String> {
     let Some(cursor) = args.get("cursor").and_then(Value::as_str) else {
         return Ok(0);
     };

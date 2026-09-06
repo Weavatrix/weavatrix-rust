@@ -5,13 +5,15 @@ mod optional_sections;
 
 use blazingly_json::{Value, json};
 use descriptions::documented;
-use optional_sections::{extension_fields, health_fields};
+use optional_sections::{extension_fields, health_fields, occurrence_fields, perf_fields};
 
 pub(super) fn optional_fields(tool: &str) -> &'static [&'static str] {
     graph_fields(tool)
         .or_else(|| change_fields(tool))
+        .or_else(|| occurrence_fields(tool))
         .or_else(|| source_and_api_fields(tool))
         .or_else(|| health_fields(tool))
+        .or_else(|| perf_fields(tool))
         .or_else(|| extension_fields(tool))
         .unwrap_or(&[])
 }
@@ -179,18 +181,6 @@ fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str]> {
             "start_line",
             "before",
             "after",
-            "token_budget",
-        ]),
-        "inspect_symbol" => Some(&["precision", "max_references", "context_lines", "timeout_ms"]),
-        "context_bundle" => Some(&[
-            "precision",
-            "max_references",
-            "max_related",
-            "max_reexports",
-            "max_source_files",
-            "context_lines",
-            "include_classified",
-            "timeout_ms",
             "token_budget",
         ]),
         "list_endpoints" => Some(&["method", "path", "max_results", "include_classified"]),

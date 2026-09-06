@@ -42,6 +42,11 @@ pub(crate) fn health_source_calls(ids: &[String]) -> Vec<(&'static str, Value)> 
             json!({"label": ids[0], "before": 2, "after": 2}),
         ),
         ("inspect_symbol", json!({"label": ids[0]})),
+        (
+            "go_to_definition",
+            json!({"path": "lib/util.js", "line": 1, "column": 17}),
+        ),
+        ("find_references", json!({"label": ids[0]})),
         ("context_bundle", json!({"label": ids[0], "depth": 3})),
         (
             "find_duplicates",

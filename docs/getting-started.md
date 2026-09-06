@@ -1,4 +1,4 @@
-# Getting started
+﻿# Getting started
 
 Choose the smallest surface that matches your application: an immutable
 snapshot, a live repository engine, or the standalone CLI.
@@ -7,7 +7,7 @@ snapshot, a live repository engine, or the standalone CLI.
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.0.2", default-features = false }
+weavatrix-rust = { version = "2.10.0", default-features = false }
 ```
 
 ```rust
@@ -36,7 +36,7 @@ CLI. It has no network implementation or external executable dependency.
 ```toml
 [dependencies]
 weavatrix-rust = {
-    version = "2.0.2",
+    version = "2.10.0",
     default-features = false,
     features = ["lang-rust", "git", "search"]
 }

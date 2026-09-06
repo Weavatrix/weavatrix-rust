@@ -8,7 +8,7 @@ pretend to provide the same semantic depth as a typed adapter.
 
 | Surface | Evidence extracted |
 | --- | --- |
-| Rust | modules, `use`/re-exports, items, impl ownership, traits, ordinary calls and calls inside standard formatting macros, tests, Axum/Actix/Rocket-style routes |
+| Rust | modules, `use`/re-exports, items, impl ownership, traits, scope-bound calls (bare names, `self`/`super`/`crate` paths, `self.method()`) including inside standard formatting macros, tests, Axum/Actix/Rocket-style routes |
 | JavaScript / JSX | ESM/CommonJS imports and exports, declarations, members, calls, routes, event clients |
 | TypeScript / TSX | JavaScript evidence plus interfaces, type-only coupling, aliases, and typed member ownership |
 | Python | imports, declarations, classes, calls, decorators, framework routes, and messaging |
@@ -66,6 +66,15 @@ Dynamic dispatch that cannot be proven stays unresolved. An ambiguous name is
 not connected to an arbitrary same-named symbol. Static reachability is not
 reported as measured coverage, and optional evidence that is absent remains
 explicitly absent.
+
+A Rust call binds only to a name the referencing file can name: a bare
+identifier, a `self`, `super` or `crate` path, or `self.method()`, whose
+receiver type is proven by the enclosing impl block. `values.push(item)` is
+`Vec::push` and `Repository::open(root)` ends in another type's namespace, so
+neither binds to a same-named symbol in this repository; the owning segment of
+a two-segment path is still recorded as a type reference. The consequence is
+an under-approximation: an associated call to a type this repository does own,
+such as `Analyzer::default()`, is also left unresolved rather than guessed.
 
 ## Lossless guarantee
 

@@ -1,6 +1,6 @@
 # Operation reference
 
-The default full build of `weavatrix-rust` exposes 42 bounded read-only
+The default full build of `weavatrix-rust` exposes 47 bounded read-only
 analysis operations. Rust consumers use `operations::catalog` and
 `operations::call`; the standalone CLI exposes `list-tools` and `tool`.
 `tools` remains a backward-compatible Rust re-export.
@@ -36,7 +36,17 @@ schemas are authoritative.
   answers in full and reports `token_budget.applied: false` with the estimated
   cost, so an unapplied budget is visible rather than silent.
 - `inspect_symbol`, `context_bundle`: exact declarations and compact task
-  worksets with ranked inbound/outbound evidence.
+  worksets with ranked inbound/outbound evidence. `inspect_symbol` accepts a
+  `label` or a `(path, line, column)` occurrence; a usage position wins over
+  a same-named declaration.
+- `go_to_definition`: `(path, line, column)` → resolved symbol → definition.
+  It uses the occurrence already recorded on the graph, then an on-disk SCIP
+  index (`index.scip` or `.scip/index.scip`) when one is already present. It
+  never spawns `scip-*`, never takes github/stack-graphs as a live
+  dependency, and never guesses a unique repository name. Unresolved stays
+  `UNRESOLVED`.
+- `find_references`: occurrences of that same subject, from the graph and
+  from the SCIP file when it is already on disk.
 - `map_stacktrace`: V8/Node, JVM, CPython and Rust panic frames from supplied
   text mapped onto repository files and the nearest graph symbol; runtime and
   dependency frames are classified from their own text.
@@ -58,6 +68,29 @@ schemas are authoritative.
 
 These operations do not auto-delete code or turn a missing artifact into a
 clean result.
+
+## Measurement attribution
+
+- `perf_attribution`: correlate a caller-supplied measurement series with the
+  declarations that changed between the revisions that produced it.
+
+The engine measures nothing. A harness supplies `measurements_file` - a
+repository-relative tab- or comma-separated table - and the `metric` column to
+read; comment rows starting with `#`, blank metric cells and revisions this
+repository does not contain are reported as skipped rather than dropped. Each
+adjacent pair of measurements is one step: the report states its delta, its
+relative change, a verdict under the caller's `direction` and
+`min_delta_percent` noise band, and the declarations whose own source extent
+differs between the two revisions. Only the files whose Git blob IDs differ
+are read, and each distinct revision is analyzed once.
+
+A step whose two revisions are identical measures the harness rather than the
+code, so those steps are collected into a `noise_floor` block instead of being
+attributed to anything. `by_symbol` credits each declaration with the step
+delta divided by the number of declarations that changed with it, and reports
+the best isolation it ever had. This is co-occurrence between an external
+measurement and static structural change: a step that moved forty declarations
+is weak evidence for each of them, and profiler attribution it is not.
 
 ## APIs and architecture
 

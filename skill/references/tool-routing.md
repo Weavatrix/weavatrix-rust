@@ -12,6 +12,9 @@ repositories: the call fails instead of answering about the wrong root.
   and shared packages never merge them.
 - `get_node`, `get_neighbors`, `inspect_symbol`, `context_bundle`: exact
   entities and local evidence.
+- `go_to_definition`, `find_references`: occurrence navigation from a
+  source position. Use these when a name is overloaded or re-exported;
+  unresolved stays unresolved.
 - `query_graph`, `shortest_path`, `get_dependents`: bounded traversal.
 - `search_code`, `read_source`: lexical and source confirmation.
 

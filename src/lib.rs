@@ -6,6 +6,7 @@ mod engine;
 pub mod language;
 mod model;
 pub mod operations;
+pub mod report;
 
 /// Backward-compatible name for the operation API.
 pub use operations as tools;

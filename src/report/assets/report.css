@@ -1,0 +1,181 @@
+:root {
+  color-scheme: light dark;
+  --page: #ffffff;
+  --panel: #f6f7f9;
+  --ink: #14171a;
+  --muted: #5b6570;
+  --line: #dfe3e8;
+  --accent: #2f6feb;
+  --pass: #1a7f4b;
+  --blocked: #c0392b;
+  --node: #2f6feb;
+  --edge: #9aa4b0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #111417;
+    --panel: #181c20;
+    --ink: #e7ebef;
+    --muted: #9aa4b0;
+    --line: #2a3138;
+    --accent: #6ea0ff;
+    --pass: #4cc38a;
+    --blocked: #ff6b5e;
+    --node: #6ea0ff;
+    --edge: #4a545e;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2.5rem 1.5rem 4rem;
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 0 0 0.35rem;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 2.5rem 0 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+
+code {
+  font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
+  font-size: 0.86em;
+}
+
+.facts {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.facts div {
+  padding: 0.1rem 0;
+}
+
+.verdict {
+  display: inline-block;
+  margin: 1.1rem 0 0;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  color: var(--page);
+  background: var(--pass);
+}
+
+.verdict.blocked {
+  background: var(--blocked);
+}
+
+.verdict.unset {
+  background: var(--muted);
+}
+
+figure {
+  margin: 1.5rem 0 0;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+figcaption {
+  padding: 0.4rem 0.5rem 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+svg.dragging {
+  cursor: grabbing;
+}
+
+svg line {
+  stroke: var(--edge);
+}
+
+svg circle {
+  fill: var(--node);
+  fill-opacity: 0.75;
+  stroke: var(--page);
+  stroke-width: 2;
+}
+
+svg .violating circle {
+  stroke: var(--blocked);
+  stroke-width: 3;
+}
+
+svg text {
+  fill: var(--ink);
+  font: 11px ui-monospace, Menlo, monospace;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+th,
+td {
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+td:last-child {
+  white-space: normal;
+}
+
+th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.note {
+  color: var(--muted);
+}
+
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+}

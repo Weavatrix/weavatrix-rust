@@ -1,5 +1,39 @@
 use blazingly_json::Value;
-use std::path::Path;
+use std::fs;
+use std::path::{Component, Path};
+
+/// Reads one repository-relative file with canonical-path containment.
+///
+/// `label` names the argument the caller supplied, so a refusal points at the
+/// input that caused it. Both the traversal check and the canonical prefix
+/// check are needed: the first rejects an obvious escape, the second rejects
+/// one that a symbolic link would otherwise hide.
+pub(in crate::operations) fn read_contained(
+    root: &Path,
+    relative: &str,
+    label: &str,
+) -> Result<String, String> {
+    let path = Path::new(relative);
+    if path.is_absolute()
+        || path.components().any(|part| {
+            matches!(
+                part,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(format!("{label} escapes repository: {relative}"));
+    }
+    let canonical_root =
+        fs::canonicalize(root).map_err(|error| format!("{}: {error}", root.display()))?;
+    let candidate = canonical_root.join(path);
+    let canonical = fs::canonicalize(&candidate)
+        .map_err(|error| format!("{}: {error}", candidate.display()))?;
+    if !canonical.starts_with(&canonical_root) {
+        return Err(format!("{label} escapes repository: {relative}"));
+    }
+    fs::read_to_string(&canonical).map_err(|error| format!("{}: {error}", canonical.display()))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum PathClass {
@@ -143,7 +177,7 @@ fn is_tool_configuration(segments: &[&str], file: &str) -> bool {
 ///
 /// The returned scope uses graph-path separators and can therefore be shared
 /// by tools without platform-specific prefix behaviour.
-pub(super) fn requested_path_scope(args: &Value) -> Result<Option<String>, String> {
+pub(in crate::operations) fn requested_path_scope(args: &Value) -> Result<Option<String>, String> {
     let Some(value) = args.get("path") else {
         return Ok(None);
     };
@@ -169,7 +203,7 @@ pub(super) fn requested_path_scope(args: &Value) -> Result<Option<String>, Strin
 }
 
 /// Exact-file or directory-subtree matching over normalized graph paths.
-pub(super) fn path_is_in_scope(path: &str, scope: Option<&str>) -> bool {
+pub(in crate::operations) fn path_is_in_scope(path: &str, scope: Option<&str>) -> bool {
     let Some(scope) = scope else {
         return true;
     };

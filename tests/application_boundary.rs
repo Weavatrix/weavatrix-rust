@@ -6,7 +6,9 @@ fn default_weavatrix_has_no_process_network_or_source_write_path() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let mut rust_sources = Vec::new();
     collect_rust_sources(&root.join("src"), &mut rust_sources);
-    let banned_source_markers = [
+    // Nothing in this crate spawns a process, opens a socket, deletes
+    // anything, or links a native parser - the CLI included.
+    let banned_everywhere = [
         "std::process::Command",
         "Command::new(",
         "std::net::",
@@ -14,25 +16,42 @@ fn default_weavatrix_has_no_process_network_or_source_write_path() {
         "UdpSocket",
         "File::create(",
         "OpenOptions",
-        "fs::write(",
         "remove_file(",
         "remove_dir",
         "tree_sitter",
     ];
+    // The library never writes. The CLI writes exactly one thing: the report a
+    // person asked for by name on the command line. Publishing a document is
+    // an explicit act by a person, never a side effect of a query, so the
+    // write path exists there and nowhere else.
+    let write_markers = ["fs::write(", "create_dir"];
+    let cli = root.join("src").join("main.rs");
+    let mut writers = Vec::new();
     for path in rust_sources {
         let source = fs::read_to_string(&path).unwrap();
         // Unit-test fixtures may create temporary files. Every production
         // module keeps its `#[cfg(test)]` module last, so only the compiled
         // production prefix participates in this runtime-boundary check.
         let production_source = source.split("#[cfg(test)]").next().unwrap_or(&source);
-        for marker in banned_source_markers {
+        for marker in banned_everywhere {
             assert!(
                 !production_source.contains(marker),
                 "{} contains forbidden Weavatrix marker {marker}",
                 path.display()
             );
         }
+        if write_markers
+            .iter()
+            .any(|marker| production_source.contains(marker))
+        {
+            writers.push(path.clone());
+        }
     }
+    assert_eq!(
+        writers,
+        vec![cli],
+        "the standalone CLI is the only component with a write path"
+    );
 }
 
 #[test]

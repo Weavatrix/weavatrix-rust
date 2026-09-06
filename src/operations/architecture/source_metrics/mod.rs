@@ -3,8 +3,7 @@
 use super::contract::component_for;
 use crate::engine::RepositoryState;
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
-use std::path::{Component, Path};
+use std::path::Path;
 use weavatrix_graph::NodeKind;
 
 mod function_extent;
@@ -91,30 +90,7 @@ pub(super) fn collect(
 }
 
 fn read_repository_file(root: &Path, relative: &str) -> Result<String, String> {
-    let relative_path = Path::new(relative);
-    if relative_path.is_absolute()
-        || relative_path.components().any(|part| {
-            matches!(
-                part,
-                Component::ParentDir | Component::RootDir | Component::Prefix(_)
-            )
-        })
-    {
-        return Err(format!(
-            "architecture source path escapes repository: {relative}"
-        ));
-    }
-    let canonical_root =
-        fs::canonicalize(root).map_err(|error| format!("{}: {error}", root.display()))?;
-    let candidate = root.join(relative_path);
-    let canonical = fs::canonicalize(&candidate)
-        .map_err(|error| format!("{}: {error}", candidate.display()))?;
-    if !canonical.starts_with(&canonical_root) {
-        return Err(format!(
-            "architecture source path escapes repository: {relative}"
-        ));
-    }
-    fs::read_to_string(&canonical).map_err(|error| format!("{}: {error}", canonical.display()))
+    crate::operations::health::paths::read_contained(root, relative, "architecture source path")
 }
 
 /// Physical extent in lines of the declaration starting at `start_line`,

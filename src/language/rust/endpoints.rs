@@ -145,6 +145,31 @@ pub(super) fn callable_name(expression: &Expr) -> Option<String> {
 /// A one-segment expression path can be passed around as a function value:
 /// `iter.and_then(validate)`. It is still a direct symbol reference even
 /// though Rust does not spell it as an `ExprCall` at that use site.
+/// Whether a call path is written in the referencing file's own scope: a bare
+/// name, or a `self`, `super` or `crate` path.
+///
+/// Anything else ends in a namespace this file does not own. `Repository::open`
+/// and `std::fs::read_to_string` are not names this file can bind, and binding
+/// them by their final segment is how one unrelated `open` collects every
+/// `File::open` in a repository.
+pub(super) fn call_is_locally_scoped(expression: &Expr) -> bool {
+    let Expr::Path(path) = unwrapped(expression) else {
+        return false;
+    };
+    if path.qself.is_some() {
+        return false;
+    }
+    if path.path.segments.len() == 1 {
+        return true;
+    }
+    path.path.segments.first().is_some_and(|segment| {
+        matches!(
+            segment.ident.to_string().as_str(),
+            "self" | "super" | "crate"
+        )
+    })
+}
+
 pub(super) fn bare_path_name(expression: &Expr) -> Option<String> {
     let Expr::Path(path) = unwrapped(expression) else {
         return None;

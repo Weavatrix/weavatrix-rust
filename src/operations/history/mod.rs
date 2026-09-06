@@ -17,9 +17,9 @@ mod analytics;
 #[cfg(feature = "git")]
 mod blob;
 #[cfg(feature = "git")]
-mod diff;
+pub(in crate::operations) mod diff;
 #[cfg(feature = "git")]
-mod revision;
+pub(in crate::operations) mod revision;
 
 #[cfg(feature = "git")]
 pub(in crate::operations) use blob::read_blob;

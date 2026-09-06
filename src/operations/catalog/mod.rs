@@ -46,6 +46,7 @@ fn capability_is_compiled(tool: &str) -> bool {
             | "verified_change"
             | "graph_diff"
             | "select_tests"
+            | "perf_attribution"
     ) {
         cfg!(feature = "git")
     } else if tool == "search_code" {

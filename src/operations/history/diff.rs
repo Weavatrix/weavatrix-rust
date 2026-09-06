@@ -226,7 +226,7 @@ fn node_map(graph: &Graph) -> BTreeMap<&str, &Node> {
 /// Immutable Git snapshots carry blob IDs while the scanner carries SHA-256
 /// content fingerprints. Both are valid evidence, but comparing their raw
 /// strings would mark every unchanged file node as structurally changed.
-fn nodes_differ(baseline: &Node, target: &Node) -> bool {
+pub(in crate::operations) fn nodes_differ(baseline: &Node, target: &Node) -> bool {
     if baseline.kind != target.kind
         || baseline.id != target.id
         || baseline.label != target.label

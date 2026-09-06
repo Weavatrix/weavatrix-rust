@@ -97,13 +97,23 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "inspect_symbol",
-        description: "Definition, direct relationships and source evidence.",
-        required: &["label"],
+        description: "Definition, direct relationships and source evidence by label or source position.",
+        required: &[],
+    },
+    ToolSpec {
+        name: "go_to_definition",
+        description: "Resolve the symbol at a source position to its definition without guessing by name.",
+        required: &["path", "line", "column"],
+    },
+    ToolSpec {
+        name: "find_references",
+        description: "Occurrences of the symbol at a position or label, from the graph and an on-disk SCIP index if present.",
+        required: &[],
     },
     ToolSpec {
         name: "context_bundle",
         description: "Compact graph and source bundle for one symbol.",
-        required: &["label"],
+        required: &[],
     },
     ToolSpec {
         name: "find_duplicates",
@@ -129,6 +139,11 @@ pub(super) const SPECS: &[ToolSpec] = &[
         name: "hot_path_review",
         description: "Rank functions by static complexity times resolved call fan-in.",
         required: &[],
+    },
+    ToolSpec {
+        name: "perf_attribution",
+        description: "Correlate a measurement series with the declarations that changed between the revisions that produced it.",
+        required: &["measurements_file", "metric"],
     },
     ToolSpec {
         name: "list_communities",

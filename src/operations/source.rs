@@ -1,10 +1,10 @@
 use crate::engine::RepositoryState;
 #[cfg(feature = "search")]
 use crate::operations::arg_bool;
+use crate::operations::occurrence::{InspectSubject, inspect_subject, repo_relative_file};
 use crate::operations::{arg_str, arg_u64, optional_u64};
 use blazingly_json::{Value, json};
 use std::fs;
-use std::path::{Path, PathBuf};
 
 pub fn read_source(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let (relative, anchor) = if let Ok(label) = arg_str(args, "label") {
@@ -22,7 +22,7 @@ pub fn read_source(state: &RepositoryState, args: &Value) -> Result<Value, Strin
         (arg_str(args, "path")?.to_owned(), None)
     };
     let root = state.root();
-    let path = secure_path(root, &relative)?;
+    let path = repo_relative_file(root, &relative)?;
     let text = fs::read_to_string(&path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     let requested_start = arg_u64(args, "start_line").ok();
@@ -152,8 +152,10 @@ pub fn search(_state: &RepositoryState, _args: &Value) -> Result<Value, String> 
 }
 
 pub fn inspect(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    let label = arg_str(args, "label")?;
-    let index = state.resolve_node(label)?;
+    let index = match inspect_subject(state, args)? {
+        InspectSubject::Unresolved(report) => return Ok(report),
+        InspectSubject::Node(index) => index,
+    };
     let node = state.node(index)?;
     let max_references = optional_u64(args, "max_references")?;
     if max_references.is_some_and(|value| value == 0 || value > 500) {
@@ -179,6 +181,7 @@ pub fn inspect(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         })
         .transpose()?;
     Ok(json!({
+        "state": "RESOLVED",
         "node": node,
         "relationships": relationships,
         "source": source,
@@ -189,9 +192,19 @@ pub fn inspect(state: &RepositoryState, args: &Value) -> Result<Value, String> {
 
 pub fn context(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let inspection = inspect(state, args)?;
+    if inspection.get("state").and_then(Value::as_str) == Some("UNRESOLVED") {
+        return Ok(json!({
+            "inspection": inspection,
+            "related_source": [],
+            "bounded": true
+        }));
+    }
     let related = usize::try_from(arg_u64(args, "max_related").unwrap_or(10)).unwrap_or(10);
-    let label = arg_str(args, "label")?;
-    let index = state.resolve_node(label)?;
+    let id = inspection
+        .pointer("/node/id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "resolved inspection is missing a node id".to_owned())?;
+    let index = state.resolve_node(id)?;
     let mut sources = Vec::new();
     for edge in state
         .graph()
@@ -271,27 +284,4 @@ fn repage_relationships(report: &mut Value) {
             Value::Null
         },
     );
-}
-
-fn secure_path(root: &Path, relative: &str) -> Result<PathBuf, String> {
-    if relative.is_empty() || Path::new(relative).is_absolute() {
-        return Err("source path must be repository-relative".to_owned());
-    }
-    // Snapshot paths use forward slashes for deterministic serialization.
-    // On Windows that can spell the extended-length root as `//?/C:/...`,
-    // while `canonicalize` returns `\\?\C:\...`; compare two canonical paths
-    // so the boundary check does not reject an existing in-repository file.
-    let canonical_root = root
-        .canonicalize()
-        .map_err(|error| format!("cannot resolve repository root: {error}"))?;
-    let joined = canonical_root.join(relative);
-    let path = joined
-        .canonicalize()
-        .map_err(|error| format!("cannot resolve {relative}: {error}"))?;
-    if !path.starts_with(&canonical_root) || !path.is_file() {
-        return Err(format!(
-            "source path escapes repository or is not a file: {relative}"
-        ));
-    }
-    Ok(path)
 }

@@ -9,7 +9,7 @@ mod trace;
 mod views;
 mod walk;
 
-use pagination::page_offset;
+pub(crate) use pagination::page_offset;
 pub(super) use trace::endpoint as trace_endpoint;
 pub use views::{communities, endpoints, module_map};
 use walk::resolve_seeds;

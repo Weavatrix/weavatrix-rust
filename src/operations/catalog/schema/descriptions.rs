@@ -2,6 +2,37 @@
 
 use blazingly_json::{Value, json};
 
+/// Fields of the measurement-attribution operation, whose meaning depends on
+/// the caller's own harness rather than on anything the engine measured.
+fn measurement_field(name: &str) -> Option<Value> {
+    match name {
+        "measurements_file" => Some(json!({
+            "type": "string",
+            "description": "Repository-relative tab- or comma-separated table the caller's harness wrote; comment rows starting with # are ignored, and rows without a finite metric are reported as skipped rather than dropped"
+        })),
+        "metric" => Some(json!({
+            "type": "string",
+            "description": "Column holding the measured number, for example nanoseconds per operation. The engine measures nothing itself: it correlates the caller's numbers with structural change"
+        })),
+        "revision_column" => Some(json!({
+            "type": "string",
+            "default": "commit",
+            "description": "Column holding the Git revision each measurement was taken at; unresolvable revisions are reported as skipped"
+        })),
+        "min_delta_percent" => Some(json!({
+            "type": "integer",
+            "minimum": 0,
+            "description": "Steps whose relative change is inside this band are reported as flat; set it from the noise floor that a repeated revision measures"
+        })),
+        "max_revisions" => Some(json!({
+            "type": "integer",
+            "minimum": 2,
+            "description": "Most recent measurements to walk (default 12); each distinct revision costs one full analysis of that revision"
+        })),
+        _ => None,
+    }
+}
+
 /// The documented schema for one field, when its behaviour needs stating.
 pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
     if name == "token_budget" && tool != "context_bundle" {
@@ -26,6 +57,14 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
             "default": "file_pairs",
             "description": "Aggregate edge churn by source file, target file, and relation by default; request edges for individual edge provenance"
         }));
+    }
+    if tool == "perf_attribution"
+        && let Some(schema) = measurement_field(name)
+    {
+        return Some(schema);
+    }
+    if let Some(schema) = occurrence_field(tool, name) {
+        return Some(schema);
     }
     match (tool, name) {
         ("find_dead_code", "min_confidence") => Some(json!({
@@ -80,6 +119,36 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
             "type": "boolean",
             "default": true,
             "description": "High-recall by default; false suppresses data-only catalogs but retains model, schema, and contract clones"
+        })),
+        _ => None,
+    }
+}
+
+fn occurrence_field(tool: &str, name: &str) -> Option<Value> {
+    if !matches!(
+        tool,
+        "go_to_definition" | "find_references" | "inspect_symbol" | "context_bundle"
+    ) {
+        return None;
+    }
+    match name {
+        "line" => Some(json!({
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based source line of the occurrence to resolve"
+        })),
+        "column" => Some(json!({
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based source column of the occurrence to resolve"
+        })),
+        "path" => Some(json!({
+            "type": "string",
+            "description": "Repository-relative file containing the occurrence"
+        })),
+        "scip_path" => Some(json!({
+            "type": "string",
+            "description": "Repository-relative SCIP index already on disk; never generated or spawned. Defaults to index.scip or .scip/index.scip when present"
         })),
         _ => None,
     }

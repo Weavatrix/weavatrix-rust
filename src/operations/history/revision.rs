@@ -181,7 +181,7 @@ fn revision_sources(
     Ok(sources)
 }
 
-pub(super) fn revision_graph(
+pub(in crate::operations) fn revision_graph(
     analyzer: &Analyzer,
     repository: &Repository,
     state: &RepositoryState,
