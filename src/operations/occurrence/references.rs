@@ -6,7 +6,7 @@ use weavatrix_graph::NodeIndex;
 use super::path;
 use super::position::{self, Query};
 use super::report::{
-    node_json, page_json, page_limit, query_json, optional_query, scip_definition, sources,
+    node_json, optional_query, page_json, page_limit, query_json, scip_definition, sources,
     span_key,
 };
 use super::scip;

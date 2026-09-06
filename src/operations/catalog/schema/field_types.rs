@@ -1,5 +1,5 @@
-use blazingly_json::{Value, json};
 use super::descriptions::documented;
+use blazingly_json::{Value, json};
 
 pub(crate) fn field_schema(tool: &str, name: &str) -> Value {
     if let Some(documented) = documented(tool, name) {

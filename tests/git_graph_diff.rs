@@ -71,10 +71,7 @@ fn change_impact_uses_the_active_worktree_by_default() {
 #[test]
 fn change_impact_returns_flat_dependent_nodes() {
     let fixture = GitFixture::new();
-    fixture.write(
-        "services/init.js",
-        "export function initialize() {}\n",
-    );
+    fixture.write("services/init.js", "export function initialize() {}\n");
     fixture.write(
         "services/consumer.js",
         "import { initialize } from './init.js';\nexport function start() { initialize(); }\n",
@@ -134,10 +131,7 @@ fn bounded_static_tools_reject_unavailable_lsp_precision() {
 #[test]
 fn change_impact_accepts_legacy_target_as_files() {
     let fixture = GitFixture::new();
-    fixture.write(
-        "services/init.js",
-        "export function initialize() {}\n",
-    );
+    fixture.write("services/init.js", "export function initialize() {}\n");
     fixture.write(
         "services/consumer.js",
         "import { initialize } from './init.js';\nexport function start() { initialize(); }\n",
