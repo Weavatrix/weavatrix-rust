@@ -273,7 +273,7 @@ version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5bc69185652622f52eb602dd8bc9db258fd671b8f826b49449e6013e98014940"
 dependencies = [
- "weavatrix-scan",
+ "weavatrix-scan 0.4.6",
 ]
 
 [[package]]
@@ -320,7 +320,7 @@ dependencies = [
  "weavatrix-graph",
  "weavatrix-memory",
  "weavatrix-parse",
- "weavatrix-scan",
+ "weavatrix-scan 0.5.0",
  "weavatrix-search",
  "weavatrix-search-vector",
  "weavatrix-semantic",
@@ -336,6 +336,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "weavatrix-scan"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bb922ec5028b53e3c3bdf0ff6dced8da06b97bf4b1356a7899c194781aa485e"
+dependencies = [
+ "winapi-util",
+]
+
+[[package]]
 name = "weavatrix-search"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -346,7 +355,7 @@ dependencies = [
  "regex-automata",
  "regex-syntax",
  "sha2",
- "weavatrix-scan",
+ "weavatrix-scan 0.4.6",
 ]
 
 [[package]]
