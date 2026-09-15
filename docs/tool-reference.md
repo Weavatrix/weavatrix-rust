@@ -123,7 +123,7 @@ or embedding service.
 - `n8n_trace`: bounded `flows_to`, `depends_on_output`, `handles_error_with`,
   and `calls_workflow` walks with a 100-node page and cursor.
 - `n8n_context`: selected node or workflow dependencies, expressions, and
-  unknown/runtime gaps.
+  explicit runtime gaps.
 
 n8n is recognized after JSON parse. Same display names in different workflow
 files stay distinct. Missing subworkflows are reported as not provided.

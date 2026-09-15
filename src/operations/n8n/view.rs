@@ -8,7 +8,7 @@ pub(super) fn workflow_row(state: &RepositoryState, node: &Node) -> Value {
         "id": node.id,
         "label": node.label,
         "span": node.span,
-        "completeness": domain_name(&domains, "completeness:").unwrap_or_else(|| "unknown".to_owned()),
+        "completeness": domain_name(&domains, "completeness:").unwrap_or_else(|| "unspecified".to_owned()),
         "entries": domains.iter().filter(|item| {
             item["name"].as_str().is_some_and(|name| name.starts_with("entry:"))
         }).cloned().collect::<Vec<_>>(),

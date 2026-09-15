@@ -104,7 +104,7 @@ pub(super) fn context(state: &RepositoryState, args: &Value) -> Result<Value, St
         "task": task,
         "dependencies": dependencies,
         "expressions": expressions,
-        "unknown": unknown,
+        "gaps": unknown,
         "coverage": view::coverage_from(state, node.span.as_ref().map(|span| span.file.as_str())),
         "bounds": {"truncated": false, "runtime": false}
     }))
