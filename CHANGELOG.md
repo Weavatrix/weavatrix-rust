@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Raise `weavatrix-scan` to 0.5 for the hardened watch and policy contracts.
+  The lockfile still carries `weavatrix-scan` 0.4.6 as well: published
+  `weavatrix-search` 0.3.1 and `weavatrix-clone` 0.1.4 have not raised their
+  floor yet.
+
 ## 2.10.0 - 2026-09-02
 
 - F2: HTTP contract linking no longer treats comment-only route mentions as
