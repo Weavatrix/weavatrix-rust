@@ -23,7 +23,9 @@ pub(super) fn collect(
         let Some(source_key) = names.get(source_name) else {
             diagnostics.push(Diagnostic {
                 code: "n8n.unknown_source".into(),
-                message: format!("connection source {source_name:?} is not a node in this workflow"),
+                message: format!(
+                    "connection source {source_name:?} is not a node in this workflow"
+                ),
                 span: Some(span.clone()),
             });
             continue;
@@ -60,6 +62,7 @@ pub(super) fn collect(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn add_link(
     workflow: &mut WorkflowRecord,
     names: &BTreeMap<String, String>,
@@ -82,11 +85,19 @@ fn add_link(
         });
         return;
     };
-    let input_index = target
-        .get("index")
-        .and_then(Value::as_u64)
-        .unwrap_or(0) as usize;
+    let input_index =
+        usize::try_from(target.get("index").and_then(Value::as_u64).unwrap_or(0)).unwrap_or(0);
     let target_kind = target.get("type").and_then(Value::as_str).unwrap_or(kind);
+    if kind.starts_with("ai_") || target_kind.starts_with("ai_") {
+        workflow.domains.push(DomainRecord {
+            owner: source_key.to_owned(),
+            name: format!("{kind}:{target_name}"),
+            kind: NodeKind::custom("n8n.ai").unwrap_or(NodeKind::Service),
+            relation: configured_with(),
+            span: span.clone(),
+        });
+        return;
+    }
     let out_port = port_key(source_key, "out", kind, output_index);
     let in_port = port_key(target_key, "in", target_kind, input_index);
     workflow.links.push(LinkRecord {
@@ -94,7 +105,9 @@ fn add_link(
         to: in_port,
         kind: flows_to(),
         span: span.clone(),
-        detail: format!("{source_name}/{kind}:{output_index} -> {target_name}/{target_kind}:{input_index}"),
+        detail: format!(
+            "{source_name}/{kind}:{output_index} -> {target_name}/{target_kind}:{input_index}"
+        ),
     });
     workflow.links.push(LinkRecord {
         from: target_key.clone(),
@@ -110,15 +123,6 @@ fn add_link(
             kind: handles_error(),
             span: span.clone(),
             detail: "configured error output".into(),
-        });
-    }
-    if kind.starts_with("ai_") {
-        workflow.domains.push(DomainRecord {
-            owner: source_key.to_owned(),
-            name: format!("{kind}:{target_name}"),
-            kind: NodeKind::custom("n8n.ai").unwrap_or(NodeKind::Service),
-            relation: configured_with(),
-            span: span.clone(),
         });
     }
 }

@@ -38,6 +38,7 @@ pub(super) struct Evidence {
     pub dead: Value,
     pub duplicates: Value,
     pub endpoints: Value,
+    pub workflows: Value,
     pub modules: Vec<Module>,
     pub links: Vec<layout::Link>,
     pub depth: usize,
@@ -52,6 +53,7 @@ pub(super) fn gather(engine: &mut Weavatrix) -> Result<Evidence, String> {
     let dead = section(engine, "find_dead_code", &json!({"top_n": MAX_ROWS}))?;
     let duplicates = section(engine, "find_duplicates", &json!({"top_n": MAX_ROWS}))?;
     let endpoints = section(engine, "list_endpoints", &json!({"max_results": MAX_ROWS}))?;
+    let workflows = section(engine, "n8n_inventory", &json!({"max_results": MAX_ROWS}))?;
     let (modules, links) = module_graph(engine, &module_map, &architecture, depth);
     Ok(Evidence {
         stats,
@@ -61,6 +63,7 @@ pub(super) fn gather(engine: &mut Weavatrix) -> Result<Evidence, String> {
         dead,
         duplicates,
         endpoints,
+        workflows,
         modules,
         links,
         depth,

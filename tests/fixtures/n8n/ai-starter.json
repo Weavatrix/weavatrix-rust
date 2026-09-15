@@ -1,0 +1,36 @@
+{
+  "id": "wf-ai",
+  "name": "AI Starter",
+  "versionId": "v1",
+  "nodes": [
+    {
+      "id": "n-chat",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "parameters": {}
+    },
+    {
+      "id": "n-agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "parameters": { "promptType": "define" }
+    },
+    {
+      "id": "n-model",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.7,
+      "parameters": { "model": { "value": "gpt-4.1-mini" } }
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [[{ "node": "AI Agent", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [[{ "node": "AI Agent", "type": "ai_languageModel", "index": 0 }]]
+    }
+  }
+}

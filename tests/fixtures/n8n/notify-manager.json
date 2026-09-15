@@ -1,0 +1,28 @@
+{
+  "id": "wf-notify-manager",
+  "name": "Notify Manager",
+  "versionId": "v1",
+  "nodes": [
+    {
+      "id": "n-hook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "parameters": { "path": "notify", "httpMethod": "POST" }
+    },
+    {
+      "id": "n-load",
+      "name": "Load Customer",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "assignments": {
+          "assignments": [{ "name": "email", "value": "={{ $json.email }}" }]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Load Customer", "type": "main", "index": 0 }]] }
+  }
+}

@@ -5,7 +5,7 @@ pub(super) const MAX_NODES: usize = 5_000;
 pub(super) const MAX_CONNECTIONS: usize = 30_000;
 pub(super) const MAX_EXPRESSION_BYTES: usize = 64 * 1024;
 pub(super) const MAX_CODE_BYTES: usize = 1024 * 1024;
-pub(super) const DEFAULT_FILE_BYTES: u64 = 1_500_000;
+pub(crate) const DEFAULT_FILE_BYTES: u64 = 1_500_000;
 
 /// Cheap prefix probe so large non-n8n JSON is not admitted as workflow source.
 #[must_use]
@@ -29,6 +29,19 @@ pub(super) fn completeness(value: &Value) -> Completeness {
         Completeness::Full
     } else {
         Completeness::Partial
+    }
+}
+
+/// Shape that looks like an n8n export even when no node is structurally valid.
+#[must_use]
+pub(super) fn has_n8n_shape(value: &Value) -> bool {
+    match value {
+        Value::Array(items) => items.iter().any(has_n8n_shape),
+        Value::Object(_) => {
+            value.get("nodes").is_some_and(Value::is_array)
+                && value.get("connections").is_some_and(Value::is_object)
+        }
+        _ => false,
     }
 }
 

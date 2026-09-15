@@ -116,6 +116,9 @@ pub(super) fn extension_fields(tool: &str) -> Option<&'static [&'static str]> {
         "open_repo" => Some(&["build", "mode", "precision"]),
         "semantic_link" => Some(&["model", "min_similarity", "top_k", "selection"]),
         "vector_search" => Some(&["top_k", "exact"]),
+        "n8n_inventory" => Some(&["path", "max_results"]),
+        "n8n_trace" => Some(&["depth", "max_nodes", "cursor"]),
+        "n8n_context" => Some(&["task", "max_related"]),
         "seo_link_suggestions" => Some(&[
             "model",
             "min_similarity",

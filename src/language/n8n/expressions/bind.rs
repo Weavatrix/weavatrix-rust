@@ -1,83 +1,31 @@
-use super::detect::MAX_EXPRESSION_BYTES;
-use super::locations::{self, StringSite};
-use super::model::{
-    DomainRecord, LinkRecord, WorkflowRecord, depends_on_output, reads_field, uses_variable,
+use super::super::model::{
+    DomainRecord, LinkRecord, WorkflowRecord, configured_with, depends_on_output, reads_field,
+    uses_variable,
 };
-use super::redaction;
-use blazingly_json::Value;
 use weavatrix_graph::NodeKind;
 
-pub(super) fn collect(
-    workflow: &mut WorkflowRecord,
-    nodes: &[Value],
-    sites: &[StringSite],
-    path: &str,
-) {
-    for node in nodes {
-        let Some(name) = node.get("name").and_then(Value::as_str) else {
-            continue;
-        };
-        let Some(owner) = workflow.nodes.iter().find(|item| item.name == name) else {
-            continue;
-        };
-        let owner_key = owner.key.clone();
-        let parameters = node.get("parameters").cloned().unwrap_or(Value::Null);
-        walk_strings(&parameters, "", &mut |pointer, text| {
-            if redaction::looks_secret(pointer, text) {
-                return;
-            }
-            for region in expression_regions(text) {
-                if region.len() > MAX_EXPRESSION_BYTES {
-                    continue;
-                }
-                let span = site_span(path, sites, pointer, text, &region);
-                bind_expression(workflow, &owner_key, &region, span);
-            }
-        });
-    }
-}
-
-fn walk_strings(value: &Value, pointer: &str, visit: &mut impl FnMut(&str, &str)) {
-    match value {
-        Value::String(text) => visit(pointer, text),
-        Value::Array(items) => {
-            for (index, item) in items.iter().enumerate() {
-                walk_strings(item, &format!("{pointer}/{index}"), visit);
-            }
-        }
-        Value::Object(fields) => {
-            for (key, item) in fields {
-                walk_strings(item, &format!("{pointer}/{key}"), visit);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn expression_regions(text: &str) -> Vec<String> {
-    if let Some(inner) = text.strip_prefix("={{") {
-        return vec![inner.trim_end_matches("}}").trim().to_owned()];
-    }
-    if let Some(inner) = text.strip_prefix('=') {
-        return vec![inner.to_owned()];
-    }
-    Vec::new()
-}
-
-fn bind_expression(
+pub(super) fn bind_expression(
     workflow: &mut WorkflowRecord,
     owner: &str,
     expression: &str,
-    span: weavatrix_graph::SourceSpan,
+    span: &weavatrix_graph::SourceSpan,
 ) {
+    workflow.coverage.expressions_seen += 1;
+    let selector = selector_detail(expression);
+    let config_only = matches!(selector.as_str(), "params" | "isExecuted");
     if let Some(name) = static_node_ref(expression) {
         if let Some(target) = workflow.nodes.iter().find(|node| node.name == name) {
+            workflow.coverage.expressions_resolved += 1;
             workflow.links.push(LinkRecord {
                 from: owner.to_owned(),
                 to: target.key.clone(),
-                kind: depends_on_output(),
+                kind: if config_only {
+                    configured_with()
+                } else {
+                    depends_on_output()
+                },
                 span: span.clone(),
-                detail: selector_detail(expression),
+                detail: selector,
             });
         } else if !has_dynamic_node(expression) {
             workflow.domains.push(DomainRecord {
@@ -93,6 +41,14 @@ fn bind_expression(
                 owner: owner.to_owned(),
                 name: format!("{name}.{field}"),
                 kind: NodeKind::Column,
+                relation: reads_field(),
+                span: span.clone(),
+            });
+        } else if expression.contains(".json[") {
+            workflow.domains.push(DomainRecord {
+                owner: owner.to_owned(),
+                name: format!("{name}.json:unresolved_key"),
+                kind: NodeKind::Unknown,
                 relation: reads_field(),
                 span: span.clone(),
             });
@@ -114,6 +70,15 @@ fn bind_expression(
             span: span.clone(),
             detail: "current input".into(),
         });
+        if let Some(field) = current_field(expression) {
+            workflow.domains.push(DomainRecord {
+                owner: owner.to_owned(),
+                name: format!("$json.{field}"),
+                kind: NodeKind::Column,
+                relation: reads_field(),
+                span: span.clone(),
+            });
+        }
     }
     for variable in env_or_var(expression) {
         workflow.domains.push(DomainRecord {
@@ -148,6 +113,14 @@ fn has_dynamic_node(expression: &str) -> bool {
 
 fn field_path(expression: &str) -> Option<String> {
     let after = expression.split(".json.").nth(1)?;
+    static_field(after)
+}
+
+fn current_field(expression: &str) -> Option<String> {
+    expression.split("$json.").nth(1).and_then(static_field)
+}
+
+fn static_field(after: &str) -> Option<String> {
     let field = after
         .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
         .next()
@@ -158,14 +131,14 @@ fn field_path(expression: &str) -> Option<String> {
 fn selector_detail(expression: &str) -> String {
     if expression.contains(".itemMatching") {
         "itemMatching"
-    } else if expression.contains(".item") && !expression.contains(".first") {
-        "linked-item"
     } else if expression.contains(".first(") {
         "first"
     } else if expression.contains(".last(") {
         "last"
     } else if expression.contains(".all(") {
         "all"
+    } else if expression.contains(".item") {
+        "linked-item"
     } else if expression.contains(".params") {
         "params"
     } else if expression.contains(".isExecuted") {
@@ -179,46 +152,18 @@ fn selector_detail(expression: &str) -> String {
 fn env_or_var(expression: &str) -> Vec<String> {
     let mut names = Vec::new();
     for prefix in ["$vars.", "$env."] {
-        if let Some(rest) = expression.split(prefix).nth(1) {
-            let name = rest
-                .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
-                .next()
-                .unwrap_or("");
-            if !name.is_empty() {
-                names.push(format!("{prefix}{name}"));
-            }
+        if let Some(rest) = expression.split(prefix).nth(1)
+            && let Some(name) = static_field(rest)
+        {
+            names.push(format!("{prefix}{name}"));
         }
     }
     names
 }
 
-fn site_span(
-    path: &str,
-    sites: &[StringSite],
-    pointer: &str,
-    text: &str,
-    region: &str,
-) -> weavatrix_graph::SourceSpan {
-    let Some(site) = sites.iter().find(|site| site.decoded == text) else {
-        return locations::file_span(path);
-    };
-    let decoded_start = text.find(region).unwrap_or(0);
-    let decoded_end = decoded_start + region.chars().count();
-    let inner = site
-        .decoded
-        .as_str();
-    let (start, end) = locations::map_decoded_range(inner, text, decoded_start, decoded_end);
-    locations::span_for(
-        path,
-        "",
-        site.raw_start.saturating_add(start),
-        site.raw_start.saturating_add(end).max(site.raw_start + 1),
-    )
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{field_path, has_dynamic_node, static_node_ref};
+    use super::{field_path, has_dynamic_node, selector_detail, static_node_ref};
 
     #[test]
     fn item_and_first_are_distinct_selectors() {
@@ -229,6 +174,14 @@ mod tests {
         assert_eq!(
             field_path("$('Load Customer').item.json.email").as_deref(),
             Some("email")
+        );
+        assert_eq!(
+            selector_detail("$('Load Customer').item.json.email"),
+            "linked-item"
+        );
+        assert_eq!(
+            selector_detail("$('Load Customer').first().json.id"),
+            "first"
         );
         assert!(has_dynamic_node("$(prefix + suffix).item.json.id"));
         assert!(!has_dynamic_node("$('Load Customer').item.json[fieldName]"));

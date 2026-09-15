@@ -30,7 +30,10 @@ impl LanguageAdapter for JsonAdapter {
         // and package writers commonly preserve it; ignore it for validation
         // without changing the source bytes held by the analyzer.
         let json = source.text.strip_prefix('\u{feff}').unwrap_or(source.text);
-        if blazingly_json::from_str::<blazingly_json::Value>(json).is_ok() {
+        if let Ok(value) = blazingly_json::from_str::<blazingly_json::Value>(json) {
+            if let Some(n8n) = super::n8n::analyze(source.path, json, &value) {
+                return Ok(n8n);
+            }
             return Ok(facts);
         }
         let normalized = normalize_jsonc(json);
@@ -186,6 +189,29 @@ mod tests {
             .unwrap();
 
         assert!(facts.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn n8n_workflow_is_recognized_after_json_parse() {
+        let facts = JsonAdapter
+            .parse(SourceFile {
+                path: "workflows/invoice.json",
+                text: r#"{
+                  "id":"wf-1",
+                  "name":"Invoice",
+                  "nodes":[{"id":"n1","name":"Start","type":"n8n-nodes-base.manualTrigger","typeVersion":1,"parameters":{}}],
+                  "connections":{}
+                }"#,
+            })
+            .unwrap();
+        assert!(facts.diagnostics.is_empty());
+        assert!(
+            facts
+                .symbols
+                .iter()
+                .any(|symbol| symbol.name == "Invoice" && symbol.kind.as_str() == "n8n.workflow")
+        );
+        assert!(facts.symbols.iter().any(|symbol| symbol.name == "Start"));
     }
 
     #[test]

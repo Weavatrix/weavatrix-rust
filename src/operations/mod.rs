@@ -6,6 +6,7 @@ mod graph;
 mod health;
 mod history;
 mod memory;
+mod n8n;
 mod occurrence;
 mod perf;
 mod semantic;
@@ -140,6 +141,9 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "vector_search" => vector::search(arguments),
         "seo_link_suggestions" => semantic::seo_links(state, arguments),
         "memory_context" => memory::context(state, arguments),
+        "n8n_inventory" => n8n::inventory(state, arguments),
+        "n8n_trace" => n8n::trace(state, arguments),
+        "n8n_context" => n8n::context(state, arguments),
         "rebuild_graph" => {
             let before = graph::stats(state, arguments)?;
             weavatrix.rebuild().map_err(|error| error.to_string())?;

@@ -1,0 +1,24 @@
+{
+  "id": "wf-load-customer",
+  "name": "Load Customer Workflow",
+  "versionId": "v1",
+  "nodes": [
+    {
+      "id": "n-trigger",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "id": "n-fetch",
+      "name": "Fetch Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": { "method": "GET", "url": "https://api.example/record" }
+    }
+  ],
+  "connections": {
+    "When Called": { "main": [[{ "node": "Fetch Record", "type": "main", "index": 0 }]] }
+  }
+}

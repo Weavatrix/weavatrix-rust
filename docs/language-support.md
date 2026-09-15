@@ -28,7 +28,7 @@ pretend to provide the same semantic depth as a typed adapter.
 | --- | --- |
 | GraphQL | schema types, fields, root operations, executable calls, fragments, and referenced return types |
 | Protobuf / gRPC | packages, messages, enums, services, RPC input/output types, and unary/client/server/bidirectional streaming modes |
-| JSON / JSONC | lossless syntax plus recognized package, compiler, architecture, and application configuration |
+| JSON / JSONC | lossless syntax plus recognized package, compiler, architecture, and application configuration; after parse, n8n workflow JSON is a domain, not a second `.json` adapter |
 | YAML / Kubernetes | documents, deployment resources, services, workloads, images, ports, and configuration links |
 | Terraform / HCL | blocks, resources, providers, variables, outputs, references, and deployment evidence |
 | XML | elements, attributes, configuration structure, and recognized build/application manifests |

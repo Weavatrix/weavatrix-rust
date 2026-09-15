@@ -25,7 +25,7 @@ pub(super) fn capabilities(registry: &LanguageRegistry) -> Vec<Capability> {
                 "lossless Protocol Buffers proto2, proto3 and numeric Editions package, import, message, enum, service and RPC contracts with request/response and unary/client/server/bidi streaming"
             }
             Language::Json => {
-                "strict JSON syntax and complete configuration/lockfile inventory with exact diagnostics"
+                "strict JSON syntax, configuration/lockfile inventory, and n8n workflow evidence after parse"
             }
             _ => {
                 "complete lossless structural fact extraction and deterministic cross-file resolution for the registered language contract"

@@ -60,6 +60,7 @@ fn data(evidence: &sections::Evidence) -> Value {
         "find_dead_code": evidence.dead,
         "find_duplicates": evidence.duplicates,
         "list_endpoints": evidence.endpoints,
+        "n8n_inventory": evidence.workflows,
         "module_map": {
             "depth": evidence.depth,
             "modules": evidence.modules.iter().map(|module| json!({

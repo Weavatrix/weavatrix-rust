@@ -2,11 +2,33 @@ use super::detect::Completeness;
 use crate::model::Diagnostic;
 use weavatrix_graph::{EdgeKind, NodeKind, SourceSpan};
 
+#[derive(Debug, Clone, Default)]
+pub(super) struct Coverage {
+    pub structure_accepted: u32,
+    pub structure_seen: u32,
+    pub semantics_supported: u32,
+    pub semantics_seen: u32,
+    pub expressions_resolved: u32,
+    pub expressions_seen: u32,
+}
+
+impl Coverage {
+    pub(super) fn merge(&mut self, other: &Self) {
+        self.structure_accepted += other.structure_accepted;
+        self.structure_seen += other.structure_seen;
+        self.semantics_supported += other.semantics_supported;
+        self.semantics_seen += other.semantics_seen;
+        self.expressions_resolved += other.expressions_resolved;
+        self.expressions_seen += other.expressions_seen;
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct DomainBatch {
     pub workflows: Vec<WorkflowRecord>,
     pub diagnostics: Vec<Diagnostic>,
     pub truncated: bool,
+    pub coverage: Coverage,
 }
 
 #[derive(Debug, Clone)]
@@ -19,6 +41,7 @@ pub(super) struct WorkflowRecord {
     pub nodes: Vec<NodeRecord>,
     pub links: Vec<LinkRecord>,
     pub domains: Vec<DomainRecord>,
+    pub coverage: Coverage,
 }
 
 #[derive(Debug, Clone)]
@@ -35,7 +58,18 @@ pub(super) struct NodeRecord {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NodeSemantics {
     Supported,
+    Unsupported,
     StructureOnly,
+}
+
+impl NodeSemantics {
+    pub(super) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Supported => "supported",
+            Self::Unsupported => "unsupported",
+            Self::StructureOnly => "structure_only",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

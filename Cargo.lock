@@ -293,9 +293,9 @@ dependencies = [
 
 [[package]]
 name = "weavatrix-memory"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49ffc380da7fa6ee8f98a6935aa8bd3111c3d7ae097562651d8ef214e408c72e"
+checksum = "351408eca9005872581af9b15903935392dd72887fd30e5663b40e5f1a13faf2"
 dependencies = [
  "serde",
  "weavatrix-graph",
@@ -309,7 +309,7 @@ checksum = "0b033bf477f1a615abdabb19de3b851fd4d64fe1914b4be583124608e8dbfb4f"
 
 [[package]]
 name = "weavatrix-rust"
-version = "2.10.0"
+version = "2.11.0"
 dependencies = [
  "blazingly-json",
  "proc-macro2",
@@ -320,7 +320,7 @@ dependencies = [
  "weavatrix-graph",
  "weavatrix-memory",
  "weavatrix-parse",
- "weavatrix-scan 0.5.0",
+ "weavatrix-scan 0.5.3",
  "weavatrix-search",
  "weavatrix-search-vector",
  "weavatrix-semantic",
@@ -337,9 +337,9 @@ dependencies = [
 
 [[package]]
 name = "weavatrix-scan"
-version = "0.5.0"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bb922ec5028b53e3c3bdf0ff6dced8da06b97bf4b1356a7899c194781aa485e"
+checksum = "77cb4b4cbe4fedd41ad461afe3320516bed5d4882ec5c24f8cfe6b23a38c3a56"
 dependencies = [
  "winapi-util",
 ]

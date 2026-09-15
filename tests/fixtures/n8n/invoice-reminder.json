@@ -1,0 +1,92 @@
+{
+  "id": "wf-invoice-reminder",
+  "name": "Invoice Reminder",
+  "versionId": "v1",
+  "nodes": [
+    {
+      "id": "n-start",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "id": "n-load",
+      "name": "Load Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.example/customers"
+      }
+    },
+    {
+      "id": "n-check",
+      "name": "Check Customer",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "parameters": { "conditions": { "combinator": "and", "conditions": [] } }
+    },
+    {
+      "id": "n-send",
+      "name": "Send Invoice",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "name": "sendTo", "value": "={{ $('Load Customer').item.json.email }}" },
+            { "name": "firstId", "value": "={{ $('Load Customer').first().json.id }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n-review",
+      "name": "Manual Review",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "id": "n-code",
+      "name": "Format Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const email = $('Load Customer').item.json.email;\nreturn [{json:{email}}];"
+      }
+    },
+    {
+      "id": "n-sub",
+      "name": "Call Load",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "parameters": { "source": "database", "workflowId": "wf-load-customer" }
+    },
+    {
+      "id": "n-missing",
+      "name": "Call Missing",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "parameters": {
+        "source": "database",
+        "workflowId": "wf-not-provided",
+        "options": { "waitForSubWorkflow": false }
+      }
+    }
+  ],
+  "connections": {
+    "Start": { "main": [[{ "node": "Load Customer", "type": "main", "index": 0 }]] },
+    "Load Customer": { "main": [[{ "node": "Check Customer", "type": "main", "index": 0 }]] },
+    "Check Customer": {
+      "main": [
+        [{ "node": "Send Invoice", "type": "main", "index": 0 }],
+        [{ "node": "Manual Review", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Invoice": { "main": [[{ "node": "Format Email", "type": "main", "index": 0 }]] },
+    "Format Email": { "main": [[{ "node": "Call Load", "type": "main", "index": 0 }]] },
+    "Call Load": { "main": [[{ "node": "Call Missing", "type": "main", "index": 0 }]] }
+  }
+}

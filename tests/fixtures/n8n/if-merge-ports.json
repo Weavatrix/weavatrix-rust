@@ -1,0 +1,53 @@
+{
+  "id": "wf-if-merge",
+  "name": "If Merge Ports",
+  "versionId": "v1",
+  "nodes": [
+    {
+      "id": "n-start",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "id": "n-if",
+      "name": "Check Customer",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "parameters": {}
+    },
+    {
+      "id": "n-a",
+      "name": "Branch A",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "id": "n-b",
+      "name": "Branch B",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "id": "n-merge",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "parameters": { "mode": "append" }
+    }
+  ],
+  "connections": {
+    "Start": { "main": [[{ "node": "Check Customer", "type": "main", "index": 0 }]] },
+    "Check Customer": {
+      "main": [
+        [{ "node": "Branch A", "type": "main", "index": 0 }],
+        [{ "node": "Branch B", "type": "main", "index": 0 }]
+      ]
+    },
+    "Branch A": { "main": [[{ "node": "Merge", "type": "main", "index": 0 }]] },
+    "Branch B": { "main": [[{ "node": "Merge", "type": "main", "index": 1 }]] }
+  }
+}

@@ -228,8 +228,7 @@ pub fn path(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     }))
 }
 
-/// Relations that mean "this code depends on that code". Containment is
-/// structural, not a dependency, so a reverse dependency walk excludes it.
+/// Coupling relations for reverse walks. Containment is not a dependency.
 fn coupling_relations() -> std::collections::BTreeSet<String> {
     [
         "calls",
@@ -238,6 +237,8 @@ fn coupling_relations() -> std::collections::BTreeSet<String> {
         "implements",
         "re_exports",
         "references",
+        "depends_on_output",
+        "calls_workflow",
     ]
     .into_iter()
     .map(str::to_owned)

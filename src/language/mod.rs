@@ -5,6 +5,7 @@ use weavatrix_graph::{EdgeKind, NodeKind, SourceSpan};
 mod contract;
 mod graphql;
 mod json;
+mod n8n;
 mod protobuf;
 #[cfg(feature = "lang-rust")]
 mod rust;
@@ -14,6 +15,8 @@ mod yaml;
 pub(crate) use contract::file_facts_have_transport_evidence;
 #[cfg(test)]
 pub(crate) use contract::may_contain_transport_marker;
+pub(crate) use n8n::DEFAULT_FILE_BYTES as N8N_DEFAULT_FILE_BYTES;
+pub(crate) use n8n::looks_promising as n8n_looks_promising;
 
 #[cfg(feature = "lang-rust")]
 pub use rust::RustAdapter;

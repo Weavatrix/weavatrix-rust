@@ -1,0 +1,25 @@
+{
+  "id": "wf-cycle",
+  "name": "Cycle",
+  "versionId": "v1",
+  "nodes": [
+    {
+      "id": "n-a",
+      "name": "Loop A",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "id": "n-b",
+      "name": "Loop B",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Loop A": { "main": [[{ "node": "Loop B", "type": "main", "index": 0 }]] },
+    "Loop B": { "main": [[{ "node": "Loop A", "type": "main", "index": 0 }]] }
+  }
+}

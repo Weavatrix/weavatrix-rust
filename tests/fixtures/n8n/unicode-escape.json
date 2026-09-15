@@ -1,0 +1,21 @@
+{
+  "id": "wf-unicode",
+  "name": "Unicode Escape",
+  "versionId": "v1",
+  "nodes": [
+    {
+      "id": "n-set",
+      "name": "Write Note",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "name": "note", "value": "={{ $('Write Note').item.json.email + \" \u0040 \uD83D\uDE00\" }}" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {}
+}

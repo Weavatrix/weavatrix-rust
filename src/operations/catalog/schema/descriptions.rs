@@ -142,6 +142,18 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "description": "Deprecated alias for a single path in files; equivalent to files:[target]. Errors when both are present and disagree"
         })),
+        ("n8n_inventory", "path") => Some(json!({
+            "type": "string",
+            "description": "Repository-relative workflow file or path fragment; omit to list every recognized export"
+        })),
+        ("n8n_trace", "cursor") => Some(json!({
+            "type": "string",
+            "description": "Opaque page token from a previous n8n_trace page.next_cursor; format v1:<offset>"
+        })),
+        ("n8n_context", "task") => Some(json!({
+            "type": "string",
+            "description": "What the caller intends to change or inspect; used only to keep the bounded context on that question"
+        })),
         _ => None,
     }
 }

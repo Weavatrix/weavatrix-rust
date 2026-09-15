@@ -198,7 +198,10 @@ impl Analyzer {
             .map(str::to_owned)
             .collect::<BTreeSet<_>>();
         let mut options = ScanOptions::default().with_extensions(extensions);
-        options.max_file_bytes = self.config.max_file_bytes;
+        options.max_file_bytes = self
+            .config
+            .max_file_bytes
+            .max(self.config.n8n_max_file_bytes);
         options.content_discovery = ContentDiscoveryMode::BufferedParallel;
         options.evidence = EvidenceMode::SelectedFiles;
         options

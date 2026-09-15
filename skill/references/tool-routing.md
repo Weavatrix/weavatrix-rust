@@ -57,3 +57,6 @@ repositories: the call fails instead of answering about the wrong root.
 - `open_repo`, `rebuild_graph`: process-local retarget and refresh.
 - `vector_search`, `semantic_link`, `seo_link_suggestions`, `memory_context`:
   supplied-vector and supplied-event workflows.
+- `n8n_inventory`, `n8n_trace`, `n8n_context`: exported n8n workflows after
+  JSON parse. Walk `flows_to` and `depends_on_output` separately; missing
+  subworkflows are not provided, not deleted.

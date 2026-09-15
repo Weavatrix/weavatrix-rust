@@ -10,6 +10,8 @@ pub enum ToolProfile {
     Code,
     /// Content-graph, search, semantic, and SEO analysis.
     Seo,
+    /// Exported n8n workflows without the full repository catalog.
+    N8n,
 }
 
 impl ToolProfile {
@@ -18,6 +20,23 @@ impl ToolProfile {
         match self {
             Self::All => true,
             Self::Code => tool != "seo_link_suggestions",
+            Self::N8n => matches!(
+                tool,
+                "n8n_inventory"
+                    | "n8n_trace"
+                    | "n8n_context"
+                    | "graph_stats"
+                    | "get_node"
+                    | "get_neighbors"
+                    | "query_graph"
+                    | "search_code"
+                    | "read_source"
+                    | "inspect_symbol"
+                    | "context_bundle"
+                    | "rebuild_graph"
+                    | "open_repo"
+                    | "list_known_repos"
+            ),
             Self::Seo => matches!(
                 tool,
                 "graph_stats"
@@ -51,8 +70,9 @@ impl FromStr for ToolProfile {
             "all" => Ok(Self::All),
             "code" => Ok(Self::Code),
             "seo" | "content" => Ok(Self::Seo),
+            "n8n" => Ok(Self::N8n),
             _ => Err(format!(
-                "unknown tool profile {value:?}; expected all, code, or seo"
+                "unknown tool profile {value:?}; expected all, code, seo, or n8n"
             )),
         }
     }

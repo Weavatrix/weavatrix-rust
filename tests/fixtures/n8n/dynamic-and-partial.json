@@ -1,0 +1,26 @@
+{
+  "nodes": [
+    {
+      "name": "Clipboard Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "parameters": {}
+    },
+    {
+      "name": "Dynamic Target",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "name": "dyn", "value": "={{ $(prefix + suffix).item.json.id }}" },
+            { "name": "open", "value": "={{ $('Clipboard Start').item.json[fieldName] }}" },
+            { "name": "comment", "value": "={{ /* $('Clipboard Start').item.json.secret */ 1 }}" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Clipboard Start": { "main": [[{ "node": "Dynamic Target", "type": "main", "index": 0 }]] }
+  }
+}

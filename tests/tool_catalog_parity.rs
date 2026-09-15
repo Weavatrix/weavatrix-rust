@@ -62,6 +62,9 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "vector_search",
         "seo_link_suggestions",
         "memory_context",
+        "n8n_inventory",
+        "n8n_trace",
+        "n8n_context",
     ] {
         assert!(actual.contains(expected), "missing tool {expected}");
     }
@@ -116,6 +119,12 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
     let seo = tools::catalog_for_profile(tools::ToolProfile::Seo);
     assert!(seo.iter().any(|tool| tool.name == "seo_link_suggestions"));
     assert!(seo.iter().all(|tool| tool.name != "verified_change"));
+    let n8n = tools::catalog_for_profile(tools::ToolProfile::N8n);
+    assert!(n8n.iter().any(|tool| tool.name == "n8n_inventory"));
+    assert!(n8n.iter().any(|tool| tool.name == "n8n_trace"));
+    assert!(n8n.iter().any(|tool| tool.name == "n8n_context"));
+    assert!(n8n.iter().all(|tool| tool.name != "verified_change"));
+    assert!(n8n.iter().all(|tool| tool.name != "seo_link_suggestions"));
 
     #[cfg(feature = "vector")]
     {

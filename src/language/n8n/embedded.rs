@@ -2,18 +2,20 @@ use super::detect::MAX_CODE_BYTES;
 use super::expressions;
 use super::locations::{self, StringSite};
 use super::model::WorkflowRecord;
+use super::redaction;
 use blazingly_json::Value;
-use weavatrix_parse::{DeclarationKind, Language, extract};
+use weavatrix_parse::{Language, extract};
 
 pub(super) fn collect(
     workflow: &mut WorkflowRecord,
     nodes: &[Value],
     sites: &[StringSite],
     path: &str,
+    raw: &str,
 ) {
     for node in nodes {
         let type_name = node.get("type").and_then(Value::as_str).unwrap_or("");
-        if !type_name.contains("code") && !type_name.ends_with(".code") {
+        if !is_code_node(type_name) {
             continue;
         }
         let parameters = node.get("parameters").cloned().unwrap_or(Value::Null);
@@ -31,7 +33,7 @@ pub(super) fn collect(
         else {
             continue;
         };
-        if source.len() > MAX_CODE_BYTES {
+        if source.len() > MAX_CODE_BYTES || redaction::looks_secret("/parameters/jsCode", source) {
             continue;
         }
         let facts = extract(source, language);
@@ -54,12 +56,16 @@ pub(super) fn collect(
             .find(|site| site.decoded == source)
             .map_or_else(
                 || locations::file_span(path),
-                |site| locations::span_for(path, "", site.raw_start, site.raw_end),
+                |site| locations::span_for(path, raw, site.raw_start, site.raw_end),
             );
-        expressions::bind_from_source(workflow, &owner_key, source, span);
-        let _ = facts
-            .declarations
-            .iter()
-            .any(|declaration| declaration.kind == DeclarationKind::Function);
+        expressions::bind_from_source(workflow, &owner_key, source, &span);
     }
+}
+
+fn is_code_node(type_name: &str) -> bool {
+    type_name.ends_with("code")
+        || type_name.ends_with("function")
+        || type_name.ends_with("Code")
+        || type_name == "n8n-nodes-base.code"
+        || type_name == "n8n-nodes-base.function"
 }

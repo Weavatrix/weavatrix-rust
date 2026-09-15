@@ -1,6 +1,7 @@
 use super::connections;
 use super::detect::{
-    self, Completeness, MAX_CONNECTIONS, MAX_NODES, MAX_WORKFLOW_BYTES, completeness, is_workflow,
+    self, Completeness, MAX_CONNECTIONS, MAX_NODES, MAX_WORKFLOW_BYTES, completeness,
+    has_n8n_shape, is_workflow,
 };
 use super::embedded;
 use super::expressions;
@@ -22,6 +23,18 @@ pub(super) fn decode(path: &str, raw: &str, value: &Value) -> Option<DomainBatch
         _ => Vec::new(),
     };
     if documents.is_empty() {
+        if has_n8n_shape(value) {
+            return Some(DomainBatch {
+                workflows: Vec::new(),
+                diagnostics: vec![Diagnostic {
+                    code: "n8n.invalid_workflow".into(),
+                    message: "n8n-shaped JSON has no structurally valid nodes".into(),
+                    span: Some(locations::file_span(path)),
+                }],
+                truncated: false,
+                coverage: super::model::Coverage::default(),
+            });
+        }
         return None;
     }
     let size = u64::try_from(raw.len()).unwrap_or(u64::MAX);
@@ -36,10 +49,14 @@ pub(super) fn decode(path: &str, raw: &str, value: &Value) -> Option<DomainBatch
         workflows: Vec::new(),
         diagnostics: Vec::new(),
         truncated: false,
+        coverage: super::model::Coverage::default(),
     };
     for (index, document) in documents {
-        match workflow(path, document, index, &sites, &mut batch.diagnostics) {
-            Ok(workflow) => batch.workflows.push(workflow),
+        match workflow(path, raw, document, index, &sites, &mut batch.diagnostics) {
+            Ok(workflow) => {
+                batch.coverage.merge(&workflow.coverage);
+                batch.workflows.push(workflow);
+            }
             Err(message) => {
                 batch.truncated = true;
                 batch.diagnostics.push(limit_diagnostic(path, message));
@@ -51,6 +68,7 @@ pub(super) fn decode(path: &str, raw: &str, value: &Value) -> Option<DomainBatch
 
 fn workflow(
     path: &str,
+    raw: &str,
     value: &Value,
     index: Option<usize>,
     sites: &[StringSite],
@@ -62,17 +80,17 @@ fn workflow(
         .cloned()
         .unwrap_or_default();
     if nodes.len() > MAX_NODES {
-        return Err(format!("n8n node count {} exceeds {MAX_NODES}", nodes.len()));
+        return Err(format!(
+            "n8n node count {} exceeds {MAX_NODES}",
+            nodes.len()
+        ));
     }
     let name = value
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or("untitled")
         .to_owned();
-    let id = value
-        .get("id")
-        .and_then(Value::as_str)
-        .map(str::to_owned);
+    let id = value.get("id").and_then(Value::as_str).map(str::to_owned);
     let namespace = index.map_or_else(|| path.to_owned(), |index| format!("{path}#{index}"));
     let key = workflow_key(&namespace, id.as_deref(), &name);
     let span = locations::file_span(path);
@@ -85,6 +103,7 @@ fn workflow(
         nodes: Vec::new(),
         links: Vec::new(),
         domains: Vec::new(),
+        coverage: super::model::Coverage::default(),
     };
     for (ordinal, node) in nodes.iter().enumerate() {
         if !detect::is_node(node) {
@@ -95,22 +114,29 @@ fn workflow(
             });
             continue;
         }
-        record.nodes.push(node_record(&key, node, path, ordinal));
+        record
+            .nodes
+            .push(node_record(&key, node, path, raw, sites, ordinal));
     }
     let names = record
         .nodes
         .iter()
         .map(|node| (node.name.clone(), node.key.clone()))
         .collect::<std::collections::BTreeMap<_, _>>();
-    connections::collect(&mut record, value.get("connections"), &names, path, diagnostics);
+    connections::collect(
+        &mut record,
+        value.get("connections"),
+        &names,
+        path,
+        diagnostics,
+    );
     if connection_count(&record) > MAX_CONNECTIONS {
-        return Err(format!(
-            "n8n connection count exceeds {MAX_CONNECTIONS}"
-        ));
+        return Err(format!("n8n connection count exceeds {MAX_CONNECTIONS}"));
     }
-    expressions::collect(&mut record, &nodes, sites, path);
-    embedded::collect(&mut record, &nodes, sites, path);
-    nodes::collect(&mut record, &nodes, path);
+    expressions::collect(&mut record, &nodes, sites, path, raw);
+    embedded::collect(&mut record, &nodes, sites, path, raw);
+    nodes::collect(&mut record, &nodes, value, path);
+    record.coverage = coverage_of(&record);
     if record.completeness == Completeness::Partial {
         diagnostics.push(Diagnostic {
             code: "n8n.partial".into(),
@@ -121,7 +147,14 @@ fn workflow(
     Ok(record)
 }
 
-fn node_record(workflow_key: &str, node: &Value, path: &str, ordinal: usize) -> NodeRecord {
+fn node_record(
+    workflow_key: &str,
+    node: &Value,
+    path: &str,
+    raw: &str,
+    sites: &[StringSite],
+    ordinal: usize,
+) -> NodeRecord {
     let name = node
         .get("name")
         .and_then(Value::as_str)
@@ -138,27 +171,50 @@ fn node_record(workflow_key: &str, node: &Value, path: &str, ordinal: usize) -> 
         .unwrap_or("unknown")
         .to_owned();
     let type_version = type_version(node);
-    let semantics = super::nodes::semantics(&type_name, &type_version);
+    let semantics = super::families::semantics(&type_name, &type_version);
     NodeRecord {
         key: node_key(workflow_key, &id, &name),
         id,
-        name,
+        name: name.clone(),
         type_name,
         type_version,
         semantics,
-        span: locations::span_for(path, "", 0, 0).offset_placeholder(ordinal),
+        span: node_span(path, raw, sites, ordinal),
     }
 }
 
-trait PlaceholderSpan {
-    fn offset_placeholder(self, ordinal: usize) -> weavatrix_graph::SourceSpan;
+fn node_span(
+    path: &str,
+    raw: &str,
+    sites: &[StringSite],
+    ordinal: usize,
+) -> weavatrix_graph::SourceSpan {
+    let suffix = format!("/nodes/{ordinal}/name");
+    if let Some(site) = sites.iter().find(|site| site.pointer.ends_with(&suffix)) {
+        return locations::span_for(path, raw, site.raw_start, site.raw_end);
+    }
+    let column = u32::try_from(ordinal.saturating_add(2)).unwrap_or(u32::MAX);
+    weavatrix_graph::SourceSpan::new(
+        path,
+        weavatrix_graph::SourcePosition::new(1, column),
+        weavatrix_graph::SourcePosition::new(1, column.saturating_add(1)),
+    )
 }
 
-impl PlaceholderSpan for weavatrix_graph::SourceSpan {
-    fn offset_placeholder(self, ordinal: usize) -> weavatrix_graph::SourceSpan {
-        let _ = ordinal;
-        self
-    }
+fn coverage_of(record: &WorkflowRecord) -> super::model::Coverage {
+    let mut coverage = record.coverage.clone();
+    coverage.structure_seen = u32::try_from(record.nodes.len()).unwrap_or(u32::MAX);
+    coverage.structure_accepted = coverage.structure_seen;
+    coverage.semantics_seen = coverage.structure_seen;
+    coverage.semantics_supported = u32::try_from(
+        record
+            .nodes
+            .iter()
+            .filter(|node| node.semantics == super::model::NodeSemantics::Supported)
+            .count(),
+    )
+    .unwrap_or(u32::MAX);
+    coverage
 }
 
 fn type_version(node: &Value) -> String {
@@ -182,6 +238,7 @@ fn limit_batch(path: &str, message: String) -> DomainBatch {
         workflows: Vec::new(),
         diagnostics: vec![limit_diagnostic(path, message)],
         truncated: true,
+        coverage: super::model::Coverage::default(),
     }
 }
 

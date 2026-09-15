@@ -56,6 +56,7 @@ pub(super) fn sections(evidence: &Evidence) -> Vec<Section> {
         dead(&evidence.dead),
         duplicates(&evidence.duplicates),
         endpoints(&evidence.endpoints),
+        workflows(&evidence.workflows),
     ]
 }
 
@@ -175,6 +176,36 @@ fn duplicates(report: &Value) -> Section {
             vec![
                 family["members"].as_array().map_or(0, Vec::len).to_string(),
                 members,
+            ]
+        }),
+    }
+}
+
+fn workflows(report: &Value) -> Section {
+    Section {
+        title: "n8n workflows",
+        note: section_note(report, "No exported n8n workflow was recognized."),
+        headers: &["Workflow", "Nodes", "Entries"],
+        rows: table_rows(report, "workflows", |workflow| {
+            let nodes = workflow["nodes"].as_array().map_or(0, Vec::len);
+            let entries = workflow["entries"]
+                .as_array()
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|item| item["name"].as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default();
+            vec![
+                field_text(&workflow["label"]),
+                nodes.to_string(),
+                if entries.is_empty() {
+                    "none".to_owned()
+                } else {
+                    entries
+                },
             ]
         }),
     }

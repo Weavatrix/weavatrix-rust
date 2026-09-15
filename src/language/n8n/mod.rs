@@ -1,17 +1,19 @@
 //! n8n workflow evidence extracted after JSON parse, not as a second `.json` adapter.
 
 mod connections;
+mod coverage;
 mod decode;
 mod detect;
 mod embedded;
 mod expressions;
 mod facts;
+mod families;
 mod locations;
 mod model;
 mod nodes;
 mod redaction;
 
-pub(crate) use detect::looks_promising;
+pub(crate) use detect::{DEFAULT_FILE_BYTES, looks_promising};
 
 use crate::language::FileFacts;
 use blazingly_json::Value;

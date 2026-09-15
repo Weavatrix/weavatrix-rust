@@ -1,0 +1,24 @@
+{
+  "id": "wf-community",
+  "name": "Community Node",
+  "versionId": "v1",
+  "nodes": [
+    {
+      "id": "n-start",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "id": "n-custom",
+      "name": "Vendor Sync",
+      "type": "n8n-nodes-community.vendorSync",
+      "typeVersion": 3,
+      "parameters": { "resource": "order" }
+    }
+  ],
+  "connections": {
+    "Start": { "main": [[{ "node": "Vendor Sync", "type": "main", "index": 0 }]] }
+  }
+}

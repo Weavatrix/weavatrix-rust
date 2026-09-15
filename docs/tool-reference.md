@@ -1,6 +1,6 @@
 # Operation reference
 
-The default full build of `weavatrix-rust` exposes 47 bounded read-only
+The default full build of `weavatrix-rust` exposes 50 bounded read-only
 analysis operations. Rust consumers use `operations::catalog` and
 `operations::call`; the standalone CLI exposes `list-tools` and `tool`.
 `tools` remains a backward-compatible Rust re-export.
@@ -116,6 +116,20 @@ is weak evidence for each of them, and profiler attribution it is not.
 
 Vectors and events are supplied by the caller; Weavatrix does not call a model
 or embedding service.
+
+## n8n workflows
+
+- `n8n_inventory`: exported workflows, nodes, completeness, and coverage.
+- `n8n_trace`: bounded `flows_to`, `depends_on_output`, `handles_error_with`,
+  and `calls_workflow` walks with a 100-node page and cursor.
+- `n8n_context`: selected node or workflow dependencies, expressions, and
+  unknown/runtime gaps.
+
+n8n is recognized after JSON parse. Same display names in different workflow
+files stay distinct. Missing subworkflows are reported as not provided.
+Secrets, cookies, auth headers, URL credentials, `pinData`, `staticData`, and
+`$env` values are not placed on the default graph or context. This is not a
+live n8n API, editor, or executor.
 
 ## Common result rules
 

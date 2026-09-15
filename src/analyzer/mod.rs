@@ -17,12 +17,16 @@ use support::{canonical_repository, capabilities};
 #[derive(Debug, Clone)]
 pub struct AnalyzerConfig {
     pub max_file_bytes: u64,
+    /// n8n exports can exceed the general file cap; oversized non-n8n JSON
+    /// still stops at `max_file_bytes`.
+    pub n8n_max_file_bytes: u64,
 }
 
 impl Default for AnalyzerConfig {
     fn default() -> Self {
         Self {
-            max_file_bytes: 1_500_000,
+            max_file_bytes: crate::language::N8N_DEFAULT_FILE_BYTES,
+            n8n_max_file_bytes: 16 * 1024 * 1024,
         }
     }
 }
@@ -97,9 +101,7 @@ impl Analyzer {
         let repository = canonical_repository(repository.as_ref())?;
         let sources = sources
             .into_iter()
-            .filter(|source| {
-                u64::try_from(source.bytes.len()).unwrap_or(u64::MAX) <= self.config.max_file_bytes
-            })
+            .filter(|source| admits_source(&source.path, &source.bytes, &self.config))
             .collect::<Vec<_>>();
         let mut parsed = parse_parallel(sources.len(), |index| {
             let source = &sources[index];
@@ -146,4 +148,19 @@ impl Analyzer {
     ) -> Result<String> {
         Ok(self.analyze(repository)?.legacy_json(pretty)?)
     }
+}
+
+fn admits_source(path: &str, bytes: &[u8], config: &AnalyzerConfig) -> bool {
+    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    if size <= config.max_file_bytes {
+        return true;
+    }
+    if size > config.n8n_max_file_bytes {
+        return false;
+    }
+    std::str::from_utf8(bytes).is_ok_and(crate::language::n8n_looks_promising)
+        && Path::new(path)
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
 }

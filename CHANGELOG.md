@@ -2,10 +2,19 @@
 
 ## Unreleased
 
-- Raise `weavatrix-scan` to 0.5 for the hardened watch and policy contracts.
-  The lockfile still carries `weavatrix-scan` 0.4.6 as well: published
-  `weavatrix-search` 0.3.1 and `weavatrix-clone` 0.1.4 have not raised their
-  floor yet.
+## 2.11.0 - 2026-09-15
+
+- Read-only n8n workflow evidence after JSON parse: identities, typed ports,
+  connections, expressions, embedded JS/Python, versioned node-family
+  semantics, and static subworkflow resolution. New operations
+  `n8n_inventory`, `n8n_trace`, and `n8n_context`. The default full catalog
+  is 50 operations. This is not a live n8n API, editor, or executor.
+- Analyzer admission accepts n8n-shaped JSON up to 16 MiB even when the
+  general file cap is 1.5 MiB, so large exported workflows are not dropped
+  before parse.
+- Pin `weavatrix-memory` 0.3.3 and lock `weavatrix-scan` 0.5.3. The crate
+  still depends on `weavatrix-scan` 0.5; the lockfile still carries 0.4.6
+  through published `weavatrix-search` 0.3.1 and `weavatrix-clone` 0.1.4.
 
 ## 2.10.0 - 2026-09-02
 
