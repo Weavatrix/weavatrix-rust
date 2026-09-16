@@ -1,0 +1,51 @@
+kind: app
+version: 0.3.1
+app:
+  name: assigner-v2
+  mode: advanced-chat
+workflow:
+  conversation_variables:
+  - name: message
+    value_type: string
+  environment_variables: []
+  graph:
+    edges:
+    - id: start-to-assign
+      source: start_node
+      sourceHandle: source
+      target: assign_node
+      targetHandle: target
+    - id: assign-to-answer
+      source: assign_node
+      sourceHandle: source
+      target: answer_node
+      targetHandle: target
+    nodes:
+    - data:
+        title: Start
+        type: start
+        desc: "documentary {{#start_node.documentary#}} must not bind"
+      id: start_node
+      type: custom
+    - data:
+        title: Remember
+        type: variable-assigner
+        items:
+        - value:
+          - sys
+          - query
+          variable_selector:
+          - conversation
+          - message
+      id: assign_node
+      type: custom
+    - data:
+        title: Answer
+        type: answer
+        outputs:
+        - variable: reply
+          value_selector:
+          - conversation
+          - message
+      id: answer_node
+      type: custom

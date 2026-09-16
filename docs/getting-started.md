@@ -7,7 +7,7 @@ snapshot, a live repository engine, or the standalone CLI.
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.12.0", default-features = false }
+weavatrix-rust = { version = "2.13.0", default-features = false }
 ```
 
 ```rust
@@ -36,7 +36,7 @@ CLI. It has no network implementation or external executable dependency.
 ```toml
 [dependencies]
 weavatrix-rust = {
-    version = "2.12.0",
+    version = "2.13.0",
     default-features = false,
     features = ["lang-rust", "git", "search"]
 }

@@ -70,6 +70,48 @@ fn inventory_trace_and_context_work_on_one_export_catalog() {
 }
 
 #[test]
+fn diamond_merge_is_not_a_cycle_and_keeps_both_in_edges() {
+    let (_fixture, mut engine) = engine();
+    let trace = tools::call(
+        &mut engine,
+        "n8n_trace",
+        json!({"label": "Merge", "depth": 8, "max_nodes": 100, "direction": "incoming"}),
+    )
+    .unwrap();
+    assert_eq!(trace["cycle"], false, "{}", dump(&trace));
+    let steps = trace["steps"].as_array().unwrap();
+    let flows = steps
+        .iter()
+        .filter(|step| step["relation"] == "flows_to")
+        .collect::<Vec<_>>();
+    let details = flows
+        .iter()
+        .filter_map(|step| step["detail"].as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        details
+            .iter()
+            .any(|detail| detail.contains("Branch A") && detail.contains("Merge")),
+        "{details:?}"
+    );
+    assert!(
+        details
+            .iter()
+            .any(|detail| detail.contains("Branch B") && detail.contains("Merge")),
+        "{details:?}"
+    );
+}
+
+#[test]
+fn inventory_max_results_reports_the_cut() {
+    let (_fixture, mut engine) = engine();
+    let inventory = tools::call(&mut engine, "n8n_inventory", json!({"max_results": 1})).unwrap();
+    assert_eq!(inventory["workflows"].as_array().unwrap().len(), 1);
+    assert_eq!(inventory["bounds"]["truncated"], true);
+    assert!(inventory["bounds"]["found"].as_u64().unwrap() > 1);
+}
+
+#[test]
 fn if_and_merge_keep_every_port_index() {
     let (_fixture, engine) = engine();
     let labels = engine

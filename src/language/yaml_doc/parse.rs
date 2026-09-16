@@ -110,7 +110,7 @@ impl Parser<'_> {
             return Err(self.error("", "YAML tags and aliases are not executed"));
         }
         if self.starts_with("|") || self.starts_with(">") {
-            return Ok(self.parse_block_scalar());
+            return self.parse_block_scalar();
         }
         if self.starts_with("[]") {
             let start = self.pos;
@@ -182,7 +182,10 @@ impl Parser<'_> {
         }
         let start = self.pos;
         while let Some(character) = self.peek() {
-            if character == '\n' || character == '#' {
+            if character == '\n' {
+                break;
+            }
+            if character == '#' && flow_hash_starts_comment(self.raw, self.pos) {
                 break;
             }
             self.pos += character.len_utf8();
@@ -225,33 +228,76 @@ impl Parser<'_> {
         Err(self.error("", "unterminated quoted scalar"))
     }
 
-    fn parse_block_scalar(&mut self) -> Node {
+    fn parse_block_scalar(&mut self) -> Result<Node, Diagnostic> {
         let start = self.pos;
+        let folded = self.peek() == Some('>');
         self.pos += 1;
-        self.skip_to_eol();
+        let mut chomp = Chomp::Clip;
+        let mut indent_hint = None;
+        loop {
+            match self.peek() {
+                Some('+') => {
+                    chomp = Chomp::Keep;
+                    self.pos += 1;
+                }
+                Some('-') => {
+                    chomp = Chomp::Strip;
+                    self.pos += 1;
+                }
+                Some(digit @ '1'..='9') if indent_hint.is_none() => {
+                    indent_hint = Some(usize::from(digit as u8 - b'0'));
+                    self.pos += 1;
+                }
+                Some(' ' | '\t') => self.pos += 1,
+                Some('#') => {
+                    self.skip_to_eol();
+                    break;
+                }
+                Some('\n') | None => break,
+                Some(_) => {
+                    return Err(self.error("", "unsupported YAML block scalar header"));
+                }
+            }
+        }
         self.consume('\n');
-        let mut decoded = String::new();
+        let mut lines = Vec::<(usize, String, bool)>::new();
         let mut raw_end = self.pos;
-        let body_indent = self.next_content_indent().map_or(0, |(indent, _)| indent);
+        let detected = indent_hint
+            .unwrap_or_else(|| self.next_content_indent().map_or(0, |(indent, _)| indent));
         while let Some((indent, line_start)) = self.next_content_indent() {
-            if indent < body_indent {
+            if indent < detected
+                && !self.raw[line_start..line_end(self.raw, line_start)]
+                    .trim()
+                    .is_empty()
+            {
                 break;
             }
-            self.pos = line_start + body_indent;
-            let line_start_pos = self.pos;
-            self.skip_to_eol();
-            if !decoded.is_empty() {
-                decoded.push('\n');
-            }
-            decoded.push_str(&self.raw[line_start_pos..self.pos]);
-            raw_end = self.pos;
-            self.consume('\n');
+            let line_end = line_end(self.raw, line_start);
+            let content_start = line_start.saturating_add(detected.min(indent));
+            let content = self.raw.get(content_start..line_end).unwrap_or("");
+            lines.push((indent, content.to_owned(), content.is_empty()));
+            raw_end = line_end;
+            self.pos = if line_end < self.raw.len() {
+                line_end + 1
+            } else {
+                line_end
+            };
         }
-        Node::Scalar(Scalar {
+        let mut decoded = if folded {
+            fold_lines(&lines)
+        } else {
+            lines
+                .iter()
+                .map(|(_, content, _)| content.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        apply_chomp(&mut decoded, chomp);
+        Ok(Node::Scalar(Scalar {
             decoded,
             raw_start: start,
             raw_end,
-        })
+        }))
     }
 
     fn take_escape(&mut self) -> Result<char, Diagnostic> {
@@ -265,18 +311,26 @@ impl Parser<'_> {
             't' => '\t',
             '\\' | '"' | '/' => character,
             'u' => self.take_hex_escape()?,
-            other => other,
+            _ => return Err(self.error("", "unsupported quoted escape")),
         })
     }
 
     fn take_hex_escape(&mut self) -> Result<char, Diagnostic> {
         let start = self.pos;
-        if self.pos + 4 > self.raw.len() {
-            return Err(self.error("", "truncated \\u escape"));
-        }
-        self.pos += 4;
-        let value = u32::from_str_radix(&self.raw[start..self.pos], 16)
-            .map_err(|_| self.error("", "invalid \\u escape"))?;
+        let hex = self
+            .raw
+            .get(start..start.saturating_add(4))
+            .filter(|slice| slice.len() == 4 && slice.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .ok_or_else(|| {
+                if self.raw.get(start..).map_or(true, |rest| rest.len() < 4) {
+                    self.error("", "truncated \\u escape")
+                } else {
+                    self.error("", "invalid \\u escape")
+                }
+            })?;
+        let value =
+            u32::from_str_radix(hex, 16).map_err(|_| self.error("", "invalid \\u escape"))?;
+        self.pos = start + 4;
         char::from_u32(value).ok_or_else(|| self.error("", "invalid \\u scalar"))
     }
 
@@ -286,5 +340,66 @@ impl Parser<'_> {
             raw_start: self.pos,
             raw_end: self.pos,
         })
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Chomp {
+    Clip,
+    Strip,
+    Keep,
+}
+
+fn flow_hash_starts_comment(raw: &str, pos: usize) -> bool {
+    pos == 0
+        || raw
+            .get(..pos)
+            .and_then(|prefix| prefix.chars().next_back())
+            .is_some_and(char::is_whitespace)
+}
+
+fn line_end(raw: &str, index: usize) -> usize {
+    raw[index..]
+        .find('\n')
+        .map_or(raw.len(), |offset| index + offset)
+}
+
+fn fold_lines(lines: &[(usize, String, bool)]) -> String {
+    let mut decoded = String::new();
+    let mut pending_space = false;
+    for (_, content, blank) in lines {
+        if *blank {
+            if !decoded.ends_with('\n') && !decoded.is_empty() {
+                decoded.push('\n');
+            }
+            decoded.push('\n');
+            pending_space = false;
+            continue;
+        }
+        if pending_space && !decoded.ends_with('\n') && !decoded.is_empty() {
+            decoded.push(' ');
+        }
+        decoded.push_str(content);
+        pending_space = true;
+    }
+    decoded
+}
+
+fn apply_chomp(decoded: &mut String, chomp: Chomp) {
+    match chomp {
+        Chomp::Strip => {
+            while decoded.ends_with('\n') {
+                decoded.pop();
+            }
+        }
+        Chomp::Clip => {
+            while decoded.ends_with("\n\n") {
+                decoded.pop();
+            }
+            if !decoded.is_empty() && !decoded.ends_with('\n') {
+                decoded.push('\n');
+            }
+        }
+        Chomp::Keep => {}
     }
 }

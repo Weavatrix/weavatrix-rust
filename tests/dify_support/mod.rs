@@ -23,6 +23,14 @@ impl Fixture {
                 include_str!("../fixtures/dify/conversation-assign.yml"),
             ),
             (
+                "apps/assigner-v2.yml",
+                include_str!("../fixtures/dify/assigner-v2.yml"),
+            ),
+            (
+                "apps/twin-llm.yml",
+                include_str!("../fixtures/dify/twin-llm.yml"),
+            ),
+            (
                 "apps/iteration-scope.yml",
                 include_str!("../fixtures/dify/iteration-scope.yml"),
             ),

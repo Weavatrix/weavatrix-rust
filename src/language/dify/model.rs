@@ -30,9 +30,18 @@ pub(super) struct AppRecord {
     pub supported: bool,
     pub span: SourceSpan,
     pub nodes: Vec<NodeRecord>,
+    pub variables: Vec<VariableRecord>,
     pub links: Vec<LinkRecord>,
     pub domains: Vec<DomainRecord>,
     pub coverage: Coverage,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct VariableRecord {
+    pub key: String,
+    pub scope: String,
+    pub name: String,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone)]
@@ -111,8 +120,12 @@ pub(super) fn imports_plugin() -> EdgeKind {
     EdgeKind::custom("imports_plugin").unwrap_or(EdgeKind::Imports)
 }
 
-pub(super) fn app_key(origin: &str) -> String {
-    format!("dify::{origin}")
+pub(super) fn app_key(origin: &str, name: &str, index: usize) -> String {
+    format!("dify::{origin}#{index}::{name}")
+}
+
+pub(super) fn variable_key(app: &str, scope: &str, name: &str) -> String {
+    format!("{app}::var:{scope}:{name}")
 }
 
 pub(super) fn node_key(app: &str, id: &str) -> String {

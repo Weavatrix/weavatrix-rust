@@ -16,19 +16,97 @@ fn labels_of(engine: &weavatrix_rust::Weavatrix) -> Vec<String> {
 #[test]
 fn conversation_read_and_write_stay_typed() {
     let (_fixture, engine) = engine();
-    let labels = labels_of(&engine);
+    let graph = engine.state().graph();
+    let remember = graph
+        .nodes()
+        .iter()
+        .find(|node| node.label == "Remember Email")
+        .expect("assigner");
+    let variable = graph
+        .nodes()
+        .iter()
+        .find(|node| {
+            node.label == "conversation:customer_email" && node.id.as_str().starts_with("symbol:")
+        })
+        .expect("conversation variable");
+    let start = graph
+        .nodes()
+        .iter()
+        .find(|node| {
+            node.label == "Start"
+                && node
+                    .span
+                    .as_ref()
+                    .is_some_and(|span| span.file.contains("conversation-assign"))
+        })
+        .expect("start");
+    let writes = graph
+        .edges()
+        .iter()
+        .filter(|edge| {
+            edge.source.as_str() == remember.id.as_str()
+                && edge.target.as_str() == variable.id.as_str()
+                && edge.kind.as_str() == "writes_variable"
+        })
+        .count();
+    let reads = graph
+        .edges()
+        .iter()
+        .filter(|edge| {
+            edge.source.as_str() == remember.id.as_str()
+                && edge.target.as_str() == start.id.as_str()
+                && edge.kind.as_str() == "reads_variable"
+        })
+        .count();
+    assert_eq!(
+        writes, 1,
+        "assigner must write the scoped conversation variable"
+    );
+    assert_eq!(reads, 1, "assigner must read start_node.email");
+}
+
+#[test]
+fn assigner_v2_items_write_the_same_conversation_variable() {
+    let (_fixture, engine) = engine();
+    let graph = engine.state().graph();
+    let remember = graph
+        .nodes()
+        .iter()
+        .find(|node| node.label == "Remember")
+        .expect("v2 assigner");
+    let variable = graph
+        .nodes()
+        .iter()
+        .find(|node| {
+            node.label == "conversation:message" && node.id.as_str().starts_with("symbol:")
+        })
+        .expect("v2 conversation variable");
+    let answer = graph
+        .nodes()
+        .iter()
+        .find(|node| node.label == "Answer")
+        .expect("answer");
     assert!(
-        labels
-            .iter()
-            .any(|label| label == "conversation:customer_email"),
-        "{labels:?}"
+        graph.edges().iter().any(|edge| {
+            edge.source.as_str() == remember.id.as_str()
+                && edge.target.as_str() == variable.id.as_str()
+                && edge.kind.as_str() == "writes_variable"
+        }),
+        "v2 items[] must write conversation.message"
     );
     assert!(
-        labels
+        graph.edges().iter().any(|edge| {
+            edge.source.as_str() == answer.id.as_str()
+                && edge.target.as_str() == variable.id.as_str()
+        }),
+        "answer must consume the same variable"
+    );
+    assert!(
+        graph
+            .nodes()
             .iter()
-            .any(|label| label.contains("selector:start_node.email")
-                || label.contains("selector:conversation.customer_email")),
-        "{labels:?}"
+            .all(|node| node.label != "marker:start_node.documentary"),
+        "description markers stay documentary"
     );
 }
 

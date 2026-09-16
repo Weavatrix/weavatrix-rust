@@ -1,7 +1,9 @@
 use super::model::{
     DomainBatch, DomainRecord, LinkRecord, WorkflowRecord, node_kind, port_kind, workflow_kind,
 };
-use crate::language::{DomainFact, FileFacts, ReferenceFact, SymbolFact, SymbolLocator};
+use crate::language::{
+    BoundEdgeFact, DomainFact, FileFacts, ReferenceFact, SymbolFact, SymbolLocator,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use weavatrix_graph::{EdgeKind, NodeKind, SourceSpan};
 
@@ -158,13 +160,12 @@ fn emit_link(facts: &mut FileFacts, locators: &BTreeMap<String, SymbolLocator>, 
     let Some(to) = locators.get(&link.to) else {
         return;
     };
-    facts.references.push(ReferenceFact {
-        name: to.name.clone(),
+    facts.bound_edges.push(BoundEdgeFact {
+        from: from.clone(),
+        to: to.clone(),
         kind: link.kind.clone(),
-        receiver: None,
-        qualified: false,
         span: link.span.clone(),
-        owner: Some(from.clone()),
+        detail: link.detail.clone(),
     });
     if !link.detail.is_empty() {
         facts.domains.push(DomainFact {

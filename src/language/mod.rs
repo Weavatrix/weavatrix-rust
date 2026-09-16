@@ -198,12 +198,24 @@ pub struct DomainFact {
     pub owner: Option<SymbolLocator>,
 }
 
+/// A domain relation whose endpoints are already known. Indexing must not
+/// resolve these again by display name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundEdgeFact {
+    pub from: SymbolLocator,
+    pub to: SymbolLocator,
+    pub kind: EdgeKind,
+    pub span: SourceSpan,
+    pub detail: String,
+}
+
 #[derive(Debug, Default)]
 pub struct FileFacts {
     pub symbols: Vec<SymbolFact>,
     pub references: Vec<ReferenceFact>,
     pub imports: Vec<ImportFact>,
     pub domains: Vec<DomainFact>,
+    pub bound_edges: Vec<BoundEdgeFact>,
     pub diagnostics: Vec<Diagnostic>,
     pub mounts: Vec<MountFact>,
     /// `export ... from 'x'` specifiers: this file forwards another module's

@@ -1,0 +1,32 @@
+kind: app
+version: 0.3.1
+app:
+  name: twin-llm
+  mode: workflow
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  graph:
+    edges:
+    - id: a-to-b
+      source: llm_a
+      sourceHandle: source
+      target: llm_b
+      targetHandle: target
+    nodes:
+    - data:
+        title: LLM
+        type: llm
+        prompt_template:
+        - role: user
+          text: first
+      id: llm_a
+      type: custom
+    - data:
+        title: LLM
+        type: llm
+        prompt_template:
+        - role: user
+          text: second
+      id: llm_b
+      type: custom

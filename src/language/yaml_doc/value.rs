@@ -66,6 +66,7 @@ impl Node {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn strings(&self) -> Vec<&Scalar> {
         let mut out = Vec::new();
         collect_strings(self, &mut out);
@@ -73,6 +74,7 @@ impl Node {
     }
 }
 
+#[allow(dead_code)]
 fn collect_strings<'a>(node: &'a Node, out: &mut Vec<&'a Scalar>) {
     match node {
         Node::Scalar(scalar) => out.push(scalar),

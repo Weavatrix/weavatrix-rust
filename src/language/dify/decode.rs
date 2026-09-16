@@ -26,8 +26,8 @@ pub(super) fn decode(path: &str, raw: &str, documents: &[Node]) -> Option<Domain
         diagnostics: Vec::new(),
         truncated: false,
     };
-    for document in exports {
-        match app(path, raw, document) {
+    for (index, document) in exports.into_iter().enumerate() {
+        match app(path, raw, document, index) {
             Ok(app) => batch.apps.push(app),
             Err(diagnostic) => {
                 batch.truncated = true;
@@ -38,7 +38,7 @@ pub(super) fn decode(path: &str, raw: &str, documents: &[Node]) -> Option<Domain
     Some(batch)
 }
 
-fn app(path: &str, raw: &str, root: &Node) -> Result<AppRecord, Diagnostic> {
+fn app(path: &str, raw: &str, root: &Node, index: usize) -> Result<AppRecord, Diagnostic> {
     let envelope = root
         .get("app")
         .ok_or_else(|| diagnostic(path, raw, root, "missing app envelope"))?;
@@ -53,7 +53,7 @@ fn app(path: &str, raw: &str, root: &Node) -> Result<AppRecord, Diagnostic> {
         .and_then(Node::as_str)
         .unwrap_or("")
         .to_owned();
-    let key = app_key(path);
+    let key = app_key(path, &name, index);
     let span = yaml_doc::span_for(path, raw, root.range().0, root.range().1);
     let mut record = AppRecord {
         key: key.clone(),
@@ -63,6 +63,7 @@ fn app(path: &str, raw: &str, root: &Node) -> Result<AppRecord, Diagnostic> {
         supported: mode.supported() && detect::known_dsl(&dsl_version),
         span: span.clone(),
         nodes: Vec::new(),
+        variables: Vec::new(),
         links: Vec::new(),
         domains: Vec::new(),
         coverage: Coverage::default(),

@@ -23,18 +23,24 @@ pub(super) fn collect(
         };
         let owner_key = owner.key.clone();
         let parameters = node.get("parameters").cloned().unwrap_or(Value::Null);
+        let ordinal = nodes
+            .iter()
+            .position(|item| item.get("name").and_then(Value::as_str) == Some(name));
         walk_strings(&parameters, "", &mut |pointer, text| {
             if redaction::skip_pointer(pointer) || redaction::looks_secret(pointer, text) {
                 return;
             }
-            for region in expression_regions(text) {
+            let full_pointer = ordinal
+                .map(|index| format!("/nodes/{index}/parameters{pointer}"))
+                .unwrap_or_else(|| pointer.to_owned());
+            for (char_start, char_end, region) in expression_regions(text) {
                 if region.len() > MAX_EXPRESSION_BYTES {
                     continue;
                 }
                 if comment_only(&region) {
                     continue;
                 }
-                let span = site_span(path, raw, sites, pointer, text, &region);
+                let span = site_span(path, raw, sites, &full_pointer, text, char_start, char_end);
                 bind::bind_expression(workflow, &owner_key, &region, &span);
             }
         });
@@ -62,31 +68,43 @@ fn walk_strings(value: &Value, pointer: &str, visit: &mut impl FnMut(&str, &str)
     }
 }
 
-fn expression_regions(text: &str) -> Vec<String> {
+fn expression_regions(text: &str) -> Vec<(usize, usize, String)> {
     if let Some(inner) = text.strip_prefix("={{") {
-        return vec![inner.trim_end_matches("}}").trim().to_owned()];
+        let trimmed = inner.strip_suffix("}}").unwrap_or(inner);
+        let body = trimmed.trim();
+        let lead = trimmed.len() - trimmed.trim_start().len();
+        let start = char_count("={{") + char_count(&trimmed[..lead]);
+        return vec![(start, start + char_count(body), body.to_owned())];
     }
     if let Some(inner) = text.strip_prefix('=') {
-        return vec![inner.to_owned()];
+        return vec![(1, char_count(text), inner.to_owned())];
     }
     mustache_regions(text)
 }
 
-fn mustache_regions(text: &str) -> Vec<String> {
+fn mustache_regions(text: &str) -> Vec<(usize, usize, String)> {
     let mut regions = Vec::new();
-    let mut rest = text;
-    while let Some(start) = rest.find("{{") {
-        let after = &rest[start + 2..];
-        let Some(end) = after.find("}}") else {
+    let mut byte = 0;
+    while let Some(rel) = text[byte..].find("{{") {
+        let open = byte + rel;
+        let after = open + 2;
+        let Some(rel_end) = text[after..].find("}}") else {
             break;
         };
-        let inner = after[..end].trim();
+        let close = after + rel_end;
+        let inner = text[after..close].trim();
         if !inner.is_empty() {
-            regions.push(inner.to_owned());
+            let lead = text[after..close].len() - text[after..close].trim_start().len();
+            let start = char_count(&text[..after + lead]);
+            regions.push((start, start + char_count(inner), inner.to_owned()));
         }
-        rest = &after[end + 2..];
+        byte = close + 2;
     }
     regions
+}
+
+fn char_count(text: &str) -> usize {
+    text.chars().count()
 }
 
 pub(super) fn bind_from_source(
@@ -125,17 +143,20 @@ fn site_span(
     sites: &[StringSite],
     pointer: &str,
     text: &str,
-    region: &str,
+    decoded_start: usize,
+    decoded_end: usize,
 ) -> weavatrix_graph::SourceSpan {
     let Some(site) = sites
         .iter()
-        .find(|site| site.decoded == text && site.pointer.ends_with(pointer))
-        .or_else(|| sites.iter().find(|site| site.decoded == text))
+        .find(|site| site.pointer == pointer && site.decoded == text)
+        .or_else(|| {
+            sites
+                .iter()
+                .find(|site| site.decoded == text && site.pointer.ends_with(pointer))
+        })
     else {
         return locations::file_span(path);
     };
-    let decoded_start = text.find(region).unwrap_or(0);
-    let decoded_end = decoded_start + region.chars().count();
     if site.raw_end <= site.raw_start.saturating_add(1) || site.raw_end > raw.len() {
         return locations::span_for(
             path,

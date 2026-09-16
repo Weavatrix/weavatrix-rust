@@ -1,5 +1,7 @@
 use super::model::{AppRecord, DomainBatch, DomainRecord, LinkRecord, app_kind, node_kind};
-use crate::language::{DomainFact, FileFacts, ReferenceFact, SymbolFact, SymbolLocator};
+use crate::language::{
+    BoundEdgeFact, DomainFact, FileFacts, ReferenceFact, SymbolFact, SymbolLocator,
+};
 use std::collections::BTreeMap;
 use weavatrix_graph::{EdgeKind, NodeKind, SourceSpan};
 
@@ -35,6 +37,20 @@ pub(super) fn to_file_facts(path: &str, batch: &DomainBatch) -> FileFacts {
                 span: app.span.clone(),
             }),
         });
+        for variable in &app.variables {
+            let label = format!("{}:{}", variable.scope, variable.name);
+            let variable_symbol = symbol(&label, NodeKind::ConfigKey, variable.span.clone());
+            locators.insert(variable.key.clone(), locator(&variable_symbol));
+            facts.references.push(reference(
+                &app.name,
+                app_kind(),
+                &app.span,
+                &label,
+                EdgeKind::Contains,
+                variable.span.clone(),
+            ));
+            facts.symbols.push(variable_symbol);
+        }
         for node in &app.nodes {
             let node_symbol = symbol(&display_name(node), node_kind(), node.span.clone());
             locators.insert(node.key.clone(), locator(&node_symbol));
@@ -103,13 +119,12 @@ fn emit_link(facts: &mut FileFacts, locators: &BTreeMap<String, SymbolLocator>, 
     let Some(to) = locators.get(&link.to) else {
         return;
     };
-    facts.references.push(ReferenceFact {
-        name: to.name.clone(),
+    facts.bound_edges.push(BoundEdgeFact {
+        from: from.clone(),
+        to: to.clone(),
         kind: link.kind.clone(),
-        receiver: None,
-        qualified: false,
         span: link.span.clone(),
-        owner: Some(from.clone()),
+        detail: link.detail.clone(),
     });
     if !link.detail.is_empty() {
         facts.domains.push(DomainFact {

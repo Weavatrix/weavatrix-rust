@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## 2.13.0 - 2026-09-16
+
+- Domain links keep exact endpoints (`BoundEdgeFact`) and owner-scoped
+  domain IDs, so two Dify nodes titled `LLM` stay distinct and ports or
+  conversation variables do not collapse globally.
+- `n8n_trace` / `dify_trace` treat a DAG merge as a merge: every edge
+  witness is kept, cycles are detected on the relation projection, and
+  n8n port hops continue to sibling outputs. Work and page cuts report
+  `found`/`shown`/`reasons`/`revision`.
+- Inventory and context declare `max_results` / `max_related` cuts.
+  Context returns source fragments, consumer lists for impact tasks, and
+  domain ids/spans.
+- n8n expressions bind through the document JSON Pointer and decoded
+  character ranges; nested `.json.customer.email` and literal brackets
+  stay intact.
+- Dify Assigner v2 `data.items[]` is read; description/title markers are
+  documentary. Conversation variables are scoped symbols that reads and
+  writes both target.
+- YAML `|` vs `>`, chomping, `#` only after whitespace, and bounded
+  `\\u` escapes no longer silently rewrite scalars.
+- Coverage counters aggregate per app/workflow instead of last-write-wins.
+
 ## 2.12.0 - 2026-09-16
 
 - Close n8n expression gaps: every `$('Name')` / `$node` / `$items` occurrence

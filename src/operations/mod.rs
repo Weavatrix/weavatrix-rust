@@ -3,6 +3,7 @@ mod args;
 mod build;
 mod catalog;
 mod dify;
+mod domain_walk;
 mod graph;
 mod health;
 mod history;

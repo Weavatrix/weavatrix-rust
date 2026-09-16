@@ -5,6 +5,10 @@ pub(super) struct NodeRef {
     pub selector: String,
     pub field: Option<String>,
     pub dynamic_key: bool,
+    #[allow(dead_code)]
+    pub start: usize,
+    #[allow(dead_code)]
+    pub end: usize,
 }
 
 pub(super) fn node_refs(expression: &str) -> Vec<NodeRef> {
@@ -108,6 +112,10 @@ fn take_node_ref(source: &str, tokens: &[Token], start: usize) -> Option<(NodeRe
             selector,
             field,
             dynamic_key,
+            start: tokens[dollar].start,
+            end: tokens
+                .get(next.saturating_sub(1))
+                .map_or(tokens[dollar].end, |token| token.end),
         },
         next,
     ))
@@ -117,9 +125,24 @@ fn trail(source: &str, tokens: &[Token], start: usize) -> (String, Option<String
     let mut cursor = start;
     let mut selector = "node-ref".to_owned();
     let mut field = None;
+    let mut segments = Vec::new();
     let mut dynamic_key = false;
     let mut seen_json = false;
     while let Some(index) = skip_trivia(tokens, cursor) {
+        if tokens[index].text(source) == "[" && seen_json {
+            if let Some(literal) = skip_trivia(tokens, index + 1)
+                && tokens[literal].kind == TokenKind::String
+                && let Some(key) = unquote(tokens[literal].text(source))
+            {
+                segments.push(key);
+                field = Some(segments.join("."));
+                cursor = skip_brackets(source, tokens, index);
+                continue;
+            }
+            dynamic_key = true;
+            cursor = skip_brackets(source, tokens, index);
+            continue;
+        }
         if tokens[index].text(source) != "." {
             break;
         }
@@ -150,13 +173,22 @@ fn trail(source: &str, tokens: &[Token], start: usize) -> (String, Option<String
                 if let Some(open) = skip_trivia(tokens, cursor)
                     && tokens[open].text(source) == "["
                 {
-                    dynamic_key = true;
-                    cursor = skip_brackets(source, tokens, open);
+                    if let Some(literal) = skip_trivia(tokens, open + 1)
+                        && tokens[literal].kind == TokenKind::String
+                        && let Some(key) = unquote(tokens[literal].text(source))
+                    {
+                        segments.push(key);
+                        field = Some(segments.join("."));
+                        cursor = skip_brackets(source, tokens, open);
+                    } else {
+                        dynamic_key = true;
+                        cursor = skip_brackets(source, tokens, open);
+                    }
                 }
             }
             _ if seen_json && tokens[name_index].kind == TokenKind::Identifier => {
-                field = Some(name.to_owned());
-                seen_json = false;
+                segments.push(name.to_owned());
+                field = Some(segments.join("."));
             }
             _ => {}
         }

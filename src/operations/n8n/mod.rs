@@ -4,6 +4,7 @@ mod walk;
 use crate::engine::RepositoryState;
 use crate::operations::{arg_str, optional_str, optional_u64, reject_unknown_arguments};
 use blazingly_json::{Value, json};
+use weavatrix_graph::Node;
 
 pub(super) fn inventory(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     reject_unknown_arguments("n8n_inventory", args, &["path", "max_results"])?;
@@ -13,24 +14,43 @@ pub(super) fn inventory(state: &RepositoryState, args: &Value) -> Result<Value, 
     if max == 0 || max > 500 {
         return Err("max_results must be between 1 and 500".to_owned());
     }
-    let workflows = state
+    let all = state
         .graph()
         .nodes()
         .iter()
         .filter(|node| node.kind.as_str() == "n8n.workflow")
         .filter(|node| path.is_none_or(|filter| view::in_path(node, filter)))
+        .collect::<Vec<_>>();
+    let found = all.len();
+    let workflows = all
+        .into_iter()
         .take(max)
         .map(|node| view::workflow_row(state, node))
         .collect::<Vec<_>>();
-    let truncated = state
+    let decode_cut = state
         .snapshot()
         .diagnostics
         .iter()
         .any(|item| item.code == "n8n.truncated" || item.code == "n8n.limit");
+    let page_cut = found > workflows.len();
+    let mut reasons = Vec::new();
+    if page_cut {
+        reasons.push("max_results");
+    }
+    if decode_cut {
+        reasons.push("decode");
+    }
     Ok(json!({
         "workflows": workflows,
         "coverage": view::coverage_from(state, path),
-        "bounds": {"truncated": truncated, "runtime": false},
+        "bounds": {
+            "truncated": page_cut || decode_cut,
+            "found": found,
+            "shown": workflows.len(),
+            "reasons": reasons,
+            "revision": state.snapshot().revision,
+            "runtime": false
+        },
         "diagnostics": state
             .snapshot()
             .diagnostics
@@ -50,34 +70,33 @@ pub(super) fn context(state: &RepositoryState, args: &Value) -> Result<Value, St
     let task = optional_str(args, "task")?.unwrap_or("inspect");
     let max_related = usize::try_from(optional_u64(args, "max_related")?.unwrap_or(24))
         .map_err(|_| "max_related is too large")?;
+    if max_related == 0 || max_related > 200 {
+        return Err("max_related must be between 1 and 200".to_owned());
+    }
     let index = state.resolve_node(label)?;
     let node = state.node(index)?;
     let domains = view::owned_domains(state, node.id.as_str())
         .into_iter()
         .filter(|item| !view::secret_domain(item))
         .collect::<Vec<_>>();
-    let dependencies = domains
-        .iter()
-        .filter(|item| {
+    let (dependencies, dep_cut) = take_related(
+        domains.iter().filter(|item| {
             matches!(
                 item["relation"].as_str(),
                 Some("depends_on_output" | "reads_field" | "calls_workflow" | "configured_with")
             )
-        })
-        .take(max_related)
-        .cloned()
-        .collect::<Vec<_>>();
-    let expressions = domains
-        .iter()
-        .filter(|item| {
+        }),
+        max_related,
+    );
+    let (expressions, expr_cut) = take_related(
+        domains.iter().filter(|item| {
             item["relation"].as_str() == Some("reads_field")
                 || item["name"]
                     .as_str()
                     .is_some_and(|name| name.contains('.') || name.starts_with('$'))
-        })
-        .take(max_related)
-        .cloned()
-        .collect::<Vec<_>>();
+        }),
+        max_related,
+    );
     let mut unknown = vec!["runtime response shape is not provided".to_owned()];
     for item in &domains {
         if item["name"]
@@ -94,6 +113,13 @@ pub(super) fn context(state: &RepositoryState, args: &Value) -> Result<Value, St
     }
     unknown.sort();
     unknown.dedup();
+    let consumers = if impact_task(task) {
+        consumers(state, node, max_related)
+    } else {
+        Vec::new()
+    };
+    let fragments = selected_fragments(state, node);
+    let truncated = dep_cut || expr_cut || consumers.len() == max_related && impact_task(task);
     Ok(json!({
         "selected": {
             "id": node.id,
@@ -104,8 +130,109 @@ pub(super) fn context(state: &RepositoryState, args: &Value) -> Result<Value, St
         "task": task,
         "dependencies": dependencies,
         "expressions": expressions,
+        "consumers": consumers,
+        "fragments": fragments,
         "gaps": unknown,
         "coverage": view::coverage_from(state, node.span.as_ref().map(|span| span.file.as_str())),
-        "bounds": {"truncated": false, "runtime": false}
+        "bounds": {
+            "truncated": truncated,
+            "found": dependencies.len() + expressions.len() + consumers.len(),
+            "shown": dependencies.len() + expressions.len() + consumers.len(),
+            "reasons": if truncated { vec!["max_related"] } else { Vec::<&str>::new() },
+            "revision": state.snapshot().revision,
+            "complete": !truncated && unknown.len() == 1,
+            "runtime": false
+        }
     }))
+}
+
+fn take_related<'a>(items: impl Iterator<Item = &'a Value>, max: usize) -> (Vec<Value>, bool) {
+    let all = items.cloned().collect::<Vec<_>>();
+    let cut = all.len() > max;
+    (all.into_iter().take(max).collect(), cut)
+}
+
+fn impact_task(task: &str) -> bool {
+    let lower = task.to_ascii_lowercase();
+    ["impact", "change", "delete", "consum", "rename", "remove"]
+        .iter()
+        .any(|marker| lower.contains(marker))
+}
+
+fn consumers(state: &RepositoryState, node: &Node, max: usize) -> Vec<Value> {
+    state
+        .graph()
+        .edges()
+        .iter()
+        .filter(|edge| {
+            edge.target.as_str() == node.id.as_str()
+                && matches!(
+                    edge.kind.as_str(),
+                    "flows_to" | "depends_on_output" | "reads_field" | "calls_workflow"
+                )
+        })
+        .filter_map(|edge| {
+            let source = state.graph().node(edge.source.as_str())?;
+            Some(json!({
+                "id": source.id,
+                "label": source.label,
+                "kind": source.kind,
+                "relation": edge.kind,
+                "span": source.span
+            }))
+        })
+        .take(max)
+        .collect()
+}
+
+fn selected_fragments(state: &RepositoryState, node: &Node) -> Vec<Value> {
+    if node.span.is_none() {
+        return Vec::new();
+    }
+    let Ok(source) = crate::operations::source::read_source(
+        state,
+        &json!({
+            "label": node.id.as_str(),
+            "before": 1,
+            "after": 12
+        }),
+    ) else {
+        return Vec::new();
+    };
+    let lines = source["lines"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|line| {
+            let text = line["text"].as_str()?;
+            if looks_secret_line(text) {
+                return Some(json!({
+                    "line": line["line"],
+                    "text": "[redacted]"
+                }));
+            }
+            Some(line.clone())
+        })
+        .take(16)
+        .collect::<Vec<_>>();
+    if lines.is_empty() {
+        Vec::new()
+    } else {
+        vec![json!({
+            "path": source["path"],
+            "start_line": source["start_line"],
+            "lines": lines
+        })]
+    }
+}
+
+fn looks_secret_line(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    lower.contains("password")
+        || lower.contains("token")
+        || lower.contains("secret")
+        || lower.contains("api_key")
+        || lower.contains("apikey")
+        || lower.contains("authorization")
+        || (lower.contains("://") && lower.contains('@'))
 }

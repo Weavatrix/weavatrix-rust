@@ -2,9 +2,11 @@ use super::{AnalysisState, ParseOutcome, ParsedSource};
 use crate::analyzer::imports::PendingImport;
 use crate::analyzer::references::PendingReference;
 use crate::analyzer::support::{locator_key, parsed_provenance, sanitize_id, symbol_id};
-use crate::language::{DomainFact, FileFacts, ImportFact, Language, ReferenceFact, SymbolFact};
+use crate::language::{
+    BoundEdgeFact, DomainFact, FileFacts, ImportFact, Language, ReferenceFact, SymbolFact,
+};
 use crate::model::{Diagnostic, Result};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use weavatrix_graph::{Edge, EdgeKind, Node, NodeId, NodeKind};
 
 impl AnalysisState {
@@ -44,6 +46,7 @@ impl AnalysisState {
             references,
             imports,
             domains,
+            bound_edges,
             diagnostics,
             mounts: _,
             reexports,
@@ -61,6 +64,7 @@ impl AnalysisState {
             });
         }
         self.add_domains(&file_id, extractor, domains, &local_symbols)?;
+        self.add_bound_edges(extractor, bound_edges, &local_symbols)?;
         self.collect_references(
             &relative,
             &file_id,
@@ -247,9 +251,13 @@ impl AnalysisState {
                         .cloned()
                 })
                 .unwrap_or_else(|| file_id.clone());
-            let id = self.domain_id(&fact.kind, &fact.name)?;
-            self.graph
-                .add_node(Node::new(id.to_string(), fact.name, fact.kind)?)?;
+            let (id, created) = self.domain_id(&fact.kind, &fact.name, &source)?;
+            if !created {
+                continue;
+            }
+            self.graph.add_node(
+                Node::new(id.to_string(), fact.name, fact.kind)?.with_span(fact.span.clone()),
+            )?;
             let provenance = parsed_provenance(extractor, Some(fact.span))?
                 .with_detail("domain evidence extracted from source");
             self.graph
@@ -262,8 +270,53 @@ impl AnalysisState {
     /// both `ANY___`. The graph refuses to merge nodes that differ only in
     /// label, and one such pair must not abort the whole analysis, so the
     /// later label takes a numbered identifier instead.
-    fn domain_id(&mut self, kind: &NodeKind, label: &str) -> Result<NodeId> {
-        let base = format!("domain:{}:{}", kind.as_str(), sanitize_id(label));
+    fn add_bound_edges(
+        &mut self,
+        extractor: &'static str,
+        edges: Vec<BoundEdgeFact>,
+        local_symbols: &BTreeMap<(NodeKind, String, u32, u32), NodeId>,
+    ) -> Result<()> {
+        let mut seen = BTreeSet::<(NodeId, NodeId, String)>::new();
+        for fact in edges {
+            let Some(from) = local_symbols.get(&locator_key(
+                &fact.from.kind,
+                &fact.from.name,
+                &fact.from.span,
+            )) else {
+                continue;
+            };
+            let Some(to) =
+                local_symbols.get(&locator_key(&fact.to.kind, &fact.to.name, &fact.to.span))
+            else {
+                continue;
+            };
+            if !seen.insert((from.clone(), to.clone(), fact.kind.as_str().to_owned())) {
+                continue;
+            }
+            let detail = if fact.detail.is_empty() {
+                "bound domain edge with exact endpoints".to_owned()
+            } else {
+                fact.detail
+            };
+            let provenance = parsed_provenance(extractor, Some(fact.span))?.with_detail(detail);
+            self.graph
+                .add_edge(Edge::new(from.clone(), to.clone(), fact.kind, provenance))?;
+        }
+        Ok(())
+    }
+
+    fn domain_id(
+        &mut self,
+        kind: &NodeKind,
+        label: &str,
+        owner: &NodeId,
+    ) -> Result<(NodeId, bool)> {
+        let base = format!(
+            "domain:{}:{}@{}",
+            kind.as_str(),
+            sanitize_id(label),
+            sanitize_id(owner.as_str())
+        );
         let mut candidate = base.clone();
         let mut ordinal = 1_u32;
         loop {
@@ -273,10 +326,10 @@ impl AnalysisState {
                     ordinal += 1;
                     candidate = format!("{base}~{ordinal}");
                 }
-                Some(_) => return Ok(id),
+                Some(_) => return Ok((id, false)),
                 None => {
                     self.domain_labels.insert(id.clone(), label.to_owned());
-                    return Ok(id);
+                    return Ok((id, true));
                 }
             }
         }

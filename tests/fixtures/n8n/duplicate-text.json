@@ -1,0 +1,33 @@
+{
+  "id": "wf-dup-text",
+  "name": "Duplicate Text",
+  "versionId": "v1",
+  "nodes": [
+    {
+      "id": "n-load",
+      "name": "Load",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "parameters": {}
+    },
+    {
+      "id": "n-first",
+      "name": "First Note",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "parameters": {
+        "text": "Hello {{ $('Load').item.json.customer.email }} and {{ $('Load').item.json.customer.email }}"
+      }
+    },
+    {
+      "id": "n-second",
+      "name": "Second Note",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "parameters": {
+        "text": "={{ $('Load').item.json.customer.email }}"
+      }
+    }
+  ],
+  "connections": {}
+}

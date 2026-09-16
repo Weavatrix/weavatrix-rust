@@ -4,6 +4,52 @@ use n8n_support::engine;
 use weavatrix_rust::{Analyzer, SourceInput};
 
 #[test]
+fn nested_and_duplicate_expression_sites_keep_their_own_ranges() {
+    let raw = include_str!("fixtures/n8n/duplicate-text.json");
+    let snapshot = Analyzer::default()
+        .analyze_sources(
+            std::env::current_dir().unwrap(),
+            "dup",
+            [SourceInput {
+                path: "workflows/duplicate-text.json".into(),
+                bytes: raw.as_bytes().to_vec(),
+                content_hash: None,
+            }],
+        )
+        .unwrap();
+    let fields = snapshot
+        .nodes
+        .iter()
+        .filter(|node| node.label.contains("customer.email"))
+        .collect::<Vec<_>>();
+    assert!(
+        fields.len() >= 2,
+        "nested selector segments must survive: {:?}",
+        snapshot
+            .nodes
+            .iter()
+            .map(|node| node.label.as_str())
+            .collect::<Vec<_>>()
+    );
+    let first = snapshot
+        .nodes
+        .iter()
+        .find(|node| node.label == "First Note")
+        .and_then(|node| node.span.as_ref())
+        .expect("first note span");
+    let second = snapshot
+        .nodes
+        .iter()
+        .find(|node| node.label == "Second Note")
+        .and_then(|node| node.span.as_ref())
+        .expect("second note span");
+    assert!(
+        first.start.line != second.start.line || first.start.column != second.start.column,
+        "identical parameter text must not share the first occurrence"
+    );
+}
+
+#[test]
 fn two_node_refs_in_one_expression_stay_separate() {
     let (_fixture, engine) = engine();
     let labels = engine

@@ -56,9 +56,12 @@ pub(super) fn owned_domains(state: &RepositoryState, owner: &str) -> Vec<Value> 
                 return None;
             }
             Some(json!({
+                "id": node.id,
                 "name": node.label,
                 "kind": node.kind,
-                "relation": edge.kind
+                "relation": edge.kind,
+                "span": node.span,
+                "target": edge.target
             }))
         })
         .collect()
@@ -68,16 +71,20 @@ pub(super) fn coverage_from(state: &RepositoryState, path: Option<&str>) -> Valu
     let mut structure = (0, 0);
     let mut semantics = (0, 0);
     let mut expressions = (0, 0);
-    for node in state.graph().nodes() {
-        if path.is_some_and(|filter| !in_path(node, filter)) {
-            continue;
-        }
-        if let Some(label) = node.label.strip_prefix("coverage:structure:") {
-            structure = parse_ratio(label);
-        } else if let Some(label) = node.label.strip_prefix("coverage:nodeSemantics:") {
-            semantics = parse_ratio(label);
-        } else if let Some(label) = node.label.strip_prefix("coverage:expressions:") {
-            expressions = parse_ratio(label);
+    for owner in state.graph().nodes().iter().filter(|node| {
+        node.kind.as_str() == "n8n.workflow" && path.is_none_or(|filter| in_path(node, filter))
+    }) {
+        for item in owned_domains(state, owner.id.as_str()) {
+            let Some(name) = item["name"].as_str() else {
+                continue;
+            };
+            if let Some(label) = name.strip_prefix("coverage:structure:") {
+                add_ratio(&mut structure, label);
+            } else if let Some(label) = name.strip_prefix("coverage:nodeSemantics:") {
+                add_ratio(&mut semantics, label);
+            } else if let Some(label) = name.strip_prefix("coverage:expressions:") {
+                add_ratio(&mut expressions, label);
+            }
         }
     }
     json!({
@@ -88,11 +95,12 @@ pub(super) fn coverage_from(state: &RepositoryState, path: Option<&str>) -> Valu
     })
 }
 
-fn parse_ratio(label: &str) -> (u64, u64) {
+fn add_ratio(slot: &mut (u64, u64), label: &str) {
     let Some((left, right)) = label.split_once('/') else {
-        return (0, 0);
+        return;
     };
-    (left.parse().unwrap_or(0), right.parse().unwrap_or(0))
+    slot.0 += left.parse().unwrap_or(0);
+    slot.1 += right.parse().unwrap_or(0);
 }
 
 fn domain_name(domains: &[Value], prefix: &str) -> Option<String> {

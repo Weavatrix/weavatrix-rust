@@ -21,7 +21,7 @@ Use it to:
 - serialize a `Snapshot` for CI, indexing, or review;
 - identify changed declarations by a content-safe symbol fingerprint and retain
   parser-proven `exported` evidence for public-surface consumers;
-- run 50 bounded read-only operations in the default full build;
+- run 53 bounded read-only operations in the default full build;
 - enforce the current v1 architecture contract foundation;
 - power the separate `weavatrix` MCP product.
 
@@ -51,7 +51,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.12.0"
+weavatrix-rust = "2.13.0"
 ```
 
 ```rust
@@ -86,7 +86,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.12.0", default-features = false }
+weavatrix-rust = { version = "2.13.0", default-features = false }
 ```
 
 ## MCP product

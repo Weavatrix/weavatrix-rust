@@ -53,6 +53,10 @@ impl Fixture {
             "workflows/dynamic-and-partial.json",
             include_str!("../fixtures/n8n/dynamic-and-partial.json"),
         );
+        fixture.write(
+            "workflows/duplicate-text.json",
+            include_str!("../fixtures/n8n/duplicate-text.json"),
+        );
         fixture.write("package.json", r#"{"name":"n8n-fixtures"}"#);
         fixture
     }

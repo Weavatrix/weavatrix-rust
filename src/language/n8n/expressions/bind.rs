@@ -111,6 +111,11 @@ mod tests {
         assert_eq!(first[0].name, "Load Customer");
         assert_eq!(first[0].selector, "linked-item");
         assert_eq!(first[0].field.as_deref(), Some("email"));
+        let nested = node_refs("$('Load Customer').item.json.customer.email");
+        assert_eq!(nested[0].field.as_deref(), Some("customer.email"));
+        let literal = node_refs("$('Load Customer').item.json[\"customer\"]");
+        assert_eq!(literal[0].field.as_deref(), Some("customer"));
+        assert!(!literal[0].dynamic_key);
         let second = node_refs("$('Load Customer').first().json.id");
         assert_eq!(second[0].selector, "first");
         assert_eq!(second[0].field.as_deref(), Some("id"));

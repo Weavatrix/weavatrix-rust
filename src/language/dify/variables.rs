@@ -1,6 +1,6 @@
 use super::model::{
-    AppRecord, DomainRecord, LinkRecord, binds_input, depends_on_output, node_key, reads_variable,
-    writes_variable,
+    AppRecord, DomainRecord, LinkRecord, VariableRecord, binds_input, depends_on_output, node_key,
+    reads_variable, variable_key, writes_variable,
 };
 use crate::language::yaml_doc::{self, Node, Scalar};
 use weavatrix_graph::NodeKind;
@@ -22,13 +22,8 @@ pub(super) fn collect(record: &mut AppRecord, root: &Node, path: &str, raw: &str
                 })
                 .and_then(Node::as_str)
                 .unwrap_or("conversation");
-            record.domains.push(DomainRecord {
-                owner: record.key.clone(),
-                name: format!("conversation:{name}"),
-                kind: NodeKind::ConfigKey,
-                relation: weavatrix_graph::EdgeKind::Configures,
-                span: record.span.clone(),
-            });
+            let span = record.span.clone();
+            ensure_variable(record, "conversation", name, &span);
         }
     }
     if let Some(vars) = root
@@ -70,11 +65,13 @@ pub(super) fn collect(record: &mut AppRecord, root: &Node, path: &str, raw: &str
             .and_then(|data| data.get("type"))
             .and_then(Node::as_str);
         walk_selectors(record, &owner, node, type_name, path, raw);
-        for scalar in node.strings() {
-            bind_markers(record, &owner, scalar, path, raw);
-            if type_name == Some("template-transform") {
-                bind_template_locals(record, &owner, data, scalar, path, raw);
-            }
+        if let Some(data) = data {
+            walk_executable_scalars(data, &mut |scalar| {
+                bind_markers(record, &owner, scalar, path, raw);
+                if type_name == Some("template-transform") {
+                    bind_template_locals(record, &owner, Some(data), scalar, path, raw);
+                }
+            });
         }
     }
 }
@@ -91,22 +88,43 @@ fn walk_selectors(
         return;
     };
     if type_name == Some("variable-assigner") || type_name == Some("assigner") {
-        selector_role(
-            record,
-            owner,
-            data.get("value"),
-            reads_variable(),
-            path,
-            raw,
-        );
-        selector_role(
-            record,
-            owner,
-            data.get("variable_selector"),
-            writes_variable(),
-            path,
-            raw,
-        );
+        if let Some(items) = data.get("items").and_then(Node::items) {
+            for item in items {
+                selector_role(
+                    record,
+                    owner,
+                    item.get("value"),
+                    reads_variable(),
+                    path,
+                    raw,
+                );
+                selector_role(
+                    record,
+                    owner,
+                    item.get("variable_selector"),
+                    writes_variable(),
+                    path,
+                    raw,
+                );
+            }
+        } else {
+            selector_role(
+                record,
+                owner,
+                data.get("value"),
+                reads_variable(),
+                path,
+                raw,
+            );
+            selector_role(
+                record,
+                owner,
+                data.get("variable_selector"),
+                writes_variable(),
+                path,
+                raw,
+            );
+        }
         return;
     }
     if type_name == Some("template-transform") {
@@ -190,13 +208,14 @@ fn selector_role(
     }
     record.coverage.variables_seen += 1;
     let name = segments.join(".");
-    if let Some(target) = record.nodes.iter().find(|item| item.id == segments[0]) {
+    let span = yaml_doc::span_for(path, raw, node.range().0, node.range().1);
+    if let Some(target) = resolve_selector_target(record, &segments, &span) {
         record.coverage.variables_resolved += 1;
         record.links.push(LinkRecord {
             from: owner.to_owned(),
-            to: target.key.clone(),
-            kind: depends_on_output(),
-            span: yaml_doc::span_for(path, raw, node.range().0, node.range().1),
+            to: target,
+            kind: relation.clone(),
+            span: span.clone(),
             detail: name.clone(),
         });
     }
@@ -205,8 +224,101 @@ fn selector_role(
         name: format!("selector:{name}"),
         kind: NodeKind::Column,
         relation,
-        span: yaml_doc::span_for(path, raw, node.range().0, node.range().1),
+        span,
     });
+}
+
+fn resolve_selector_target(
+    record: &mut AppRecord,
+    segments: &[&str],
+    span: &weavatrix_graph::SourceSpan,
+) -> Option<String> {
+    match segments[0] {
+        "conversation" | "sys" => {
+            let name = segments.get(1).copied().unwrap_or(segments[0]);
+            Some(ensure_variable(record, segments[0], name, span))
+        }
+        _ => record
+            .nodes
+            .iter()
+            .find(|item| item.id == segments[0])
+            .map(|item| item.key.clone()),
+    }
+}
+
+fn ensure_variable(
+    record: &mut AppRecord,
+    scope: &str,
+    name: &str,
+    span: &weavatrix_graph::SourceSpan,
+) -> String {
+    let key = variable_key(&record.key, scope, name);
+    if !record.variables.iter().any(|item| item.key == key) {
+        record.variables.push(VariableRecord {
+            key: key.clone(),
+            scope: scope.to_owned(),
+            name: name.to_owned(),
+            span: span.clone(),
+        });
+    }
+    key
+}
+
+fn walk_executable_scalars(node: &Node, visit: &mut impl FnMut(&Scalar)) {
+    match node {
+        Node::Scalar(scalar) => visit(scalar),
+        Node::Sequence { items, .. } => {
+            for item in items {
+                walk_executable_scalars(item, visit);
+            }
+        }
+        Node::Mapping { entries, .. } => {
+            for (key, value) in entries {
+                if documentary_key(&key.decoded) {
+                    continue;
+                }
+                if executable_key(&key.decoded) || nested_executable_key(&key.decoded) {
+                    walk_executable_scalars(value, visit);
+                }
+            }
+        }
+    }
+}
+
+fn documentary_key(key: &str) -> bool {
+    matches!(
+        key,
+        "title" | "desc" | "description" | "about" | "label" | "type" | "name"
+    )
+}
+
+fn executable_key(key: &str) -> bool {
+    matches!(
+        key,
+        "prompt"
+            | "text"
+            | "query"
+            | "instruction"
+            | "code"
+            | "template"
+            | "jinja2"
+            | "context"
+            | "vision"
+            | "answer"
+            | "content"
+            | "system"
+            | "user"
+            | "message"
+            | "prefix"
+            | "suffix"
+    )
+}
+
+fn nested_executable_key(key: &str) -> bool {
+    matches!(
+        key,
+        "prompt_template" | "messages" | "prompts" | "variables" | "items" | "outputs"
+    )
 }
 
 fn bind_markers(record: &mut AppRecord, owner: &str, scalar: &Scalar, path: &str, raw: &str) {
@@ -220,13 +332,14 @@ fn bind_markers(record: &mut AppRecord, owner: &str, scalar: &Scalar, path: &str
         if !inner.is_empty() && !inner.contains('\n') {
             record.coverage.variables_seen += 1;
             let segments = inner.split('.').collect::<Vec<_>>();
-            if let Some(target) = record.nodes.iter().find(|item| item.id == segments[0]) {
+            let span = yaml_doc::span_for(path, raw, scalar.raw_start, scalar.raw_end);
+            if let Some(target) = resolve_selector_target(record, &segments, &span) {
                 record.coverage.variables_resolved += 1;
                 record.links.push(LinkRecord {
                     from: owner.to_owned(),
-                    to: target.key.clone(),
+                    to: target,
                     kind: depends_on_output(),
-                    span: yaml_doc::span_for(path, raw, scalar.raw_start, scalar.raw_end),
+                    span: span.clone(),
                     detail: inner.to_owned(),
                 });
             }
@@ -235,7 +348,7 @@ fn bind_markers(record: &mut AppRecord, owner: &str, scalar: &Scalar, path: &str
                 name: format!("marker:{inner}"),
                 kind: NodeKind::Column,
                 relation: reads_variable(),
-                span: yaml_doc::span_for(path, raw, scalar.raw_start, scalar.raw_end),
+                span,
             });
         }
         rest = &after[end + 3..];

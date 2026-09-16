@@ -36,12 +36,26 @@ fn inventory_trace_and_context_keep_marker_consumers() {
         "{}",
         dump(&inventory)
     );
-    let llm = labels(&engine, "LLM");
-    assert_eq!(llm.len(), 1, "{llm:?}");
+    let llm_id = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .find(|node| {
+            node.label == "LLM"
+                && node
+                    .span
+                    .as_ref()
+                    .is_some_and(|span| span.file.contains("llm-simple"))
+        })
+        .expect("llm-simple LLM")
+        .id
+        .as_str()
+        .to_owned();
     let trace = tools::call(
         &mut engine,
         "dify_trace",
-        json!({"label": "LLM", "depth": 6, "max_nodes": 100}),
+        json!({"label": llm_id.as_str(), "depth": 6, "max_nodes": 100}),
     )
     .unwrap();
     let steps = dump(&trace);
@@ -52,7 +66,7 @@ fn inventory_trace_and_context_keep_marker_consumers() {
     let context = tools::call(
         &mut engine,
         "dify_context",
-        json!({"label": "LLM", "task": "change start_node.query"}),
+        json!({"label": llm_id.as_str(), "task": "change start_node.query"}),
     )
     .unwrap();
     let text = dump(&context);
@@ -65,6 +79,47 @@ fn inventory_trace_and_context_keep_marker_consumers() {
         "{text}"
     );
     assert_eq!(context["coverage"]["runtime"]["provided"], false);
+}
+
+#[test]
+fn two_llm_titles_in_one_app_keep_the_bound_edge() {
+    let (_fixture, engine) = engine();
+    let llms = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .filter(|node| {
+            node.label == "LLM"
+                && node
+                    .span
+                    .as_ref()
+                    .is_some_and(|span| span.file.contains("twin-llm"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(llms.len(), 2, "duplicate titles stay distinct");
+    let ids = llms
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert!(
+        engine.state().graph().edges().iter().any(|edge| {
+            ids.contains(edge.source.as_str())
+                && ids.contains(edge.target.as_str())
+                && edge.kind.as_str() == "flows_to"
+        }),
+        "exact Dify IDs must keep the edge between the two LLM nodes"
+    );
+}
+
+#[test]
+fn inventory_max_results_is_an_honest_page() {
+    let (_fixture, mut engine) = engine();
+    let inventory = tools::call(&mut engine, "dify_inventory", json!({"max_results": 1})).unwrap();
+    assert_eq!(inventory["apps"].as_array().unwrap().len(), 1);
+    assert_eq!(inventory["bounds"]["truncated"], true);
+    assert!(inventory["bounds"]["found"].as_u64().unwrap() > 1);
+    assert_eq!(inventory["bounds"]["shown"], 1);
 }
 
 #[test]
