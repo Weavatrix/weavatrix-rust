@@ -3,6 +3,7 @@ use super::model::registration_kind;
 use super::paths::{package_root, span_of};
 use crate::language::FileFacts;
 
+#[cfg(feature = "lang-rust")]
 #[must_use]
 pub(crate) fn analyze_rust(path: &str, raw: &str) -> Option<FileFacts> {
     if !raw.contains("unknown tool") && !raw.contains("fn dispatch") {
@@ -53,6 +54,7 @@ fn emit(
     Some(facts)
 }
 
+#[cfg(feature = "lang-rust")]
 fn rust_arms(raw: &str) -> Vec<(String, String, bool)> {
     let mut out = Vec::new();
     for line in raw.lines() {

@@ -16,7 +16,9 @@ mod register;
 mod skill;
 
 pub(crate) use detect::looks_promising;
-pub(crate) use register::{analyze_rust, analyze_sdk};
+#[cfg(feature = "lang-rust")]
+pub(crate) use register::analyze_rust;
+pub(crate) use register::analyze_sdk;
 
 use crate::language::FileFacts;
 use blazingly_json::Value;

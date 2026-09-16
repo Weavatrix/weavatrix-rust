@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 2.14.3 - 2026-09-16
+
+- Gate the Rust dispatcher overlay on `lang-rust` so the no-default-features
+  clippy quality gate does not treat it as dead code.
+
 ## 2.14.2 - 2026-09-16
 
 - Domain evidence spans no longer classify an endpoint as a production file.
