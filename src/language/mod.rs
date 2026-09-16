@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 use weavatrix_graph::{EdgeKind, NodeKind, SourceSpan};
 
 mod contract;
+mod dify;
 mod graphql;
 mod json;
 mod n8n;
@@ -11,12 +12,19 @@ mod protobuf;
 mod rust;
 pub mod tokenized;
 mod yaml;
+mod yaml_doc;
 
 pub(crate) use contract::file_facts_have_transport_evidence;
 #[cfg(test)]
 pub(crate) use contract::may_contain_transport_marker;
+pub(crate) use dify::DEFAULT_FILE_BYTES as DIFY_DEFAULT_FILE_BYTES;
+pub(crate) use dify::looks_promising as dify_looks_promising;
 pub(crate) use n8n::DEFAULT_FILE_BYTES as N8N_DEFAULT_FILE_BYTES;
 pub(crate) use n8n::looks_promising as n8n_looks_promising;
+
+pub(crate) fn dify_secret_label(name: &str) -> bool {
+    dify::secret_label(name)
+}
 
 #[cfg(feature = "lang-rust")]
 pub use rust::RustAdapter;

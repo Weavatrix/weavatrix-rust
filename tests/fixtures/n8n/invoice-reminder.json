@@ -36,7 +36,8 @@
         "assignments": {
           "assignments": [
             { "name": "sendTo", "value": "={{ $('Load Customer').item.json.email }}" },
-            { "name": "firstId", "value": "={{ $('Load Customer').first().json.id }}" }
+            { "name": "firstId", "value": "={{ $('Load Customer').first().json.id }}" },
+            { "name": "both", "value": "={{ $('Load Customer').item.json.email + $('Check Customer').first().json.name }}" }
           ]
         }
       }

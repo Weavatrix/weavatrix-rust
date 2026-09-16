@@ -27,6 +27,9 @@ pub(super) fn capabilities(registry: &LanguageRegistry) -> Vec<Capability> {
             Language::Json => {
                 "strict JSON syntax, configuration/lockfile inventory, and n8n workflow evidence after parse"
             }
+            Language::Kubernetes => {
+                "Kubernetes resource inventory and Dify DSL evidence after YAML parse"
+            }
             _ => {
                 "complete lossless structural fact extraction and deterministic cross-file resolution for the registered language contract"
             }

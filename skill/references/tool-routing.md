@@ -60,3 +60,6 @@ repositories: the call fails instead of answering about the wrong root.
 - `n8n_inventory`, `n8n_trace`, `n8n_context`: exported n8n workflows after
   JSON parse. Walk `flows_to` and `depends_on_output` separately; missing
   subworkflows are not provided, not deleted.
+- `dify_inventory`, `dify_trace`, `dify_context`: exported Dify YAML after
+  YAML parse. Walk `flows_to` separately from selector and variable
+  relations. Chat mode is recognized, not an empty successful graph.

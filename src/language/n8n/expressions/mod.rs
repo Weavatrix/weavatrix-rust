@@ -1,4 +1,5 @@
 mod bind;
+mod refs;
 
 use super::detect::MAX_EXPRESSION_BYTES;
 use super::locations::{self, StringSite};

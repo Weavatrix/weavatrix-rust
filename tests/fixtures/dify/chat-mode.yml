@@ -1,0 +1,5 @@
+kind: app
+version: 0.3.1
+app:
+  name: Plain Chat
+  mode: chat

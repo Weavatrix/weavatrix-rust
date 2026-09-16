@@ -61,6 +61,7 @@ fn data(evidence: &sections::Evidence) -> Value {
         "find_duplicates": evidence.duplicates,
         "list_endpoints": evidence.endpoints,
         "n8n_inventory": evidence.workflows,
+        "dify_inventory": evidence.apps,
         "module_map": {
             "depth": evidence.depth,
             "modules": evidence.modules.iter().map(|module| json!({

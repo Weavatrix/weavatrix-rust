@@ -255,4 +255,19 @@ pub(super) const SPECS: &[ToolSpec] = &[
         description: "Bounded n8n context for one node: proven dependencies, expression sites, and explicit unknowns.",
         required: &["label"],
     },
+    ToolSpec {
+        name: "dify_inventory",
+        description: "List Dify apps, nodes, modes, and analysis bounds from exported YAML.",
+        required: &[],
+    },
+    ToolSpec {
+        name: "dify_trace",
+        description: "Upstream and downstream Dify port flow, selectors, and typed data relations.",
+        required: &["label"],
+    },
+    ToolSpec {
+        name: "dify_context",
+        description: "Bounded Dify context for one node: proven consumers, selector sites, and explicit gaps.",
+        required: &["label"],
+    },
 ];

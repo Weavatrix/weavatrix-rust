@@ -2,6 +2,7 @@ mod architecture;
 mod args;
 mod build;
 mod catalog;
+mod dify;
 mod graph;
 mod health;
 mod history;
@@ -144,6 +145,9 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "n8n_inventory" => n8n::inventory(state, arguments),
         "n8n_trace" => n8n::trace(state, arguments),
         "n8n_context" => n8n::context(state, arguments),
+        "dify_inventory" => dify::inventory(state, arguments),
+        "dify_trace" => dify::trace(state, arguments),
+        "dify_context" => dify::context(state, arguments),
         "rebuild_graph" => {
             let before = graph::stats(state, arguments)?;
             weavatrix.rebuild().map_err(|error| error.to_string())?;

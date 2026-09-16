@@ -131,6 +131,20 @@ Secrets, cookies, auth headers, URL credentials, `pinData`, `staticData`, and
 `$env` values are not placed on the default graph or context. This is not a
 live n8n API, editor, or executor.
 
+## Dify apps
+
+- `dify_inventory`: exported apps, nodes, mode, DSL version, and coverage.
+- `dify_trace`: bounded `flows_to`, `depends_on_output`, selector, and
+  typed data-relation walks with a 100-node page and cursor.
+- `dify_context`: selected node dependencies, selector/marker sites, and
+  explicit runtime gaps.
+
+Dify is recognized after YAML parse. Same display names in different app
+files stay distinct. Chat and other modes are recognized without a fake
+empty successful graph. Secrets, env values, and credential-shaped labels
+are not placed on the default graph or context. This is not a live Dify
+API, editor, or executor.
+
 ## Common result rules
 
 Repository-state operations execute against an identified root and revision;

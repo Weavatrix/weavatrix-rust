@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 2.12.0 - 2026-09-16
+
+- Close n8n expression gaps: every `$('Name')` / `$node` / `$items` occurrence
+  is bound, not the first match only, and duplicate display names or ids are
+  recorded instead of overwriting the name map.
+- Read-only Dify DSL evidence after YAML parse: app/node identities, ports,
+  control flow, iteration scopes, selectors, `{{#id.field#}}` markers,
+  conversation reads/writes, Code/Template inventory, models, tools, and
+  knowledge. New operations `dify_inventory`, `dify_trace`, and
+  `dify_context`. The default full catalog is 53 operations. This is not a
+  live Dify API, editor, or executor.
+- Kubernetes YAML inventory stays on the same `.yml` adapter. Dify is a
+  domain after parse, not a second YAML language. Chat and other modes are
+  recognized without pretending an empty graph succeeded.
+- Analyzer admission accepts Dify-shaped YAML up to 16 MiB, matching n8n
+  JSON. Secrets, env values, and credential-shaped labels stay off the
+  default inventory and context.
+
 ## 2.11.0 - 2026-09-15
 
 - Read-only n8n workflow evidence after JSON parse: identities, typed ports,

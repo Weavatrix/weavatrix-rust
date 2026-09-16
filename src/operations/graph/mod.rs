@@ -4,6 +4,7 @@ use blazingly_json::{Value, json};
 use std::collections::BTreeMap;
 use weavatrix_graph::{Direction, NodeIndex, NodeKind, shortest_path};
 
+mod coupling;
 mod pagination;
 mod trace;
 mod views;
@@ -228,23 +229,6 @@ pub fn path(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     }))
 }
 
-/// Coupling relations for reverse walks. Containment is not a dependency.
-fn coupling_relations() -> std::collections::BTreeSet<String> {
-    [
-        "calls",
-        "imports",
-        "inherits",
-        "implements",
-        "re_exports",
-        "references",
-        "depends_on_output",
-        "calls_workflow",
-    ]
-    .into_iter()
-    .map(str::to_owned)
-    .collect()
-}
-
 pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     crate::operations::require_graph_precision(args)?;
     let seed = state.resolve_node(arg_str(args, "label")?)?;
@@ -257,7 +241,7 @@ pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String
         max + 1,
         Direction::Incoming,
         false,
-        Some(&coupling_relations()),
+        Some(&coupling::coupling_relations()),
     );
     // Remove the seed by identity: the traversal order is not sorted, so
     // dropping the first entry would silently discard a real dependent.
@@ -273,7 +257,7 @@ pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String
     Ok(json!({
         "seed": state.node(seed)?,
         "dependents": nodes,
-        "relations": coupling_relations().iter().collect::<Vec<_>>(),
+        "relations": coupling::coupling_relations().iter().collect::<Vec<_>>(),
         "precision": "graph",
         "semantic_precision": "BOUNDED_STATIC"
     }))

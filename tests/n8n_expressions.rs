@@ -4,6 +4,28 @@ use n8n_support::engine;
 use weavatrix_rust::{Analyzer, SourceInput};
 
 #[test]
+fn two_node_refs_in_one_expression_stay_separate() {
+    let (_fixture, engine) = engine();
+    let labels = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .map(|node| node.label.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        labels.iter().any(|label| label.contains("Load Customer")
+            && labels.iter().any(|other| other.contains("Check Customer"))),
+        "{labels:?}"
+    );
+    let fields = labels
+        .iter()
+        .filter(|label| label.contains(".email") || label.contains(".name"))
+        .count();
+    assert!(fields >= 2, "{labels:?}");
+}
+
+#[test]
 fn item_and_first_keep_distinct_selectors() {
     let (_fixture, engine) = engine();
     let labels = engine

@@ -1,0 +1,16 @@
+kind: app
+version: 0.3.1
+app:
+  name: Shared Title
+  mode: workflow
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  graph:
+    edges: []
+    nodes:
+    - data:
+        title: Shared Node
+        type: start
+      id: start_node
+      type: custom

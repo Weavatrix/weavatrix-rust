@@ -118,11 +118,8 @@ fn workflow(
             .nodes
             .push(node_record(&key, node, path, raw, sites, ordinal));
     }
-    let names = record
-        .nodes
-        .iter()
-        .map(|node| (node.name.clone(), node.key.clone()))
-        .collect::<std::collections::BTreeMap<_, _>>();
+    record_name_conflicts(&record, diagnostics);
+    let names = unique_connection_names(&record);
     connections::collect(
         &mut record,
         value.get("connections"),
@@ -215,6 +212,50 @@ fn coverage_of(record: &WorkflowRecord) -> super::model::Coverage {
     )
     .unwrap_or(u32::MAX);
     coverage
+}
+
+fn record_name_conflicts(record: &WorkflowRecord, diagnostics: &mut Vec<Diagnostic>) {
+    let mut names = std::collections::BTreeMap::<&str, u32>::new();
+    let mut ids = std::collections::BTreeMap::<&str, u32>::new();
+    for node in &record.nodes {
+        *names.entry(node.name.as_str()).or_default() += 1;
+        if !node.id.is_empty() {
+            *ids.entry(node.id.as_str()).or_default() += 1;
+        }
+    }
+    for (name, count) in names {
+        if count > 1 {
+            diagnostics.push(Diagnostic {
+                code: "n8n.duplicate_name".into(),
+                message: format!(
+                    "node display name {name:?} is used {count} times in one workflow"
+                ),
+                span: Some(record.span.clone()),
+            });
+        }
+    }
+    for (id, count) in ids {
+        if count > 1 {
+            diagnostics.push(Diagnostic {
+                code: "n8n.duplicate_id".into(),
+                message: format!("node id {id:?} is used {count} times in one workflow"),
+                span: Some(record.span.clone()),
+            });
+        }
+    }
+}
+
+fn unique_connection_names(record: &WorkflowRecord) -> std::collections::BTreeMap<String, String> {
+    let mut counts = std::collections::BTreeMap::<&str, u32>::new();
+    for node in &record.nodes {
+        *counts.entry(node.name.as_str()).or_default() += 1;
+    }
+    record
+        .nodes
+        .iter()
+        .filter(|node| counts.get(node.name.as_str()).copied() == Some(1))
+        .map(|node| (node.name.clone(), node.key.clone()))
+        .collect()
 }
 
 fn type_version(node: &Value) -> String {

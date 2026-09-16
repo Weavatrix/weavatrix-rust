@@ -24,6 +24,19 @@ impl LanguageAdapter for YamlAdapter {
     }
 
     fn parse(&self, source: SourceFile<'_>) -> Result<FileFacts> {
+        match super::yaml_doc::parse(source.path, source.text) {
+            Ok(documents) => {
+                if let Some(dify) = super::dify::analyze(source.path, source.text, &documents) {
+                    return Ok(dify);
+                }
+            }
+            Err(diagnostic) if super::dify::looks_promising(source.text) => {
+                let mut facts = FileFacts::default();
+                facts.diagnostics.push(diagnostic);
+                return Ok(facts);
+            }
+            Err(_) => {}
+        }
         let mut facts = FileFacts::default();
         let mut kind = None::<(String, u32, usize)>;
         for (offset, raw) in source.text.lines().enumerate() {

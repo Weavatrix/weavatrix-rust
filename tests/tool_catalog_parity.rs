@@ -65,6 +65,9 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "n8n_inventory",
         "n8n_trace",
         "n8n_context",
+        "dify_inventory",
+        "dify_trace",
+        "dify_context",
     ] {
         assert!(actual.contains(expected), "missing tool {expected}");
     }
@@ -125,6 +128,12 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
     assert!(n8n.iter().any(|tool| tool.name == "n8n_context"));
     assert!(n8n.iter().all(|tool| tool.name != "verified_change"));
     assert!(n8n.iter().all(|tool| tool.name != "seo_link_suggestions"));
+    let dify = tools::catalog_for_profile(tools::ToolProfile::Dify);
+    assert!(dify.iter().any(|tool| tool.name == "dify_inventory"));
+    assert!(dify.iter().any(|tool| tool.name == "dify_trace"));
+    assert!(dify.iter().any(|tool| tool.name == "dify_context"));
+    assert!(dify.iter().all(|tool| tool.name != "verified_change"));
+    assert!(dify.iter().all(|tool| tool.name != "n8n_inventory"));
 
     #[cfg(feature = "vector")]
     {

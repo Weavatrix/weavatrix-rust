@@ -57,6 +57,7 @@ pub(super) fn sections(evidence: &Evidence) -> Vec<Section> {
         duplicates(&evidence.duplicates),
         endpoints(&evidence.endpoints),
         workflows(&evidence.workflows),
+        apps(&evidence.apps),
     ]
 }
 
@@ -206,6 +207,22 @@ fn workflows(report: &Value) -> Section {
                 } else {
                     entries
                 },
+            ]
+        }),
+    }
+}
+
+fn apps(report: &Value) -> Section {
+    Section {
+        title: "Dify apps",
+        note: section_note(report, "No exported Dify app was recognized."),
+        headers: &["App", "Nodes", "Mode"],
+        rows: table_rows(report, "apps", |app| {
+            let nodes = app["nodes"].as_array().map_or(0, Vec::len);
+            vec![
+                field_text(&app["label"]),
+                nodes.to_string(),
+                field_text(&app["mode"]),
             ]
         }),
     }

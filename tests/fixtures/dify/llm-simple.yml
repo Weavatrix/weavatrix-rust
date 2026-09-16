@@ -1,0 +1,51 @@
+kind: app
+version: 0.3.1
+app:
+  name: llm-simple
+  mode: workflow
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  graph:
+    edges:
+    - id: start-to-llm
+      source: start_node
+      sourceHandle: source
+      target: llm_node
+      targetHandle: target
+    - id: llm-to-end
+      source: llm_node
+      sourceHandle: source
+      target: end_node
+      targetHandle: target
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables:
+        - type: text-input
+          variable: query
+      id: start_node
+      type: custom
+    - data:
+        title: LLM
+        type: llm
+        model:
+          provider: openai
+          name: gpt-3.5-turbo
+          mode: chat
+        prompt_template:
+        - role: user
+          text: "{{#start_node.query#}}"
+      id: llm_node
+      type: custom
+    - data:
+        title: End
+        type: end
+        outputs:
+        - variable: answer
+          value_selector:
+          - llm_node
+          - text
+      id: end_node
+      type: custom

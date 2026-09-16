@@ -1,0 +1,37 @@
+kind: app
+version: 0.3.1
+app:
+  name: conversation-assign
+  mode: advanced-chat
+workflow:
+  conversation_variables:
+  - name: customer_email
+    value_type: string
+  environment_variables: []
+  graph:
+    edges:
+    - id: start-to-assign
+      source: start_node
+      sourceHandle: source
+      target: assign_email
+      targetHandle: target
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables:
+        - type: text-input
+          variable: email
+      id: start_node
+      type: custom
+    - data:
+        title: Remember Email
+        type: variable-assigner
+        value:
+        - start_node
+        - email
+        variable_selector:
+        - conversation
+        - customer_email
+      id: assign_email
+      type: custom

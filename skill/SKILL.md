@@ -1,6 +1,6 @@
 ---
 name: weavatrix
-description: Use the native Weavatrix MCP for local repository intelligence across Rust, JavaScript, TypeScript, Python, Go, Java, C, C++, C#, SQL, GraphQL, Protobuf, infrastructure, event transports, and exported n8n workflows. Trigger for codebase orientation, source search, dependency and call graphs, endpoint or transport tracing, cross-repository impact, dead-code and duplicate review, Health audits, architecture checks, Git history, coverage, vector or semantic search, SEO links, temporal memory, and n8n workflow inventory or impact.
+description: Use the native Weavatrix MCP for local repository intelligence across Rust, JavaScript, TypeScript, Python, Go, Java, C, C++, C#, SQL, GraphQL, Protobuf, infrastructure, event transports, and exported n8n or Dify workflows. Trigger for codebase orientation, source search, dependency and call graphs, endpoint or transport tracing, cross-repository impact, dead-code and duplicate review, Health audits, architecture checks, Git history, coverage, vector or semantic search, SEO links, temporal memory, and n8n or Dify workflow inventory or impact.
 ---
 
 # Weavatrix
@@ -47,6 +47,8 @@ server's refresh completed or when deliberately changing graph mode.
   `semantic_link`, `seo_link_suggestions`, and `memory_context`.
 - Exported n8n workflows: `n8n_inventory`, then `n8n_trace` or `n8n_context`.
   This is static graph evidence, not a live n8n API or executor.
+- Exported Dify YAML: `dify_inventory`, then `dify_trace` or `dify_context`.
+  This is static graph evidence, not a live Dify API or executor.
 
 Read [references/tool-routing.md](references/tool-routing.md) when selecting
 among similar tools or reviewing transport evidence.

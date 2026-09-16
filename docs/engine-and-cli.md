@@ -7,7 +7,7 @@ and a standalone command-line adapter.
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.11.0", default-features = false }
+weavatrix-rust = { version = "2.12.0", default-features = false }
 ```
 
 ```rust

@@ -1,0 +1,56 @@
+kind: app
+version: 0.3.1
+app:
+  name: iteration-scope
+  mode: workflow
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  graph:
+    edges:
+    - id: start-to-each
+      source: start_node
+      sourceHandle: source
+      target: each_item
+      targetHandle: target
+    - data:
+        isInIteration: true
+        iteration_id: each_item
+      id: each-to-format
+      source: each_item
+      sourceHandle: source
+      target: format_item
+      targetHandle: target
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables:
+        - type: array
+          variable: items
+      id: start_node
+      type: custom
+    - data:
+        title: Each Item
+        type: iteration
+        iterator_selector:
+        - start_node
+        - items
+        output_selector:
+        - format_item
+        - result
+      id: each_item
+      type: custom
+    - data:
+        title: Format Item
+        type: template-transform
+        iteration_id: each_item
+        template: "{{ item }}"
+        variables:
+        - variable: item
+          value_selector:
+          - each_item
+          - item
+      id: format_item
+      parentId: each_item
+      type: custom

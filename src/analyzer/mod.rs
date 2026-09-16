@@ -17,7 +17,7 @@ use support::{canonical_repository, capabilities};
 #[derive(Debug, Clone)]
 pub struct AnalyzerConfig {
     pub max_file_bytes: u64,
-    /// n8n exports can exceed the general file cap; oversized non-n8n JSON
+    /// n8n JSON and Dify YAML exports can exceed the general file cap; oversized non-export files
     /// still stops at `max_file_bytes`.
     pub n8n_max_file_bytes: u64,
 }
@@ -158,9 +158,18 @@ fn admits_source(path: &str, bytes: &[u8], config: &AnalyzerConfig) -> bool {
     if size > config.n8n_max_file_bytes {
         return false;
     }
-    std::str::from_utf8(bytes).is_ok_and(crate::language::n8n_looks_promising)
-        && Path::new(path)
-            .extension()
-            .and_then(|value| value.to_str())
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return false;
+    };
+    let extension = Path::new(path)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
+    if extension.eq_ignore_ascii_case("json") {
+        crate::language::n8n_looks_promising(text)
+    } else if extension.eq_ignore_ascii_case("yaml") || extension.eq_ignore_ascii_case("yml") {
+        crate::language::dify_looks_promising(text)
+    } else {
+        false
+    }
 }

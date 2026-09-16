@@ -51,7 +51,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.11.0"
+weavatrix-rust = "2.12.0"
 ```
 
 ```rust
@@ -86,7 +86,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.11.0", default-features = false }
+weavatrix-rust = { version = "2.12.0", default-features = false }
 ```
 
 ## MCP product
@@ -178,7 +178,7 @@ See the [evidence model](docs/evidence-model.md) and
 
 ## Operations
 
-The default full build exposes 50 operations:
+The default full build exposes 53 operations:
 
 | Workflow | Operations |
 | --- | --- |
@@ -192,6 +192,7 @@ The default full build exposes 50 operations:
 | Repository | Git history, cross-repo, open/list/rebuild operations |
 | Extensions | Vector, semantic, SEO, and memory operations |
 | n8n | `n8n_inventory`, `n8n_trace`, `n8n_context` |
+| Dify | `dify_inventory`, `dify_trace`, `dify_context` |
 
 The complete schemas live in the [operation reference](docs/tool-reference.md).
 
