@@ -35,9 +35,11 @@ pub(in crate::operations) fn affected(
         if binding["status"] != "exact" {
             continue;
         }
-        let hit = binding["targets"].as_array().into_iter().flatten().any(|target| {
-            file_label_changed(target, files) || impact_hit(target, impacts)
-        });
+        let hit = binding["targets"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|target| file_label_changed(target, files) || impact_hit(target, impacts));
         if hit {
             rows.push(json!({
                 "diagram": binding["diagram"],
@@ -52,23 +54,27 @@ pub(in crate::operations) fn affected(
 }
 
 fn file_changed(node: &Node, files: &[String]) -> bool {
-    node.span
-        .as_ref()
-        .is_some_and(|span| files.iter().any(|file| span.file == *file || span.file.ends_with(file)))
+    node.span.as_ref().is_some_and(|span| {
+        files
+            .iter()
+            .any(|file| span.file == *file || span.file.ends_with(file))
+    })
 }
 
 fn file_label_changed(target: &Value, files: &[String]) -> bool {
-    target["span"]["file"]
-        .as_str()
-        .is_some_and(|path| files.iter().any(|file| path == file || path.ends_with(file)))
+    target["span"]["file"].as_str().is_some_and(|path| {
+        files
+            .iter()
+            .any(|file| path == file || path.ends_with(file))
+    })
 }
 
 fn impact_hit(target: &Value, impacts: &[Value]) -> bool {
     let id = target["id"].as_str();
     let label = target["label"].as_str();
-    impacts.iter().any(|item| {
-        item["id"].as_str() == id || item["label"].as_str() == label
-    })
+    impacts
+        .iter()
+        .any(|item| item["id"].as_str() == id || item["label"].as_str() == label)
 }
 
 fn neighbors(state: &RepositoryState, element: Option<&str>) -> Vec<String> {

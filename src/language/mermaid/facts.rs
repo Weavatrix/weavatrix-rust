@@ -16,7 +16,9 @@ pub(super) fn to_file_facts(path: &str, diagrams: &[Diagram]) -> FileFacts {
 }
 
 fn emit_diagram(facts: &mut FileFacts, path: &str, diagram: &Diagram) {
-    facts.diagnostics.extend(diagram.diagnostics.iter().cloned());
+    facts
+        .diagnostics
+        .extend(diagram.diagnostics.iter().cloned());
     let diagram_symbol = symbol(&diagram.key, diagram_kind(), diagram.span.clone());
     let owner = locator(&diagram_symbol);
     facts.symbols.push(diagram_symbol);
@@ -75,18 +77,19 @@ fn emit_diagram(facts: &mut FileFacts, path: &str, diagram: &Diagram) {
         if let Some(group) = &element.group
             && let Some(group_loc) = locators.get(group)
         {
-            facts.references.push(contains(
-                group_loc,
-                &element.id,
-                element.span.clone(),
-            ));
+            facts
+                .references
+                .push(contains(group_loc, &element.id, element.span.clone()));
         }
         for occurrence in &element.occurrences {
             push_named(
                 facts,
                 locators.get(&element.id).unwrap_or(&owner),
                 occurrence,
-                &format!("occurrence:{}:{}", occurrence.start.line, occurrence.start.column),
+                &format!(
+                    "occurrence:{}:{}",
+                    occurrence.start.line, occurrence.start.column
+                ),
                 NodeKind::Unknown,
                 EdgeKind::Configures,
             );
@@ -168,7 +171,14 @@ fn contains(owner: &SymbolLocator, name: &str, span: SourceSpan) -> ReferenceFac
 
 fn push_meta(facts: &mut FileFacts, owner: &SymbolLocator, span: &SourceSpan, names: &[String]) {
     for name in names {
-        push_named(facts, owner, span, name, NodeKind::Unknown, EdgeKind::Configures);
+        push_named(
+            facts,
+            owner,
+            span,
+            name,
+            NodeKind::Unknown,
+            EdgeKind::Configures,
+        );
     }
 }
 

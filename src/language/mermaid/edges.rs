@@ -186,6 +186,8 @@ fn take_shape(scanner: &mut Scanner<'_>) -> Option<String> {
 fn trim_shape_label(label: &str) -> String {
     label
         .trim()
-        .trim_matches(|character| matches!(character, '"' | '\'' | '[' | ']' | '(' | ')' | '{' | '}'))
+        .trim_matches(|character| {
+            matches!(character, '"' | '\'' | '[' | ']' | '(' | ')' | '{' | '}')
+        })
         .to_owned()
 }

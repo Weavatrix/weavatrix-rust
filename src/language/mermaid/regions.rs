@@ -23,7 +23,9 @@ fn fenced(raw: &str) -> Vec<Region> {
     let mut offset = bom_len(raw);
     let mut open: Option<Fence> = None;
     while offset < raw.len() {
-        let next = raw[offset..].find('\n').map_or(raw.len(), |index| offset + index + 1);
+        let next = raw[offset..]
+            .find('\n')
+            .map_or(raw.len(), |index| offset + index + 1);
         let line = raw[offset..next].trim_end_matches(['\r', '\n']);
         if let Some(fence) = &open {
             if closes(line, fence) {
@@ -54,8 +56,14 @@ struct Fence {
 fn opens(line: &str, next: usize) -> Option<Fence> {
     let stripped = strip_blockquote(line);
     let rest = strip_indent(stripped, 3)?;
-    let marker = rest.chars().next().filter(|character| matches!(character, '`' | '~'))?;
-    let length = rest.chars().take_while(|character| *character == marker).count();
+    let marker = rest
+        .chars()
+        .next()
+        .filter(|character| matches!(character, '`' | '~'))?;
+    let length = rest
+        .chars()
+        .take_while(|character| *character == marker)
+        .count();
     if length < 3 {
         return None;
     }
@@ -79,7 +87,10 @@ fn closes(line: &str, fence: &Fence) -> bool {
     let Some(rest) = strip_indent(strip_blockquote(line), 3) else {
         return false;
     };
-    let length = rest.chars().take_while(|character| *character == fence.marker).count();
+    let length = rest
+        .chars()
+        .take_while(|character| *character == fence.marker)
+        .count();
     length >= fence.length && rest[length..].trim().is_empty()
 }
 

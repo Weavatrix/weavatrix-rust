@@ -156,10 +156,12 @@ fn domain_field(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "description": "Opaque page token from a previous n8n_trace page.next_cursor; format v1:<offset>"
         })),
-        ("n8n_context" | "dify_context" | "agent_context" | "diagram_context", "task") => Some(json!({
-            "type": "string",
-            "description": "What the caller intends to change or inspect; used only to keep the bounded context on that question"
-        })),
+        ("n8n_context" | "dify_context" | "agent_context" | "diagram_context", "task") => {
+            Some(json!({
+                "type": "string",
+                "description": "What the caller intends to change or inspect; used only to keep the bounded context on that question"
+            }))
+        }
         ("dify_inventory", "path") => Some(json!({
             "type": "string",
             "description": "Repository-relative Dify YAML file or path fragment; omit to list every recognized export"

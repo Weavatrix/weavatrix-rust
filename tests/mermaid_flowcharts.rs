@@ -110,8 +110,14 @@ fn diagram_does_not_clear_dead_code_or_invent_bindings() {
     )
     .unwrap();
     let context_text = dump(&context);
-    assert!(context_text.contains("createOrder") || context_text.contains("exact"), "{context_text}");
-    assert!(context_text.contains("not production Calls") || context_text.contains("drawn arrows"), "{context_text}");
+    assert!(
+        context_text.contains("createOrder") || context_text.contains("exact"),
+        "{context_text}"
+    );
+    assert!(
+        context_text.contains("not production Calls") || context_text.contains("drawn arrows"),
+        "{context_text}"
+    );
     let impact = tools::call(
         &mut engine,
         "change_impact",

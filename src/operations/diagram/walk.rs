@@ -43,7 +43,10 @@ pub(super) fn trace(state: &RepositoryState, args: &Value) -> Result<Value, Stri
         },
     );
     if let Some(object) = report.as_object_mut() {
-        object.insert("plane".to_owned(), blazingly_json::json!("declared_architecture"));
+        object.insert(
+            "plane".to_owned(),
+            blazingly_json::json!("declared_architecture"),
+        );
         object.insert("label".to_owned(), blazingly_json::json!(label));
     }
     Ok(report)

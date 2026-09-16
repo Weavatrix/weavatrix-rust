@@ -95,7 +95,9 @@ impl<'a> Scanner<'a> {
     }
 
     pub(super) fn take_quoted(&mut self) -> Option<String> {
-        let quote = self.peek_char().filter(|character| matches!(character, '"' | '\''))?;
+        let quote = self
+            .peek_char()
+            .filter(|character| matches!(character, '"' | '\''))?;
         self.bump(1);
         let rest = self.rest();
         let mut escaped = false;

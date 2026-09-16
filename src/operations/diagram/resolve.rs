@@ -9,7 +9,13 @@ pub(super) fn binding_row(state: &RepositoryState, node: &Node) -> Value {
     let artifact = domain_name(&domains, "artifact:");
     let native_id = domain_name(&domains, "id:");
     let kind = domain_name(&domains, "kind:").unwrap_or_else(|| "symbol".to_owned());
-    let (status, targets) = resolve(state, &kind, selector.as_deref(), artifact.as_deref(), native_id.as_deref());
+    let (status, targets) = resolve(
+        state,
+        &kind,
+        selector.as_deref(),
+        artifact.as_deref(),
+        native_id.as_deref(),
+    );
     json!({
         "id": node.id,
         "label": node.label,

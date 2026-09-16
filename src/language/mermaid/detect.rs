@@ -37,9 +37,5 @@ fn has_flowchart_header(raw: &str) -> bool {
         .map(str::trim_start)
         .filter(|line| !line.is_empty() && !line.starts_with("%%"))
         .take(3)
-        .any(|line| {
-            line.starts_with("flowchart")
-                || line.starts_with("graph ")
-                || line == "graph"
-        })
+        .any(|line| line.starts_with("flowchart") || line.starts_with("graph ") || line == "graph")
 }

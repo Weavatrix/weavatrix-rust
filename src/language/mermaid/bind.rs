@@ -44,7 +44,10 @@ pub(crate) fn analyze_links(path: &str, raw: &str, value: &Value) -> Option<File
             ("artifact", "artifact"),
             ("id", "id"),
         ] {
-            if let Some(value) = link.get(key).and_then(Value::as_str).filter(|value| !value.is_empty())
+            if let Some(value) = link
+                .get(key)
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
             {
                 facts.domains.push(DomainFact {
                     name: format!("{prefix}:{value}"),

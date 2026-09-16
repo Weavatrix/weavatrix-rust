@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 2.14.1 - 2026-09-16
+
+- rustfmt the Mermaid and diagram sources so the tag-triggered crates.io
+  publish quality gate can pass. Behavior matches 2.14.0.
+
 ## 2.14.0 - 2026-09-16
 
 - Agent Plugins 1.0.0, Agent Skills, and native MCP/plugin overlays become

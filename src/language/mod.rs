@@ -22,12 +22,11 @@ pub(crate) use contract::file_facts_have_transport_evidence;
 pub(crate) use contract::may_contain_transport_marker;
 pub(crate) use dify::DEFAULT_FILE_BYTES as DIFY_DEFAULT_FILE_BYTES;
 pub(crate) use dify::looks_promising as dify_looks_promising;
+pub(crate) use dify::secret_label as dify_secret_label;
 pub(crate) use mermaid::looks_promising as mermaid_looks_promising;
-pub(crate) use n8n::{DEFAULT_FILE_BYTES as N8N_DEFAULT_FILE_BYTES, looks_promising as n8n_looks_promising};
-
-pub(crate) fn dify_secret_label(name: &str) -> bool {
-    dify::secret_label(name)
-}
+pub(crate) use n8n::{
+    DEFAULT_FILE_BYTES as N8N_DEFAULT_FILE_BYTES, looks_promising as n8n_looks_promising,
+};
 
 #[cfg(feature = "lang-rust")]
 pub use rust::RustAdapter;

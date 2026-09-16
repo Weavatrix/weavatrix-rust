@@ -4,7 +4,11 @@ use weavatrix_graph::{SourcePosition, SourceSpan};
 pub(super) fn span_for(path: &str, raw: &str, start: usize, end: usize) -> SourceSpan {
     let start = start.min(raw.len());
     let end = end.min(raw.len()).max(start);
-    SourceSpan::new(path, position(raw, start), position(raw, end.max(start + 1)))
+    SourceSpan::new(
+        path,
+        position(raw, start),
+        position(raw, end.max(start + 1)),
+    )
 }
 
 #[must_use]

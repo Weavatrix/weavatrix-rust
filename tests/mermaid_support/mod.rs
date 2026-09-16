@@ -17,9 +17,18 @@ impl Fixture {
             "docs/architecture.md",
             include_str!("../fixtures/mermaid/architecture.md"),
         );
-        fixture.write("docs/nested.md", include_str!("../fixtures/mermaid/nested.md"));
-        fixture.write("docs/flow.mmd", include_str!("../fixtures/mermaid/flow.mmd"));
-        fixture.write("src/orders.js", include_str!("../fixtures/mermaid/orders.js"));
+        fixture.write(
+            "docs/nested.md",
+            include_str!("../fixtures/mermaid/nested.md"),
+        );
+        fixture.write(
+            "docs/flow.mmd",
+            include_str!("../fixtures/mermaid/flow.mmd"),
+        );
+        fixture.write(
+            "src/orders.js",
+            include_str!("../fixtures/mermaid/orders.js"),
+        );
         fixture.write(
             ".weavatrix/diagram-links.json",
             include_str!("../fixtures/mermaid/diagram-links.json"),

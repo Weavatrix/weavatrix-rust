@@ -50,7 +50,13 @@ pub(super) fn parse(path: &str, raw: &str, region: &Region) -> Diagram {
                 groups.push(group.id.clone());
                 diagram.groups.push(group);
             } else {
-                mark_partial(&mut diagram, path, raw, scanner.absolute(), "invalid subgraph");
+                mark_partial(
+                    &mut diagram,
+                    path,
+                    raw,
+                    scanner.absolute(),
+                    "invalid subgraph",
+                );
             }
             continue;
         }
