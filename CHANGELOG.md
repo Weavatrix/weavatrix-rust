@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.13.1 - 2026-09-16
+
+- Split domain walk, Dify variable scan, YAML block scalars, and domain
+  indexing so the crate stays inside the 300-line file budget and clippy
+  `-D warnings` gate.
+
 ## 2.13.0 - 2026-09-16
 
 - Domain links keep exact endpoints (`BoundEdgeFact`) and owner-scoped

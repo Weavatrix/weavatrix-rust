@@ -1,5 +1,6 @@
 //! Source-aware YAML subset used by Dify exports. Not a second `.yml` adapter.
 
+mod block;
 mod parse;
 mod scan;
 mod value;

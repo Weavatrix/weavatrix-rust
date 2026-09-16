@@ -40,7 +40,7 @@ pub(super) fn trace(state: &RepositoryState, args: &Value) -> Result<Value, Stri
     let start_id = start_node.id.clone();
     let mut report = domain_walk::trace(
         state,
-        WalkSpec {
+        &WalkSpec {
             start: start_id.as_str(),
             depth,
             max_nodes,

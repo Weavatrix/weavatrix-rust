@@ -1,5 +1,6 @@
 //! Mutable analysis state used while constructing an immutable snapshot.
 
+mod domains;
 mod indexing;
 mod resolution;
 mod source;

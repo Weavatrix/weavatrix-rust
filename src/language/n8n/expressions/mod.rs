@@ -30,9 +30,10 @@ pub(super) fn collect(
             if redaction::skip_pointer(pointer) || redaction::looks_secret(pointer, text) {
                 return;
             }
-            let full_pointer = ordinal
-                .map(|index| format!("/nodes/{index}/parameters{pointer}"))
-                .unwrap_or_else(|| pointer.to_owned());
+            let full_pointer = ordinal.map_or_else(
+                || pointer.to_owned(),
+                |index| format!("/nodes/{index}/parameters{pointer}"),
+            );
             for (char_start, char_end, region) in expression_regions(text) {
                 if region.len() > MAX_EXPRESSION_BYTES {
                     continue;
