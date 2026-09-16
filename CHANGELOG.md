@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.14.2 - 2026-09-16
+
+- Domain evidence spans no longer classify an endpoint as a production file.
+  A route owned only by a `#[cfg(test)]` symbol stays off the served surface
+  until `include_tests` asks for it.
+
 ## 2.14.1 - 2026-09-16
 
 - rustfmt the Mermaid and diagram sources so the tag-triggered crates.io

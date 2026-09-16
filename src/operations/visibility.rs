@@ -21,12 +21,12 @@ pub(crate) fn node_is_visible(state: &RepositoryState, slot: usize, args: &Value
     let Some(node) = state.graph().node_at(index) else {
         return true;
     };
-    if node_path(node).is_some() {
+    // A domain node's span is where the evidence was written, not a claim that
+    // the domain itself is a production file. Classify it from the symbols or
+    // files that expose it, so a `#[cfg(test)]` owner still hides the route.
+    if !is_projected_domain(node) && node_path(node).is_some() {
         return evidence_node_is_visible(node, args);
     }
-    // Domain nodes such as endpoints, tables and topics carry no span: they are
-    // classified by the files that declare them, so a route declared only in a
-    // test is not part of a production-first answer.
     let mut declared = false;
     for edge in state.graph().incoming_at(index) {
         let Some(source) = state.graph().node(edge.source.as_str()) else {
@@ -43,6 +43,10 @@ pub(crate) fn node_is_visible(state: &RepositoryState, slot: usize, args: &Value
     // Repository and package nodes have no declaring file; keep them rather
     // than hide evidence.
     !declared
+}
+
+fn is_projected_domain(node: &weavatrix_graph::Node) -> bool {
+    node.id.as_str().starts_with("domain:")
 }
 
 fn evidence_node_is_visible(node: &weavatrix_graph::Node, args: &Value) -> bool {
