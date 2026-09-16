@@ -73,6 +73,7 @@ pub(super) fn change_impact_unchecked(
         "status": "COMPLETE",
         "changed_files": files,
         "impacted_nodes": impacts,
+        "documentation": crate::operations::diagram::affected(state, &files, &impacts),
         "git": git,
         "precision": "graph",
         "semantic_precision": "BOUNDED_STATIC",

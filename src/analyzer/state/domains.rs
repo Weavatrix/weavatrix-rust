@@ -24,12 +24,12 @@ impl AnalysisState {
                 })
                 .unwrap_or_else(|| file_id.clone());
             let (id, created) = self.domain_id(&fact.kind, &fact.name, &source)?;
-            if !created {
-                continue;
+            if created {
+                self.graph.add_node(
+                    Node::new(id.to_string(), fact.name.clone(), fact.kind)?
+                        .with_span(fact.span.clone()),
+                )?;
             }
-            self.graph.add_node(
-                Node::new(id.to_string(), fact.name, fact.kind)?.with_span(fact.span.clone()),
-            )?;
             let provenance = parsed_provenance(extractor, Some(fact.span))?
                 .with_detail("domain evidence extracted from source");
             self.graph
@@ -48,7 +48,7 @@ impl AnalysisState {
         edges: Vec<BoundEdgeFact>,
         local_symbols: &BTreeMap<(NodeKind, String, u32, u32), NodeId>,
     ) -> Result<()> {
-        let mut seen = BTreeSet::<(NodeId, NodeId, String)>::new();
+        let mut seen = BTreeSet::<(NodeId, NodeId, String, String)>::new();
         for fact in edges {
             let Some(from) = local_symbols.get(&locator_key(
                 &fact.from.kind,
@@ -62,7 +62,12 @@ impl AnalysisState {
             else {
                 continue;
             };
-            if !seen.insert((from.clone(), to.clone(), fact.kind.as_str().to_owned())) {
+            if !seen.insert((
+                from.clone(),
+                to.clone(),
+                fact.kind.as_str().to_owned(),
+                fact.detail.clone(),
+            )) {
                 continue;
             }
             let detail = if fact.detail.is_empty() {
@@ -83,12 +88,16 @@ impl AnalysisState {
         label: &str,
         owner: &NodeId,
     ) -> Result<(NodeId, bool)> {
-        let base = format!(
-            "domain:{}:{}@{}",
-            kind.as_str(),
-            sanitize_id(label),
-            sanitize_id(owner.as_str())
-        );
+        let base = if owner_scoped_domain(kind) {
+            format!(
+                "domain:{}:{}@{}",
+                kind.as_str(),
+                sanitize_id(label),
+                sanitize_id(owner.as_str())
+            )
+        } else {
+            format!("domain:{}:{}", kind.as_str(), sanitize_id(label))
+        };
         let mut candidate = base.clone();
         let mut ordinal = 1_u32;
         loop {
@@ -106,4 +115,11 @@ impl AnalysisState {
             }
         }
     }
+}
+
+fn owner_scoped_domain(kind: &NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::ConfigKey | NodeKind::Binding | NodeKind::Column | NodeKind::Unknown
+    )
 }

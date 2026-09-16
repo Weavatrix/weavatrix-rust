@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 2.14.0 - 2026-09-16
+
+- Agent Plugins 1.0.0, Agent Skills, and native MCP/plugin overlays become
+  graph evidence. `agent_inventory`, `agent_trace`, `agent_context`, and
+  `agent_change_impact` list packages, catalog exposures, registrations,
+  and supplied observations without launching commands or treating
+  `allowed-tools` as a grant. Display names stay scoped to the package
+  path. A known inject transform can keep one exposure compatible while
+  the upstream contract grew.
+- Mermaid flowcharts in `.mmd`, `.mermaid`, and Markdown/MDX fences become
+  `declared_architecture` evidence. Native IDs stay distinct from labels.
+  Parallel arrows and fence-in-fence examples are preserved. Drawn arrows
+  are not Calls and do not clear dead-code findings. `diagram_inventory`,
+  `diagram_trace`, and `diagram_context` plus `change_impact.documentation`
+  use explicit `.weavatrix/diagram-links.json` bindings only. The default
+  catalog is 60 operations. `--profile=diagram` is available.
+
+## 2.13.2 - 2026-09-16
+
+- Owner-scope only local workflow domain labels (`ConfigKey`, `Binding`,
+  `Column`, `Unknown`). Shared contract domains such as GraphQL endpoints
+  keep one identity across files, and each owner still attaches its
+  `Exposes`/`Calls` edge when the node already exists.
+
 ## 2.13.1 - 2026-09-16
 
 - Split domain walk, Dify variable scan, YAML block scalars, and domain

@@ -2,6 +2,7 @@ use blazingly_json::{Map, Value, json};
 use serde::Serialize;
 
 mod definitions;
+mod domain_specs;
 mod profile;
 mod schema;
 mod validation;
@@ -21,6 +22,7 @@ pub struct ToolDefinition {
 pub fn catalog() -> Vec<ToolDefinition> {
     definitions::SPECS
         .iter()
+        .chain(domain_specs::DOMAIN_SPECS.iter())
         .filter(|spec| capability_is_compiled(spec.name))
         .map(|spec| tool(spec.name, spec.description, spec.required))
         .collect()

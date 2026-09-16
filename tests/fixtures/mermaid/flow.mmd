@@ -1,0 +1,9 @@
+flowchart TD
+  Start --> Mid --> Finish
+  X -->|request| Y
+  X -->|cancel| Y
+  subgraph box [Group]
+    P[Service]
+    Q[Service]
+  end
+  P --> Q

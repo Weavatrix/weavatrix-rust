@@ -66,7 +66,7 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
     if let Some(schema) = occurrence_field(tool, name) {
         return Some(schema);
     }
-    tool_field(tool, name)
+    domain_field(tool, name).or_else(|| tool_field(tool, name))
 }
 
 fn tool_field(tool: &str, name: &str) -> Option<Value> {
@@ -142,6 +142,12 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "description": "Deprecated alias for a single path in files; equivalent to files:[target]. Errors when both are present and disagree"
         })),
+        _ => None,
+    }
+}
+
+fn domain_field(tool: &str, name: &str) -> Option<Value> {
+    match (tool, name) {
         ("n8n_inventory", "path") => Some(json!({
             "type": "string",
             "description": "Repository-relative workflow file or path fragment; omit to list every recognized export"
@@ -150,7 +156,7 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "description": "Opaque page token from a previous n8n_trace page.next_cursor; format v1:<offset>"
         })),
-        ("n8n_context" | "dify_context", "task") => Some(json!({
+        ("n8n_context" | "dify_context" | "agent_context" | "diagram_context", "task") => Some(json!({
             "type": "string",
             "description": "What the caller intends to change or inspect; used only to keep the bounded context on that question"
         })),
@@ -158,9 +164,29 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "description": "Repository-relative Dify YAML file or path fragment; omit to list every recognized export"
         })),
+        ("agent_inventory", "path") => Some(json!({
+            "type": "string",
+            "description": "Repository-relative plugin, skill, or MCP config path fragment; omit to list every recognized package file"
+        })),
+        ("agent_change_impact", "before") => Some(json!({
+            "type": "string",
+            "description": "Repository-relative catalog snapshot used as the previous contract"
+        })),
+        ("agent_change_impact", "after") => Some(json!({
+            "type": "string",
+            "description": "Repository-relative catalog snapshot used as the current contract"
+        })),
         ("dify_trace", "cursor") => Some(json!({
             "type": "string",
             "description": "Opaque page token from a previous dify_trace page.next_cursor; format v1:<offset>"
+        })),
+        ("diagram_inventory", "path") => Some(json!({
+            "type": "string",
+            "description": "Repository-relative Mermaid file, Markdown fence, or path fragment"
+        })),
+        ("diagram_trace", "cursor") => Some(json!({
+            "type": "string",
+            "description": "Opaque page token from a previous diagram_trace page.next_cursor; format v1:<offset>"
         })),
         _ => None,
     }

@@ -167,8 +167,14 @@ fn admits_source(path: &str, bytes: &[u8], config: &AnalyzerConfig) -> bool {
         .unwrap_or("");
     if extension.eq_ignore_ascii_case("json") {
         crate::language::n8n_looks_promising(text)
+            || crate::language::agent_looks_promising(path, text)
     } else if extension.eq_ignore_ascii_case("yaml") || extension.eq_ignore_ascii_case("yml") {
         crate::language::dify_looks_promising(text)
+    } else if extension.eq_ignore_ascii_case("md") || extension.eq_ignore_ascii_case("mdx") {
+        crate::language::agent_looks_promising(path, text)
+            || crate::language::mermaid_looks_promising(path, text)
+    } else if extension.eq_ignore_ascii_case("mmd") || extension.eq_ignore_ascii_case("mermaid") {
+        crate::language::mermaid_looks_promising(path, text)
     } else {
         false
     }

@@ -68,6 +68,13 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "dify_inventory",
         "dify_trace",
         "dify_context",
+        "agent_inventory",
+        "agent_trace",
+        "agent_context",
+        "agent_change_impact",
+        "diagram_inventory",
+        "diagram_trace",
+        "diagram_context",
     ] {
         assert!(actual.contains(expected), "missing tool {expected}");
     }
@@ -134,6 +141,18 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
     assert!(dify.iter().any(|tool| tool.name == "dify_context"));
     assert!(dify.iter().all(|tool| tool.name != "verified_change"));
     assert!(dify.iter().all(|tool| tool.name != "n8n_inventory"));
+    let agent = tools::catalog_for_profile(tools::ToolProfile::Agent);
+    assert!(agent.iter().any(|tool| tool.name == "agent_inventory"));
+    assert!(agent.iter().any(|tool| tool.name == "agent_trace"));
+    assert!(agent.iter().any(|tool| tool.name == "agent_context"));
+    assert!(agent.iter().any(|tool| tool.name == "agent_change_impact"));
+    assert!(agent.iter().all(|tool| tool.name != "verified_change"));
+    assert!(agent.iter().all(|tool| tool.name != "n8n_inventory"));
+    let diagram = tools::catalog_for_profile(tools::ToolProfile::Diagram);
+    assert!(diagram.iter().any(|tool| tool.name == "diagram_inventory"));
+    assert!(diagram.iter().any(|tool| tool.name == "diagram_trace"));
+    assert!(diagram.iter().any(|tool| tool.name == "diagram_context"));
+    assert!(diagram.iter().all(|tool| tool.name != "verified_change"));
 
     #[cfg(feature = "vector")]
     {

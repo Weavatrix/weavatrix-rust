@@ -39,7 +39,8 @@ pretend to provide the same semantic depth as a typed adapter.
 | --- | --- |
 | HTML / Vue / Svelte | lossless markup structure, elements, attributes, embedded links, and component-facing context |
 | CSS / SCSS / Sass / Less | selectors, declarations, imports, variables, and lossless style syntax |
-| Markdown / MDX | headings, links, code fences, embedded JSX boundaries, and document structure |
+| Markdown / MDX | headings, links, code fences, embedded JSX boundaries, document structure, and recognized Mermaid flowchart regions after parse |
+| Mermaid | standalone `.mmd`/`.mermaid` flowcharts: native IDs, labels, subgraphs, and `declared_architecture` arrows |
 | reStructuredText | sections, directives, links, and source-preserving document structure |
 | AsciiDoc | sections, attributes, includes, links, and source-preserving document structure |
 
@@ -47,6 +48,8 @@ pretend to provide the same semantic depth as a typed adapter.
 
 Adapters and operation passes connect source facts to repository domains:
 
+- Mermaid flowchart regions as `declared_architecture`, never as production
+  calls;
 - HTTP route handlers, mount chains, client calls, and cross-repository
   contracts;
 - GraphQL operations and referenced schema types;

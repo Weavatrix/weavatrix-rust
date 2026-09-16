@@ -14,6 +14,10 @@ pub enum ToolProfile {
     N8n,
     /// Exported Dify YAML apps without the full repository catalog.
     Dify,
+    /// Agent Plugins, Skills, and native MCP configuration files.
+    Agent,
+    /// Mermaid flowchart diagrams and explicit diagram bindings.
+    Diagram,
 }
 
 impl ToolProfile {
@@ -44,6 +48,42 @@ impl ToolProfile {
                 "dify_inventory"
                     | "dify_trace"
                     | "dify_context"
+                    | "graph_stats"
+                    | "get_node"
+                    | "get_neighbors"
+                    | "query_graph"
+                    | "search_code"
+                    | "read_source"
+                    | "inspect_symbol"
+                    | "context_bundle"
+                    | "rebuild_graph"
+                    | "open_repo"
+                    | "list_known_repos"
+            ),
+            Self::Agent => matches!(
+                tool,
+                "agent_inventory"
+                    | "agent_trace"
+                    | "agent_context"
+                    | "agent_change_impact"
+                    | "graph_stats"
+                    | "get_node"
+                    | "get_neighbors"
+                    | "query_graph"
+                    | "search_code"
+                    | "read_source"
+                    | "inspect_symbol"
+                    | "context_bundle"
+                    | "rebuild_graph"
+                    | "open_repo"
+                    | "list_known_repos"
+            ),
+            Self::Diagram => matches!(
+                tool,
+                "diagram_inventory"
+                    | "diagram_trace"
+                    | "diagram_context"
+                    | "change_impact"
                     | "graph_stats"
                     | "get_node"
                     | "get_neighbors"
@@ -91,8 +131,10 @@ impl FromStr for ToolProfile {
             "seo" | "content" => Ok(Self::Seo),
             "n8n" => Ok(Self::N8n),
             "dify" => Ok(Self::Dify),
+            "agent" => Ok(Self::Agent),
+            "diagram" | "mermaid" => Ok(Self::Diagram),
             _ => Err(format!(
-                "unknown tool profile {value:?}; expected all, code, seo, n8n, or dify"
+                "unknown tool profile {value:?}; expected all, code, seo, n8n, dify, agent, or diagram"
             )),
         }
     }

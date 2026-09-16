@@ -1,6 +1,6 @@
 # Operation reference
 
-The default full build of `weavatrix-rust` exposes 50 bounded read-only
+The default full build of `weavatrix-rust` exposes 60 bounded read-only
 analysis operations. Rust consumers use `operations::catalog` and
 `operations::call`; the standalone CLI exposes `list-tools` and `tool`.
 `tools` remains a backward-compatible Rust re-export.
@@ -144,6 +144,35 @@ files stay distinct. Chat and other modes are recognized without a fake
 empty successful graph. Secrets, env values, and credential-shaped labels
 are not placed on the default graph or context. This is not a live Dify
 API, editor, or executor.
+
+## Agent packages
+
+- `agent_inventory`: Agent Plugins, Skills, and MCP server bindings from
+  local `plugin.json`, `mcp.json`, and `SKILL.md` files.
+- `agent_trace`: declared profile, package path, transport, and bindings
+  for one plugin, skill, or server.
+- `agent_context`: source fragments plus explicit gaps. Commands are not
+  executed. `allowed-tools` stays a declaration, not a grant.
+- `agent_change_impact`: compare two catalog snapshots; a known inject
+  transform can keep an exposure compatible while the upstream required
+  list grew. Incomplete pagination does not become a deletion.
+
+Same display names in different packages stay distinct. Unknown extension
+namespaces remain visible. Native Cursor/Claude overlays are recorded as
+client profiles, not as Agent Plugins 1.0.0. This is not a plugin
+runtime, gateway, or policy authority.
+
+## Mermaid diagrams
+
+- `diagram_inventory`: flowchart regions in `.mmd`, `.mermaid`, and
+  Markdown/MDX fences, plus explicit `.weavatrix/diagram-links.json`
+  bindings.
+- `diagram_trace`: walks `declared_architecture` arrows only.
+- `diagram_context`: source fragments, exact bindings, and gaps.
+
+Drawn arrows are never production `calls`. Matching the word Auth is not
+an exact binding. Sequence, draw.io, and Excalidraw are not in this
+release.
 
 ## Common result rules
 

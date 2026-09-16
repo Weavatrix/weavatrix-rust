@@ -1,6 +1,6 @@
 ---
 name: weavatrix
-description: Use the native Weavatrix MCP for local repository intelligence across Rust, JavaScript, TypeScript, Python, Go, Java, C, C++, C#, SQL, GraphQL, Protobuf, infrastructure, event transports, and exported n8n or Dify workflows. Trigger for codebase orientation, source search, dependency and call graphs, endpoint or transport tracing, cross-repository impact, dead-code and duplicate review, Health audits, architecture checks, Git history, coverage, vector or semantic search, SEO links, temporal memory, and n8n or Dify workflow inventory or impact.
+description: Use the native Weavatrix MCP for local repository intelligence across Rust, JavaScript, TypeScript, Python, Go, Java, C, C++, C#, SQL, GraphQL, Protobuf, infrastructure, event transports, exported n8n or Dify workflows, Agent packages, and Mermaid flowcharts. Trigger for codebase orientation, source search, dependency and call graphs, endpoint or transport tracing, cross-repository impact, dead-code and duplicate review, Health audits, architecture checks, Git history, coverage, vector or semantic search, SEO links, temporal memory, n8n or Dify workflow inventory, agent catalogs, and diagram inventory or impact.
 ---
 
 # Weavatrix
@@ -49,6 +49,11 @@ server's refresh completed or when deliberately changing graph mode.
   This is static graph evidence, not a live n8n API or executor.
 - Exported Dify YAML: `dify_inventory`, then `dify_trace` or `dify_context`.
   This is static graph evidence, not a live Dify API or executor.
+- Agent packages: `agent_inventory`, then `agent_trace`, `agent_context`,
+  or `agent_change_impact`. Commands are not launched. `allowed-tools` is
+  not a grant.
+- Mermaid flowcharts: `diagram_inventory`, then `diagram_trace` or
+  `diagram_context`. Drawn arrows stay `declared_architecture`, not Calls.
 
 Read [references/tool-routing.md](references/tool-routing.md) when selecting
 among similar tools or reviewing transport evidence.

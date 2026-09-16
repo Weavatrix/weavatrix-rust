@@ -34,6 +34,12 @@ impl LanguageAdapter for JsonAdapter {
             if let Some(n8n) = super::n8n::analyze(source.path, json, &value) {
                 return Ok(n8n);
             }
+            if let Some(agent) = super::agent::analyze_json(source.path, json, &value) {
+                return Ok(agent);
+            }
+            if let Some(links) = super::mermaid::analyze_links(source.path, json, &value) {
+                return Ok(links);
+            }
             return Ok(facts);
         }
         let normalized = normalize_jsonc(json);

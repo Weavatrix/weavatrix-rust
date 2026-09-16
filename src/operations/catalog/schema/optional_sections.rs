@@ -116,9 +116,15 @@ pub(super) fn extension_fields(tool: &str) -> Option<&'static [&'static str]> {
         "open_repo" => Some(&["build", "mode", "precision"]),
         "semantic_link" => Some(&["model", "min_similarity", "top_k", "selection"]),
         "vector_search" => Some(&["top_k", "exact"]),
-        "n8n_inventory" | "dify_inventory" => Some(&["path", "max_results"]),
-        "n8n_trace" | "dify_trace" => Some(&["depth", "max_nodes", "cursor"]),
-        "n8n_context" | "dify_context" => Some(&["task", "max_related"]),
+        "n8n_inventory" | "dify_inventory" | "agent_inventory" | "diagram_inventory" => {
+            Some(&["path", "max_results"])
+        }
+        "n8n_trace" | "dify_trace" | "diagram_trace" => Some(&["depth", "max_nodes", "cursor"]),
+        "n8n_context" | "dify_context" | "agent_context" | "diagram_context" => {
+            Some(&["task", "max_related"])
+        }
+        "agent_trace" => Some(&["max_related"]),
+        "agent_change_impact" => Some(&["max_results"]),
         "seo_link_suggestions" => Some(&[
             "model",
             "min_similarity",

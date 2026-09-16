@@ -2,10 +2,12 @@ use crate::model::{Diagnostic, Result};
 use std::fmt::{Display, Formatter};
 use weavatrix_graph::{EdgeKind, NodeKind, SourceSpan};
 
+mod agent;
 mod contract;
 mod dify;
 mod graphql;
 mod json;
+mod mermaid;
 mod n8n;
 mod protobuf;
 #[cfg(feature = "lang-rust")]
@@ -14,13 +16,14 @@ pub mod tokenized;
 mod yaml;
 mod yaml_doc;
 
+pub(crate) use agent::looks_promising as agent_looks_promising;
 pub(crate) use contract::file_facts_have_transport_evidence;
 #[cfg(test)]
 pub(crate) use contract::may_contain_transport_marker;
 pub(crate) use dify::DEFAULT_FILE_BYTES as DIFY_DEFAULT_FILE_BYTES;
 pub(crate) use dify::looks_promising as dify_looks_promising;
-pub(crate) use n8n::DEFAULT_FILE_BYTES as N8N_DEFAULT_FILE_BYTES;
-pub(crate) use n8n::looks_promising as n8n_looks_promising;
+pub(crate) use mermaid::looks_promising as mermaid_looks_promising;
+pub(crate) use n8n::{DEFAULT_FILE_BYTES as N8N_DEFAULT_FILE_BYTES, looks_promising as n8n_looks_promising};
 
 pub(crate) fn dify_secret_label(name: &str) -> bool {
     dify::secret_label(name)
@@ -251,6 +254,7 @@ impl Default for LanguageRegistry {
             Box::new(protobuf::ProtobufAdapter) as Box<dyn LanguageAdapter>,
             Box::new(json::JsonAdapter) as Box<dyn LanguageAdapter>,
             Box::new(yaml::YamlAdapter) as Box<dyn LanguageAdapter>,
+            Box::new(mermaid::MermaidAdapter) as Box<dyn LanguageAdapter>,
         ]);
         // `adapter_for_extension` takes the first adapter claiming an
         // extension, and the tokenizer answers correctly where reading lines

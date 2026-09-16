@@ -1,7 +1,9 @@
+mod agent;
 mod architecture;
 mod args;
 mod build;
 mod catalog;
+mod diagram;
 mod dify;
 mod domain_walk;
 mod graph;
@@ -149,6 +151,13 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "dify_inventory" => dify::inventory(state, arguments),
         "dify_trace" => dify::trace(state, arguments),
         "dify_context" => dify::context(state, arguments),
+        "agent_inventory" => agent::inventory(state, arguments),
+        "agent_trace" => agent::trace(state, arguments),
+        "agent_context" => agent::context(state, arguments),
+        "agent_change_impact" => agent::change_impact(state, arguments),
+        "diagram_inventory" => diagram::inventory(state, arguments),
+        "diagram_trace" => diagram::trace(state, arguments),
+        "diagram_context" => diagram::context(state, arguments),
         "rebuild_graph" => {
             let before = graph::stats(state, arguments)?;
             weavatrix.rebuild().map_err(|error| error.to_string())?;

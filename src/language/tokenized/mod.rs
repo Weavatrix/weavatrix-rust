@@ -125,11 +125,42 @@ impl LanguageAdapter for TokenizedAdapter {
     }
 
     fn parse(&self, source: SourceFile<'_>) -> Result<FileFacts> {
-        Ok(convert::convert(
+        let mut facts = convert::convert(
             &weavatrix_parse::extract(source.text, self.parse),
             source.path,
             source.text,
             self.parse,
-        ))
+        );
+        if matches!(
+            self.parse,
+            weavatrix_parse::Language::Markdown | weavatrix_parse::Language::Mdx
+        ) {
+            if let Some(skill) = super::agent::analyze_skill(source.path, source.text) {
+                facts.symbols.extend(skill.symbols);
+                facts.domains.extend(skill.domains);
+                facts.diagnostics.extend(skill.diagnostics);
+                facts.references.extend(skill.references);
+                facts.bound_edges.extend(skill.bound_edges);
+            }
+            if let Some(diagram) = super::mermaid::analyze_markdown(source.path, source.text) {
+                facts.symbols.extend(diagram.symbols);
+                facts.domains.extend(diagram.domains);
+                facts.diagnostics.extend(diagram.diagnostics);
+                facts.references.extend(diagram.references);
+                facts.bound_edges.extend(diagram.bound_edges);
+            }
+        }
+        if matches!(
+            self.parse,
+            weavatrix_parse::Language::Python
+                | weavatrix_parse::Language::JavaScript
+                | weavatrix_parse::Language::TypeScript
+        ) && let Some(regs) = super::agent::analyze_sdk(source.path, source.text)
+        {
+            facts.symbols.extend(regs.symbols);
+            facts.domains.extend(regs.domains);
+            facts.diagnostics.extend(regs.diagnostics);
+        }
+        Ok(facts)
     }
 }

@@ -60,6 +60,11 @@ impl LanguageAdapter for RustAdapter {
         };
         collector.visit_file(&syntax);
         sort_facts(&mut collector.facts);
+        if let Some(regs) = super::agent::analyze_rust(source.path, source.text) {
+            collector.facts.symbols.extend(regs.symbols);
+            collector.facts.domains.extend(regs.domains);
+            collector.facts.diagnostics.extend(regs.diagnostics);
+        }
         Ok(collector.facts)
     }
 }

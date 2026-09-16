@@ -1,0 +1,11 @@
+{
+  "$schema": "https://weavatrix.dev/schemas/diagram-links/1.json",
+  "links": [
+    {
+      "diagram": "docs/architecture.md#0",
+      "element": "ORDERS",
+      "kind": "symbol",
+      "selector": "createOrder"
+    }
+  ]
+}

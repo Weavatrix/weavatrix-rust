@@ -63,3 +63,11 @@ repositories: the call fails instead of answering about the wrong root.
 - `dify_inventory`, `dify_trace`, `dify_context`: exported Dify YAML after
   YAML parse. Walk `flows_to` separately from selector and variable
   relations. Chat mode is recognized, not an empty successful graph.
+- `agent_inventory`, `agent_trace`, `agent_context`, `agent_change_impact`:
+  Agent Plugins, Skills, native MCP configs, catalog snapshots, and
+  supplied observations. Display names stay package-scoped. Do not treat
+  `allowed-tools` as authorization. A known inject transform can keep one
+  exposure compatible while the upstream required list grew.
+- `diagram_inventory`, `diagram_trace`, `diagram_context`: Mermaid
+  flowcharts. Walk `declared_architecture` only. Exact bindings come from
+  `.weavatrix/diagram-links.json`, never from a shared display name.

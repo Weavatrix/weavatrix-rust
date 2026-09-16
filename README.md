@@ -21,7 +21,7 @@ Use it to:
 - serialize a `Snapshot` for CI, indexing, or review;
 - identify changed declarations by a content-safe symbol fingerprint and retain
   parser-proven `exported` evidence for public-surface consumers;
-- run 53 bounded read-only operations in the default full build;
+- run 60 bounded read-only operations in the default full build;
 - enforce the current v1 architecture contract foundation;
 - power the separate `weavatrix` MCP product.
 
@@ -51,7 +51,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.13.1"
+weavatrix-rust = "2.14.0"
 ```
 
 ```rust
@@ -86,7 +86,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.13.1", default-features = false }
+weavatrix-rust = { version = "2.14.0", default-features = false }
 ```
 
 ## MCP product
@@ -178,7 +178,7 @@ See the [evidence model](docs/evidence-model.md) and
 
 ## Operations
 
-The default full build exposes 53 operations:
+The default full build exposes 60 operations:
 
 | Workflow | Operations |
 | --- | --- |
@@ -193,6 +193,8 @@ The default full build exposes 53 operations:
 | Extensions | Vector, semantic, SEO, and memory operations |
 | n8n | `n8n_inventory`, `n8n_trace`, `n8n_context` |
 | Dify | `dify_inventory`, `dify_trace`, `dify_context` |
+| Agent | `agent_inventory`, `agent_trace`, `agent_context`, `agent_change_impact` |
+| Diagrams | `diagram_inventory`, `diagram_trace`, `diagram_context` |
 
 The complete schemas live in the [operation reference](docs/tool-reference.md).
 
