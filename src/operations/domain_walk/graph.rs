@@ -33,19 +33,26 @@ impl Adjacency {
             .iter()
             .map(|node| (node.id.as_str().to_owned(), node.kind.as_str().to_owned()))
             .collect::<BTreeMap<_, _>>();
+        let owners = owner_kinds
+            .iter()
+            .map(|kind| (*kind).to_owned())
+            .collect::<BTreeSet<_>>();
         let mut outgoing = BTreeMap::<String, Vec<Hop>>::new();
         let mut incoming = BTreeMap::<String, Vec<Hop>>::new();
         let mut children = BTreeMap::<String, Vec<String>>::new();
         let mut parent = BTreeMap::<String, String>::new();
         for edge in state.graph().edges() {
             if edge.kind == EdgeKind::Contains {
+                let source = edge.source.as_str().to_owned();
+                let target = edge.target.as_str().to_owned();
                 children
-                    .entry(edge.source.as_str().to_owned())
+                    .entry(source.clone())
                     .or_default()
-                    .push(edge.target.as_str().to_owned());
-                parent
-                    .entry(edge.target.as_str().to_owned())
-                    .or_insert_with(|| edge.source.as_str().to_owned());
+                    .push(target.clone());
+                let source_is_owner = kinds.get(&source).is_some_and(|kind| owners.contains(kind));
+                if source_is_owner || !parent.contains_key(&target) {
+                    parent.insert(target, source);
+                }
                 continue;
             }
             let hop = Hop {
@@ -67,7 +74,7 @@ impl Adjacency {
             parent,
             kinds,
             port_kind: port_kind.to_owned(),
-            owner_kinds: owner_kinds.iter().map(|kind| (*kind).to_owned()).collect(),
+            owner_kinds: owners,
         }
     }
 
@@ -121,14 +128,20 @@ impl Adjacency {
     }
 
     fn projected(&self, id: &str) -> String {
-        if self.is_port(id) {
-            self.parent
-                .get(id)
-                .cloned()
-                .unwrap_or_else(|| id.to_owned())
-        } else {
-            id.to_owned()
+        let mut current = id;
+        while self.is_port(current) {
+            let Some(parent) = self.parent.get(current) else {
+                break;
+            };
+            if parent == current {
+                break;
+            }
+            if self.is_owner(parent) {
+                return parent.clone();
+            }
+            current = parent;
         }
+        id.to_owned()
     }
 }
 
