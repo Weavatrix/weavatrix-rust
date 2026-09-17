@@ -66,4 +66,24 @@ pub(super) const DOMAIN_SPECS: &[ToolSpec] = &[
         description: "Bounded Mermaid context: source fragments, explicit bindings, and gaps that remain unproven.",
         required: &["label"],
     },
+    ToolSpec {
+        name: "web3_inventory",
+        description: "List supplied contract ABIs, compiler artifacts, and static viem/wagmi consumers without touching a chain.",
+        required: &[],
+    },
+    ToolSpec {
+        name: "web3_trace",
+        description: "Walk proven ABI, artifact, and consumer bindings for one Web3 member or call site.",
+        required: &["label"],
+    },
+    ToolSpec {
+        name: "web3_impact",
+        description: "Compare supplied ABI revisions and report consumer-specific interface deltas, including silent event misdecode risk.",
+        required: &[],
+    },
+    ToolSpec {
+        name: "web3_context",
+        description: "Bounded Web3 context: changed ABI fragment, proven call or decoder sites, and explicit deployment gaps.",
+        required: &["label"],
+    },
 ];

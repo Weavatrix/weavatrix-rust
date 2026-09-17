@@ -20,6 +20,7 @@ mod token_budget;
 mod transport_contracts;
 mod vector;
 mod visibility;
+mod web3;
 mod workflow;
 
 pub use catalog::{ToolDefinition, ToolProfile, catalog, catalog_for_profile};
@@ -158,6 +159,10 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "diagram_inventory" => diagram::inventory(state, arguments),
         "diagram_trace" => diagram::trace(state, arguments),
         "diagram_context" => diagram::context(state, arguments),
+        "web3_inventory" => web3::inventory(state, arguments),
+        "web3_trace" => web3::trace(state, arguments),
+        "web3_impact" => web3::impact(state, arguments),
+        "web3_context" => web3::context(state, arguments),
         "rebuild_graph" => {
             let before = graph::stats(state, arguments)?;
             weavatrix.rebuild().map_err(|error| error.to_string())?;

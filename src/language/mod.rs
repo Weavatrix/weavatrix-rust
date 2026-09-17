@@ -13,6 +13,7 @@ mod protobuf;
 #[cfg(feature = "lang-rust")]
 mod rust;
 pub mod tokenized;
+pub(crate) mod web3;
 mod yaml;
 mod yaml_doc;
 
@@ -26,6 +27,10 @@ pub(crate) use dify::secret_label as dify_secret_label;
 pub(crate) use mermaid::looks_promising as mermaid_looks_promising;
 pub(crate) use n8n::{
     DEFAULT_FILE_BYTES as N8N_DEFAULT_FILE_BYTES, looks_promising as n8n_looks_promising,
+};
+pub(crate) use web3::{
+    MAX_BUILD_INFO_BYTES as WEB3_MAX_BUILD_INFO_BYTES, admitted_size as web3_admitted_size,
+    looks_promising as web3_looks_promising,
 };
 
 #[cfg(feature = "lang-rust")]
@@ -255,16 +260,10 @@ impl Default for LanguageRegistry {
             Box::new(yaml::YamlAdapter) as Box<dyn LanguageAdapter>,
             Box::new(mermaid::MermaidAdapter) as Box<dyn LanguageAdapter>,
         ]);
-        // `adapter_for_extension` takes the first adapter claiming an
-        // extension, and the tokenizer answers correctly where reading lines
-        // only usually does: a comment is a comment wherever it appears, a
-        // brace inside a string is text, a declaration may span three lines,
-        // and a span covers the name rather than the whole line.
+        // First adapter claiming an extension wins; the tokenizer owns comments and strings.
         adapters.extend(
             tokenized::TokenizedAdapter::defaults()
-                // `weavatrix-parse` is the Rust implementation in the
-                // dependency-light build; the full build keeps exactly one
-                // `.rs` adapter and lets the richer syn path win.
+                // Full builds keep the syn `.rs` adapter; the lossless path stays for the rest.
                 .filter(|adapter| {
                     !cfg!(feature = "lang-rust") || !adapter.extensions().contains(&"rs")
                 })

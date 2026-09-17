@@ -134,6 +134,7 @@ impl AnalysisState {
                 node = node.with_attribute("source_fingerprint", fingerprint.clone());
             }
             let id = node.id.clone();
+            self.register_web3_symbol(relative, &symbol.kind, &symbol.name, &id);
             local.insert(
                 locator_key(&symbol.kind, &symbol.name, &symbol.span),
                 id.clone(),

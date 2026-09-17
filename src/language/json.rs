@@ -40,6 +40,9 @@ impl LanguageAdapter for JsonAdapter {
             if let Some(links) = super::mermaid::analyze_links(source.path, json, &value) {
                 return Ok(links);
             }
+            if let Some(web3) = super::web3::analyze(source.path, json, &value) {
+                return Ok(web3);
+            }
             return Ok(facts);
         }
         let normalized = normalize_jsonc(json);
@@ -218,6 +221,24 @@ mod tests {
                 .any(|symbol| symbol.name == "Invoice" && symbol.kind.as_str() == "n8n.workflow")
         );
         assert!(facts.symbols.iter().any(|symbol| symbol.name == "Start"));
+    }
+
+    #[test]
+    fn abi_array_is_recognized_after_json_parse() {
+        let facts = JsonAdapter
+            .parse(SourceFile {
+                path: "abis/Vault.json",
+                text: r#"[{"type":"event","name":"Deposit","inputs":[{"name":"owner","type":"address","indexed":true},{"name":"assets","type":"uint256","indexed":false}]}]"#,
+            })
+            .unwrap();
+        assert!(facts.diagnostics.is_empty());
+        assert!(
+            facts
+                .symbols
+                .iter()
+                .any(|symbol| symbol.name.contains("Deposit")
+                    && symbol.kind.as_str() == "web3.abi.event")
+        );
     }
 
     #[test]

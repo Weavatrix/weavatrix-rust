@@ -44,6 +44,7 @@ impl AnalysisState {
             &self.scoped_symbols,
             &scopes,
             std::mem::take(&mut self.pending_references),
-        )
+        )?;
+        self.resolve_web3_bindings()
     }
 }

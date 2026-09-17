@@ -4,6 +4,7 @@ mod domains;
 mod indexing;
 mod resolution;
 mod source;
+mod web3;
 
 use super::imports::PendingImport;
 use super::references::PendingReference;
@@ -12,7 +13,7 @@ use crate::language::Language;
 use crate::model::{Capability, Diagnostic, Result, SNAPSHOT_SCHEMA_VERSION, Snapshot};
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
-use weavatrix_graph::{GraphBuilder, Node, NodeId, NodeKind};
+use weavatrix_graph::{EdgeKind, GraphBuilder, Node, NodeId, NodeKind, SourceSpan};
 use weavatrix_scan::ScanWarning;
 
 pub(super) use source::{ParseOutcome, ParsedSource, parse_source};
@@ -42,6 +43,8 @@ pub(super) struct AnalysisState {
         weavatrix_graph::SourceSpan,
         &'static str,
     )>,
+    web3_index: HashMap<String, Vec<NodeId>>,
+    pending_web3: Vec<(NodeId, String, SourceSpan, EdgeKind)>,
 }
 
 impl AnalysisState {
@@ -91,6 +94,8 @@ impl AnalysisState {
             pending_reexports: Vec::new(),
             pending_references: Vec::new(),
             pending_methods: Vec::new(),
+            web3_index: HashMap::new(),
+            pending_web3: Vec::new(),
         })
     }
 

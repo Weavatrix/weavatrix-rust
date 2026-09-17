@@ -161,6 +161,12 @@ impl LanguageAdapter for TokenizedAdapter {
             facts.domains.extend(regs.domains);
             facts.diagnostics.extend(regs.diagnostics);
         }
+        if matches!(
+            self.parse,
+            weavatrix_parse::Language::JavaScript | weavatrix_parse::Language::TypeScript
+        ) {
+            super::web3::overlay_clients(source.path, source.text, &mut facts);
+        }
         Ok(facts)
     }
 }

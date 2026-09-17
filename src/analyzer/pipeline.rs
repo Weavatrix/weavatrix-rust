@@ -202,6 +202,7 @@ impl Analyzer {
             .config
             .max_file_bytes
             .max(self.config.n8n_max_file_bytes)
+            .max(self.config.web3_max_file_bytes)
             .max(crate::language::DIFY_DEFAULT_FILE_BYTES);
         options.content_discovery = ContentDiscoveryMode::BufferedParallel;
         options.evidence = EvidenceMode::SelectedFiles;

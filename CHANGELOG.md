@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 2.15.0 - 2026-09-16
+
+- Web3 Integration Impact for supplied ABI JSON, solc/Foundry artifacts, and
+  static viem/wagmi consumers. `web3_inventory`, `web3_trace`, `web3_impact`,
+  and `web3_context` report interface deltas and proven call sites without
+  compiling contracts, calling RPC, or treating ABI equality as a deployment
+  proof. An indexed-mask event change can be a silent misdecode.
+
 ## 2.14.3 - 2026-09-16
 
 - Gate the Rust dispatcher overlay on `lang-rust` so the no-default-features

@@ -23,6 +23,12 @@ impl AnalysisState {
                         .cloned()
                 })
                 .unwrap_or_else(|| file_id.clone());
+            self.queue_web3_bind(
+                &source,
+                &fact.name,
+                fact.span.clone(),
+                fact.relation.clone(),
+            );
             let (id, created) = self.domain_id(&fact.kind, &fact.name, &source)?;
             if created {
                 self.graph.add_node(

@@ -20,6 +20,8 @@ pub struct AnalyzerConfig {
     /// n8n JSON and Dify YAML exports can exceed the general file cap; oversized non-export files
     /// still stops at `max_file_bytes`.
     pub n8n_max_file_bytes: u64,
+    /// Foundry/solc build-info can exceed the n8n/Dify cap; other JSON still stops earlier.
+    pub web3_max_file_bytes: u64,
 }
 
 impl Default for AnalyzerConfig {
@@ -27,6 +29,7 @@ impl Default for AnalyzerConfig {
         Self {
             max_file_bytes: crate::language::N8N_DEFAULT_FILE_BYTES,
             n8n_max_file_bytes: 16 * 1024 * 1024,
+            web3_max_file_bytes: crate::language::WEB3_MAX_BUILD_INFO_BYTES,
         }
     }
 }
@@ -155,7 +158,7 @@ fn admits_source(path: &str, bytes: &[u8], config: &AnalyzerConfig) -> bool {
     if size <= config.max_file_bytes {
         return true;
     }
-    if size > config.n8n_max_file_bytes {
+    if size > config.n8n_max_file_bytes.max(config.web3_max_file_bytes) {
         return false;
     }
     let Ok(text) = std::str::from_utf8(bytes) else {
@@ -168,6 +171,9 @@ fn admits_source(path: &str, bytes: &[u8], config: &AnalyzerConfig) -> bool {
     if extension.eq_ignore_ascii_case("json") {
         crate::language::n8n_looks_promising(text)
             || crate::language::agent_looks_promising(path, text)
+            || (crate::language::web3_looks_promising(text)
+                && crate::language::web3_admitted_size(text, size)
+                && size <= config.web3_max_file_bytes)
     } else if extension.eq_ignore_ascii_case("yaml") || extension.eq_ignore_ascii_case("yml") {
         crate::language::dify_looks_promising(text)
     } else if extension.eq_ignore_ascii_case("md") || extension.eq_ignore_ascii_case("mdx") {

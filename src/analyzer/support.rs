@@ -25,7 +25,7 @@ pub(super) fn capabilities(registry: &LanguageRegistry) -> Vec<Capability> {
                 "lossless Protocol Buffers proto2, proto3 and numeric Editions package, import, message, enum, service and RPC contracts with request/response and unary/client/server/bidi streaming"
             }
             Language::Json => {
-                "strict JSON syntax, configuration/lockfile inventory, n8n workflow evidence, and diagram-link sidecars after parse"
+                "strict JSON syntax, n8n, agent packages, diagram-link sidecars, and Web3 ABI or compiler artifacts after parse"
             }
             Language::Kubernetes => {
                 "Kubernetes resource inventory and Dify DSL evidence after YAML parse"

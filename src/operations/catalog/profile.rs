@@ -18,6 +18,8 @@ pub enum ToolProfile {
     Agent,
     /// Mermaid flowchart diagrams and explicit diagram bindings.
     Diagram,
+    /// ABI, compiler artifacts, and static viem/wagmi consumers.
+    Web3,
 }
 
 impl ToolProfile {
@@ -26,75 +28,31 @@ impl ToolProfile {
         match self {
             Self::All => true,
             Self::Code => tool != "seo_link_suggestions",
-            Self::N8n => matches!(
+            Self::N8n => domain_core(tool, &["n8n_inventory", "n8n_trace", "n8n_context"]),
+            Self::Dify => domain_core(tool, &["dify_inventory", "dify_trace", "dify_context"]),
+            Self::Agent => domain_core(
                 tool,
-                "n8n_inventory"
-                    | "n8n_trace"
-                    | "n8n_context"
-                    | "graph_stats"
-                    | "get_node"
-                    | "get_neighbors"
-                    | "query_graph"
-                    | "search_code"
-                    | "read_source"
-                    | "inspect_symbol"
-                    | "context_bundle"
-                    | "rebuild_graph"
-                    | "open_repo"
-                    | "list_known_repos"
+                &[
+                    "agent_inventory",
+                    "agent_trace",
+                    "agent_context",
+                    "agent_change_impact",
+                ],
             ),
-            Self::Dify => matches!(
+            Self::Diagram => {
+                domain_core(
+                    tool,
+                    &["diagram_inventory", "diagram_trace", "diagram_context"],
+                ) || tool == "change_impact"
+            }
+            Self::Web3 => domain_core(
                 tool,
-                "dify_inventory"
-                    | "dify_trace"
-                    | "dify_context"
-                    | "graph_stats"
-                    | "get_node"
-                    | "get_neighbors"
-                    | "query_graph"
-                    | "search_code"
-                    | "read_source"
-                    | "inspect_symbol"
-                    | "context_bundle"
-                    | "rebuild_graph"
-                    | "open_repo"
-                    | "list_known_repos"
-            ),
-            Self::Agent => matches!(
-                tool,
-                "agent_inventory"
-                    | "agent_trace"
-                    | "agent_context"
-                    | "agent_change_impact"
-                    | "graph_stats"
-                    | "get_node"
-                    | "get_neighbors"
-                    | "query_graph"
-                    | "search_code"
-                    | "read_source"
-                    | "inspect_symbol"
-                    | "context_bundle"
-                    | "rebuild_graph"
-                    | "open_repo"
-                    | "list_known_repos"
-            ),
-            Self::Diagram => matches!(
-                tool,
-                "diagram_inventory"
-                    | "diagram_trace"
-                    | "diagram_context"
-                    | "change_impact"
-                    | "graph_stats"
-                    | "get_node"
-                    | "get_neighbors"
-                    | "query_graph"
-                    | "search_code"
-                    | "read_source"
-                    | "inspect_symbol"
-                    | "context_bundle"
-                    | "rebuild_graph"
-                    | "open_repo"
-                    | "list_known_repos"
+                &[
+                    "web3_inventory",
+                    "web3_trace",
+                    "web3_impact",
+                    "web3_context",
+                ],
             ),
             Self::Seo => matches!(
                 tool,
@@ -121,6 +79,24 @@ impl ToolProfile {
     }
 }
 
+fn domain_core(tool: &str, extras: &[&str]) -> bool {
+    extras.contains(&tool)
+        || matches!(
+            tool,
+            "graph_stats"
+                | "get_node"
+                | "get_neighbors"
+                | "query_graph"
+                | "search_code"
+                | "read_source"
+                | "inspect_symbol"
+                | "context_bundle"
+                | "rebuild_graph"
+                | "open_repo"
+                | "list_known_repos"
+        )
+}
+
 impl FromStr for ToolProfile {
     type Err = String;
 
@@ -133,8 +109,9 @@ impl FromStr for ToolProfile {
             "dify" => Ok(Self::Dify),
             "agent" => Ok(Self::Agent),
             "diagram" | "mermaid" => Ok(Self::Diagram),
+            "web3" => Ok(Self::Web3),
             _ => Err(format!(
-                "unknown tool profile {value:?}; expected all, code, seo, n8n, dify, agent, or diagram"
+                "unknown tool profile {value:?}; expected all, code, seo, n8n, dify, agent, diagram, or web3"
             )),
         }
     }

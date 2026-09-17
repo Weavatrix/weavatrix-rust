@@ -75,6 +75,10 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "diagram_inventory",
         "diagram_trace",
         "diagram_context",
+        "web3_inventory",
+        "web3_trace",
+        "web3_impact",
+        "web3_context",
     ] {
         assert!(actual.contains(expected), "missing tool {expected}");
     }
@@ -153,6 +157,7 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
     assert!(diagram.iter().any(|tool| tool.name == "diagram_trace"));
     assert!(diagram.iter().any(|tool| tool.name == "diagram_context"));
     assert!(diagram.iter().all(|tool| tool.name != "verified_change"));
+    assert_web3_profile();
 
     #[cfg(feature = "vector")]
     {
@@ -217,4 +222,14 @@ fn graph_diff_catalog_documents_its_compact_default_and_raw_edge_opt_in() {
 
     assert_eq!(detail["enum"], json!(["file_pairs", "edges"]));
     assert_eq!(detail["default"], "file_pairs");
+}
+
+#[cfg(all(feature = "memory", feature = "semantic"))]
+fn assert_web3_profile() {
+    let web3 = weavatrix_rust::tools::catalog_for_profile(weavatrix_rust::tools::ToolProfile::Web3);
+    assert!(web3.iter().any(|tool| tool.name == "web3_inventory"));
+    assert!(web3.iter().any(|tool| tool.name == "web3_trace"));
+    assert!(web3.iter().any(|tool| tool.name == "web3_impact"));
+    assert!(web3.iter().any(|tool| tool.name == "web3_context"));
+    assert!(web3.iter().all(|tool| tool.name != "verified_change"));
 }
