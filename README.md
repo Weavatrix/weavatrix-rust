@@ -42,11 +42,11 @@ the times are not ranked as a race.
 | Adjacent tool | What it actually produces | Why it is not this crate |
 | --- | --- | --- |
 | Serena | LSP-over-MCP symbols, refs, and edits | Weavatrix never starts a language server and never writes source. |
-| Aider RepoMap | A token-budget ranked tag map for one chat | This crate keeps every proven node, not the slice that fits a prompt. |
+| Aider `RepoMap` | A token-budget ranked tag map for one chat | This crate keeps every proven node, not the slice that fits a prompt. |
 | Repomix / Gitingest | One packed XML/text blob for an LLM | A packer is a prompt I/O tool. This crate answers bounded operations. |
-| GitNexus / CodeGraph MCP | Daemon or SQLite/Neo4j agent graphs | This crate is embeddable Rust: no service, no extra database process. |
+| `GitNexus` / `CodeGraph` MCP | Daemon or SQLite/Neo4j agent graphs | This crate is embeddable Rust: no service, no extra database process. |
 | ast-grep | Structural search matches | Search is one operation here, beside impact and architecture verdicts. |
-| CodeQL | A QL database and vulnerability queries | This crate does not compile QL or claim a security proof. |
+| `CodeQL` | A CodeQL database and vulnerability queries | This crate does not run CodeQL or claim a security proof. |
 | madge / dependency-cruiser | JavaScript import graphs | The snapshot is polyglot typed evidence, not imports-only. |
 | ripgrep / tokei | Text matches and line counts | They are faster at listing and counting. They do not emit a typed graph. |
 

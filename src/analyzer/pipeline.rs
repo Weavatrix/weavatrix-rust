@@ -58,7 +58,7 @@ impl Analyzer {
         let repository = canonical_repository(repository.as_ref())?;
         let timing = std::env::var_os("WEAVATRIX_PHASE_TIMING").is_some();
         let started = std::time::Instant::now();
-        let parsed = Arc::new(Mutex::new(Vec::<Vec<(u64, Result<ParsedSource>)>>::new()));
+        let parsed = Arc::new(Mutex::new(Vec::<ParseWorkerItems>::new()));
         let sink = Arc::clone(&parsed);
         let languages = Arc::clone(&self.languages);
         let visit = Scanner::new(&repository)
@@ -218,9 +218,12 @@ impl Analyzer {
     }
 }
 
+type ParseWorkerItem = (u64, Result<ParsedSource>);
+type ParseWorkerItems = Vec<ParseWorkerItem>;
+
 struct ParseBatch {
-    sink: Arc<Mutex<Vec<Vec<(u64, Result<ParsedSource>)>>>>,
-    items: Vec<(u64, Result<ParsedSource>)>,
+    sink: Arc<Mutex<Vec<ParseWorkerItems>>>,
+    items: ParseWorkerItems,
 }
 
 impl Drop for ParseBatch {
