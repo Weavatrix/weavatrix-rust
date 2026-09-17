@@ -128,36 +128,7 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
         json!(["events", "request"])
     );
 
-    let code = tools::catalog_for_profile(tools::ToolProfile::Code);
-    assert!(code.iter().all(|tool| tool.name != "seo_link_suggestions"));
-    let seo = tools::catalog_for_profile(tools::ToolProfile::Seo);
-    assert!(seo.iter().any(|tool| tool.name == "seo_link_suggestions"));
-    assert!(seo.iter().all(|tool| tool.name != "verified_change"));
-    let n8n = tools::catalog_for_profile(tools::ToolProfile::N8n);
-    assert!(n8n.iter().any(|tool| tool.name == "n8n_inventory"));
-    assert!(n8n.iter().any(|tool| tool.name == "n8n_trace"));
-    assert!(n8n.iter().any(|tool| tool.name == "n8n_context"));
-    assert!(n8n.iter().all(|tool| tool.name != "verified_change"));
-    assert!(n8n.iter().all(|tool| tool.name != "seo_link_suggestions"));
-    let dify = tools::catalog_for_profile(tools::ToolProfile::Dify);
-    assert!(dify.iter().any(|tool| tool.name == "dify_inventory"));
-    assert!(dify.iter().any(|tool| tool.name == "dify_trace"));
-    assert!(dify.iter().any(|tool| tool.name == "dify_context"));
-    assert!(dify.iter().all(|tool| tool.name != "verified_change"));
-    assert!(dify.iter().all(|tool| tool.name != "n8n_inventory"));
-    let agent = tools::catalog_for_profile(tools::ToolProfile::Agent);
-    assert!(agent.iter().any(|tool| tool.name == "agent_inventory"));
-    assert!(agent.iter().any(|tool| tool.name == "agent_trace"));
-    assert!(agent.iter().any(|tool| tool.name == "agent_context"));
-    assert!(agent.iter().any(|tool| tool.name == "agent_change_impact"));
-    assert!(agent.iter().all(|tool| tool.name != "verified_change"));
-    assert!(agent.iter().all(|tool| tool.name != "n8n_inventory"));
-    let diagram = tools::catalog_for_profile(tools::ToolProfile::Diagram);
-    assert!(diagram.iter().any(|tool| tool.name == "diagram_inventory"));
-    assert!(diagram.iter().any(|tool| tool.name == "diagram_trace"));
-    assert!(diagram.iter().any(|tool| tool.name == "diagram_context"));
-    assert!(diagram.iter().all(|tool| tool.name != "verified_change"));
-    assert_web3_profile();
+    assert_domain_profiles();
 
     #[cfg(feature = "vector")]
     {
@@ -225,8 +196,38 @@ fn graph_diff_catalog_documents_its_compact_default_and_raw_edge_opt_in() {
 }
 
 #[cfg(all(feature = "memory", feature = "semantic"))]
-fn assert_web3_profile() {
-    let web3 = weavatrix_rust::tools::catalog_for_profile(weavatrix_rust::tools::ToolProfile::Web3);
+fn assert_domain_profiles() {
+    use weavatrix_rust::tools::{self, ToolProfile};
+    let code = tools::catalog_for_profile(ToolProfile::Code);
+    assert!(code.iter().all(|tool| tool.name != "seo_link_suggestions"));
+    let seo = tools::catalog_for_profile(ToolProfile::Seo);
+    assert!(seo.iter().any(|tool| tool.name == "seo_link_suggestions"));
+    assert!(seo.iter().all(|tool| tool.name != "verified_change"));
+    let n8n = tools::catalog_for_profile(ToolProfile::N8n);
+    assert!(n8n.iter().any(|tool| tool.name == "n8n_inventory"));
+    assert!(n8n.iter().any(|tool| tool.name == "n8n_trace"));
+    assert!(n8n.iter().any(|tool| tool.name == "n8n_context"));
+    assert!(n8n.iter().all(|tool| tool.name != "verified_change"));
+    assert!(n8n.iter().all(|tool| tool.name != "seo_link_suggestions"));
+    let dify = tools::catalog_for_profile(ToolProfile::Dify);
+    assert!(dify.iter().any(|tool| tool.name == "dify_inventory"));
+    assert!(dify.iter().any(|tool| tool.name == "dify_trace"));
+    assert!(dify.iter().any(|tool| tool.name == "dify_context"));
+    assert!(dify.iter().all(|tool| tool.name != "verified_change"));
+    assert!(dify.iter().all(|tool| tool.name != "n8n_inventory"));
+    let agent = tools::catalog_for_profile(ToolProfile::Agent);
+    assert!(agent.iter().any(|tool| tool.name == "agent_inventory"));
+    assert!(agent.iter().any(|tool| tool.name == "agent_trace"));
+    assert!(agent.iter().any(|tool| tool.name == "agent_context"));
+    assert!(agent.iter().any(|tool| tool.name == "agent_change_impact"));
+    assert!(agent.iter().all(|tool| tool.name != "verified_change"));
+    assert!(agent.iter().all(|tool| tool.name != "n8n_inventory"));
+    let diagram = tools::catalog_for_profile(ToolProfile::Diagram);
+    assert!(diagram.iter().any(|tool| tool.name == "diagram_inventory"));
+    assert!(diagram.iter().any(|tool| tool.name == "diagram_trace"));
+    assert!(diagram.iter().any(|tool| tool.name == "diagram_context"));
+    assert!(diagram.iter().all(|tool| tool.name != "verified_change"));
+    let web3 = tools::catalog_for_profile(ToolProfile::Web3);
     assert!(web3.iter().any(|tool| tool.name == "web3_inventory"));
     assert!(web3.iter().any(|tool| tool.name == "web3_trace"));
     assert!(web3.iter().any(|tool| tool.name == "web3_impact"));

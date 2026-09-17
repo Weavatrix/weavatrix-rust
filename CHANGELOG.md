@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 2.15.1 - 2026-09-16
+
+- Keep the catalog profile assertions inside the 100-line function budget so
+  the crates.io quality gate can publish Web3 Integration Impact.
+
 ## 2.15.0 - 2026-09-16
 
 - Web3 Integration Impact for supplied ABI JSON, solc/Foundry artifacts, and
