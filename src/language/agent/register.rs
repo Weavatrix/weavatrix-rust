@@ -42,6 +42,8 @@ fn emit(
         facts.symbols.push(node);
         let mut meta = vec![
             format!("handler:{handler}"),
+            format!("impl:{handler}"),
+            format!("exported:{name}"),
             format!("proof:{proof}"),
             format!("package:{}", package_root(path)),
             "plane:implemented".to_owned(),
@@ -87,13 +89,12 @@ fn rust_arms(raw: &str) -> Vec<(String, String, bool)> {
 fn sdk_names(raw: &str) -> Vec<(String, String, bool)> {
     let mut out = Vec::new();
     let mut pending = false;
+    let mut pending_public = None;
     for line in raw.lines() {
         let trimmed = line.trim();
-        if trimmed.contains("@mcp.tool")
-            || trimmed.contains("@server.tool")
-            || trimmed.contains("@app.tool")
-        {
+        if is_decorator(trimmed) {
             pending = true;
+            pending_public = tool_name_arg(trimmed);
             continue;
         }
         if let Some(name) = quoted_after(trimmed, "mcp.tool(")
@@ -102,19 +103,56 @@ fn sdk_names(raw: &str) -> Vec<(String, String, bool)> {
         {
             out.push((name, "sdk.tool".to_owned(), false));
             pending = false;
+            pending_public = None;
             continue;
         }
         if pending {
             if looks_unresolved_call(trimmed) {
-                out.push(("dynamic-factory".to_owned(), "unresolved".to_owned(), true));
+                out.push((
+                    pending_public
+                        .take()
+                        .unwrap_or_else(|| "dynamic-factory".to_owned()),
+                    "unresolved".to_owned(),
+                    true,
+                ));
                 pending = false;
-            } else if let Some(name) = def_name(trimmed) {
-                out.push((name, "sdk.decorated".to_owned(), false));
+            } else if let Some(impl_name) = def_name(trimmed) {
+                let public = pending_public.take().unwrap_or_else(|| impl_name.clone());
+                out.push((public, impl_name, false));
                 pending = false;
             }
         }
     }
     out
+}
+
+fn is_decorator(line: &str) -> bool {
+    line.contains("@mcp.tool") || line.contains("@server.tool") || line.contains("@app.tool")
+}
+
+fn tool_name_arg(line: &str) -> Option<String> {
+    if let Some(at) = line.find("name=") {
+        return quoted(line[at + 5..].trim_start());
+    }
+    ["@mcp.tool(", "@server.tool(", "@app.tool("]
+        .into_iter()
+        .find_map(|marker| quoted_after(line, marker))
+}
+
+fn quoted(rest: &str) -> Option<String> {
+    let mut chars = rest.chars();
+    let quote = chars.next()?;
+    if quote != '"' && quote != '\'' {
+        return None;
+    }
+    let mut out = String::new();
+    for ch in chars {
+        if ch == quote {
+            return (!out.is_empty()).then_some(out);
+        }
+        out.push(ch);
+    }
+    None
 }
 
 fn quoted_after(line: &str, marker: &str) -> Option<String> {

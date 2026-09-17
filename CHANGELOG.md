@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 2.16.0 - 2026-09-17
+
+- Agent schema impact compares a supported JSON Schema subset. A type,
+  enum, or bound change is not `proven-compatible`. Unsupported constructs
+  stay `undetermined`. Tool removal requires a complete comparable AFTER
+  catalog. Transforms and skill consumers are scoped, not global name
+  matches. `@mcp.tool(name=…)` keeps the public name and the impl identity.
+- `web3_impact` pairs explicit baseline/candidate artifacts and uses the
+  shared ABI compare. Event order no longer follows node IDs. Educational
+  silent-misdecode text is not a computed witness. Consumers ignore
+  comments/strings, first-JSON fallbacks, and prefix ABI lookup.
+- n8n array documents keep JSON Pointer selectors. Mermaid checks fan-out
+  before materializing edges and applies the latest explicit label.
+  Domain cycle detection uses the same port-owner projection as traversal.
+
 ## 2.15.1 - 2026-09-16
 
 - Keep the catalog profile assertions inside the 100-line function budget so

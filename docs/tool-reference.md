@@ -153,14 +153,29 @@ API, editor, or executor.
   for one plugin, skill, or server.
 - `agent_context`: source fragments plus explicit gaps. Commands are not
   executed. `allowed-tools` stays a declaration, not a grant.
-- `agent_change_impact`: compare two catalog snapshots; a known inject
-  transform can keep an exposure compatible while the upstream required
-  list grew. Incomplete pagination does not become a deletion.
+- `agent_change_impact`: compare two catalog snapshots on a supported
+  schema subset. Type, enum, and bound changes are incompatible.
+  Unsupported constructs stay undetermined. A known inject transform can
+  keep an exposure compatible while the upstream required list grew.
+  Incomplete pagination does not become a deletion.
 
 Same display names in different packages stay distinct. Unknown extension
 namespaces remain visible. Native Cursor/Claude overlays are recorded as
 client profiles, not as Agent Plugins 1.0.0. This is not a plugin
 runtime, gateway, or policy authority.
+
+## Web3 ABIs
+
+- `web3_inventory`: supplied ABI JSON, solc/Foundry artifacts, and static
+  viem/wagmi consumers.
+- `web3_trace`: bounded neighbors with `depth` and `cursor`.
+- `web3_impact`: requires baseline and candidate artifact paths and uses
+  the shared ABI compare. Layout risk is a boolean, not an educational
+  decoder witness.
+- `web3_context`: member fragments, consumers, and deployment gaps.
+
+Artifact decode is not a source/build proof. Comments and string examples
+are not consumers.
 
 ## Mermaid diagrams
 

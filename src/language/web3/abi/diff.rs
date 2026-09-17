@@ -1,7 +1,6 @@
 use super::model::{AbiDocument, AbiMember, MemberKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(dead_code)]
 pub(crate) struct AbiChange {
     pub kind: &'static str,
     pub member: String,
@@ -11,7 +10,6 @@ pub(crate) struct AbiChange {
 }
 
 #[must_use]
-#[allow(dead_code)]
 pub(crate) fn compare(baseline: &AbiDocument, candidate: &AbiDocument) -> Vec<AbiChange> {
     let mut changes = Vec::new();
     for old in &baseline.members {
@@ -29,20 +27,42 @@ pub(crate) fn compare(baseline: &AbiDocument, candidate: &AbiDocument) -> Vec<Ab
         };
         push_member_changes(&mut changes, old, new);
     }
+    for new in &candidate.members {
+        if match_member(baseline, new).is_none()
+            && (new.kind == MemberKind::Function || new.kind == MemberKind::Event)
+        {
+            changes.push(AbiChange {
+                kind: "MEMBER_ADDED",
+                member: new.call_signature.clone(),
+                detail: "candidate exposes a member absent from the baseline".into(),
+                topic_signature_unchanged: false,
+                silent_misdecode: false,
+            });
+        }
+    }
     changes
 }
 
 fn match_member<'a>(document: &'a AbiDocument, old: &AbiMember) -> Option<&'a AbiMember> {
-    document
+    if let Some(exact) = document
         .members
         .iter()
         .find(|item| item.kind == old.kind && item.call_signature == old.call_signature)
-        .or_else(|| {
-            document
-                .members
-                .iter()
-                .find(|item| item.kind == old.kind && item.name == old.name && !old.name.is_empty())
-        })
+    {
+        return Some(exact);
+    }
+    if old.name.is_empty() {
+        return None;
+    }
+    let named = document
+        .members
+        .iter()
+        .filter(|item| item.kind == old.kind && item.name == old.name)
+        .collect::<Vec<_>>();
+    match named.as_slice() {
+        [only] => Some(*only),
+        _ => None,
+    }
 }
 
 fn push_member_changes(changes: &mut Vec<AbiChange>, old: &AbiMember, new: &AbiMember) {
@@ -102,6 +122,7 @@ fn change(
 }
 
 #[must_use]
+#[allow(dead_code)]
 pub(crate) fn silent_misdecode_example() -> &'static str {
     "owner=0x0000000000000000000000000000000000000123 assets=42; new layout stores 42 in a topic and 291 in data; a V1 decoder reads owner=0x000000000000000000000000000000000000002a assets=291 without throwing"
 }

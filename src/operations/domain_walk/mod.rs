@@ -32,7 +32,7 @@ pub(super) fn trace(state: &RepositoryState, spec: &WalkSpec<'_>) -> Value {
             &mut steps,
             &mut reasons,
         );
-        cycle |= graph::relation_has_cycle(&steps, relation);
+        cycle |= graph::relation_has_cycle(&index, &steps, relation);
     }
     let total = steps.len();
     let end = spec.offset.saturating_add(spec.max_nodes).min(total);
@@ -60,6 +60,8 @@ pub(super) fn trace(state: &RepositoryState, spec: &WalkSpec<'_>) -> Value {
             "found": total,
             "shown": page.len(),
             "reasons": reasons.into_iter().collect::<Vec<_>>(),
+            "depth": spec.depth,
+            "max_nodes": spec.max_nodes,
             "revision": spec.revision,
             "runtime": false
         }

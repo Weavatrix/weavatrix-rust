@@ -122,6 +122,10 @@ fn write_native(fixture: &Fixture) {
         "native/skills/lookup/SKILL.md",
         "---\nname: lookup\ndescription: Look up a customer.\nallowed-tools: Read Grep\n---\n\nUse lookup, then stop.\n",
     );
+    fixture.write(
+        "src/named_tool.py",
+        "@mcp.tool(name=\"public_lookup\")\ndef private_lookup_impl():\n    return None\n",
+    );
 }
 
 fn write_limits(fixture: &Fixture) {

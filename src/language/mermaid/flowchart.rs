@@ -60,15 +60,30 @@ pub(super) fn parse(path: &str, raw: &str, region: &Region) -> Diagram {
             }
             continue;
         }
-        if !super::edges::parse_statement(path, raw, &mut scanner, &mut diagram, groups.last()) {
-            mark_partial(
-                &mut diagram,
-                path,
-                raw,
-                scanner.absolute(),
-                "unsupported flowchart statement",
-            );
-            scanner.skip_line();
+        match super::edges::parse_statement(path, raw, &mut scanner, &mut diagram, groups.last()) {
+            super::edges::StatementResult::Parsed => {}
+            super::edges::StatementResult::Limit => {
+                note(
+                    &mut diagram,
+                    path,
+                    raw,
+                    scanner.absolute(),
+                    "mermaid.limit",
+                    "diagram analysis stopped at a declared limit",
+                );
+                diagram.completeness = Completeness::Partial;
+                break;
+            }
+            super::edges::StatementResult::Invalid => {
+                mark_partial(
+                    &mut diagram,
+                    path,
+                    raw,
+                    scanner.absolute(),
+                    "unsupported flowchart statement",
+                );
+                scanner.skip_line();
+            }
         }
         if diagram.elements.len() > MAX_NODES || diagram.relations.len() > MAX_EDGES {
             note(

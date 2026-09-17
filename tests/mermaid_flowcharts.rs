@@ -130,6 +130,40 @@ fn diagram_does_not_clear_dead_code_or_invent_bindings() {
 }
 
 #[test]
+fn later_explicit_label_replaces_display_text() {
+    let fixture = mermaid_support::Fixture::empty();
+    fixture.write(
+        "docs/relabel.mmd",
+        "flowchart TD\n  A[first] --> B\n  A[last] --> C\n",
+    );
+    let engine = weavatrix_rust::Weavatrix::open(&fixture.root).unwrap();
+    let labels = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .flat_map(|node| {
+            engine
+                .state()
+                .graph()
+                .edges()
+                .iter()
+                .filter(move |edge| edge.source.as_str() == node.id.as_str())
+                .filter_map(|edge| engine.state().graph().node(edge.target.as_str()))
+        })
+        .map(|node| node.label.clone())
+        .collect::<Vec<_>>();
+    assert!(
+        labels.iter().any(|label| label == "label:last"),
+        "later explicit text becomes the display label: {labels:?}"
+    );
+    assert!(
+        !labels.iter().any(|label| label == "label:first"),
+        "the first explicit text is replaced: {labels:?}"
+    );
+}
+
+#[test]
 fn diagram_profile_exposes_the_three_operations() {
     let names = tools::catalog_for_profile(tools::ToolProfile::Diagram)
         .into_iter()

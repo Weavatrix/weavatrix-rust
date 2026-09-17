@@ -13,6 +13,7 @@ mod paths;
 mod plugin;
 mod redaction;
 mod register;
+mod schema;
 mod skill;
 
 pub(crate) use detect::looks_promising;

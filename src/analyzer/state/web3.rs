@@ -21,7 +21,6 @@ impl AnalysisState {
         for key in [
             format!("{relative}#{short}:{name}"),
             format!("{relative}#{short}:{stem}"),
-            format!("{relative}#abi"),
         ] {
             self.web3_index.entry(key).or_default().push(id.clone());
         }
@@ -45,7 +44,11 @@ impl AnalysisState {
         let pending = std::mem::take(&mut self.pending_web3);
         let mut seen = BTreeSet::<(String, String, String, String)>::new();
         for (from, key, span, _relation) in pending {
-            for to in self.lookup_web3(&key) {
+            let targets = self.lookup_web3(&key);
+            if targets.len() != 1 {
+                continue;
+            }
+            for to in targets {
                 let detail = format!("web3-bind:{key}");
                 if !seen.insert((
                     from.as_str().to_owned(),
@@ -68,13 +71,6 @@ impl AnalysisState {
     }
 
     fn lookup_web3(&self, key: &str) -> Vec<NodeId> {
-        if let Some(exact) = self.web3_index.get(key) {
-            return exact.clone();
-        }
-        self.web3_index
-            .iter()
-            .filter(|(candidate, _)| candidate.starts_with(key))
-            .flat_map(|(_, ids)| ids.clone())
-            .collect()
+        self.web3_index.get(key).cloned().unwrap_or_default()
     }
 }

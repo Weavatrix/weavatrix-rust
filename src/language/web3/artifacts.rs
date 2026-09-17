@@ -48,7 +48,8 @@ fn foundry_artifact(path: &str, raw: &str, value: &Value) -> Vec<AbiDocument> {
         items,
         Profile::FoundryArtifact,
         contract_name(path),
-        "matched supplied Foundry artifact inputs".into(),
+        "decoded abi array from Foundry artifact JSON; source and build binding not verified"
+            .into(),
         Completeness::ArtifactOnly,
     )
     .into_iter()
@@ -79,7 +80,7 @@ fn solc_output(path: &str, raw: &str, value: &Value, profile: Profile) -> Vec<Ab
                 items,
                 profile,
                 Some(format!("{source}:{name}")),
-                "matched supplied solc output; outputSelection may be incomplete".into(),
+                "decoded abi array from solc output JSON; source hashes and outputSelection were not verified".into(),
                 Completeness::Partial,
             ) {
                 documents.push(document);

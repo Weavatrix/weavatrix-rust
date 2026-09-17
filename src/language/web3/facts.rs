@@ -176,15 +176,11 @@ pub(super) fn emit_consumers(
                 loc.clone(),
             ));
         }
-        if let Some(import_path) = &occurrence.import_path {
-            let key = match &occurrence.member_name {
-                Some(name) if occurrence.resolved => {
-                    format!("{import_path}#{}:{name}", occurrence.member_kind)
-                }
-                _ => format!("{import_path}#abi"),
-            };
+        if let (Some(import_path), Some(name)) = (&occurrence.import_path, &occurrence.member_name)
+            && occurrence.resolved
+        {
             facts.domains.push(domain(
-                format!("web3.bind:{key}"),
+                format!("web3.bind:{import_path}#{}:{name}", occurrence.member_kind),
                 consumer_kind(),
                 loc.clone(),
             ));

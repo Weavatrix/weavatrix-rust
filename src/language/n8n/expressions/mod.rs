@@ -13,6 +13,7 @@ pub(super) fn collect(
     sites: &[StringSite],
     path: &str,
     raw: &str,
+    document_index: Option<usize>,
 ) {
     for node in nodes {
         let Some(name) = node.get("name").and_then(Value::as_str) else {
@@ -30,12 +31,17 @@ pub(super) fn collect(
             if redaction::skip_pointer(pointer) || redaction::looks_secret(pointer, text) {
                 return;
             }
-            let full_pointer = ordinal.map_or_else(
-                || pointer.to_owned(),
-                |index| format!("/nodes/{index}/parameters{pointer}"),
-            );
+            let full_pointer = match (document_index, ordinal) {
+                (Some(document), Some(index)) => {
+                    format!("/{document}/nodes/{index}/parameters{pointer}")
+                }
+                (None, Some(index)) => format!("/nodes/{index}/parameters{pointer}"),
+                _ => pointer.to_owned(),
+            };
             for (char_start, char_end, region) in expression_regions(text) {
                 if region.len() > MAX_EXPRESSION_BYTES {
+                    workflow.coverage.expressions_seen =
+                        workflow.coverage.expressions_seen.saturating_add(1);
                     continue;
                 }
                 if comment_only(&region) {
@@ -58,7 +64,7 @@ fn walk_strings(value: &Value, pointer: &str, visit: &mut impl FnMut(&str, &str)
         }
         Value::Object(fields) => {
             for (key, item) in fields {
-                let child = format!("{pointer}/{key}");
+                let child = format!("{pointer}/{}", escape_pointer(key));
                 if redaction::skip_pointer(&child) {
                     continue;
                 }
@@ -108,6 +114,10 @@ fn char_count(text: &str) -> usize {
     text.chars().count()
 }
 
+fn escape_pointer(value: &str) -> String {
+    value.replace('~', "~0").replace('/', "~1")
+}
+
 pub(super) fn bind_from_source(
     workflow: &mut WorkflowRecord,
     owner: &str,
@@ -150,11 +160,6 @@ fn site_span(
     let Some(site) = sites
         .iter()
         .find(|site| site.pointer == pointer && site.decoded == text)
-        .or_else(|| {
-            sites
-                .iter()
-                .find(|site| site.decoded == text && site.pointer.ends_with(pointer))
-        })
     else {
         return locations::file_span(path);
     };

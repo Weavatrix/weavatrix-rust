@@ -105,18 +105,13 @@ fn emit_tool(
         .get("description")
         .and_then(Value::as_str)
         .unwrap_or("");
-    push_meta(
-        facts,
-        &owner,
-        &span,
-        &[
-            format!("package:{}", package_root(path)),
-            format!("digest:{}", schema_digest(schema, description)),
-            format!("required:{}", required_list(schema)),
-            format!("properties:{}", property_list(schema)),
-            "plane:exposed".to_owned(),
-        ],
-    );
+    let mut labels = vec![
+        format!("package:{}", package_root(path)),
+        format!("catalog:{}", catalog.name),
+        "plane:exposed".to_owned(),
+    ];
+    labels.extend(super::schema::meta_labels(schema, description));
+    push_meta(facts, &owner, &span, &labels);
     if description.is_empty() {
         push_named(
             facts,
@@ -173,6 +168,8 @@ fn emit_transform(
         span: span.clone(),
     };
     let mut meta = vec![
+        format!("package:{}", package_root(path)),
+        format!("catalog:{}", catalog.name),
         format!("exposure:{exposure}"),
         format!("upstream:{upstream}"),
         "plane:declared".to_owned(),
@@ -198,41 +195,6 @@ fn emit_transform(
         NodeKind::Binding,
         transforms(),
     );
-}
-
-#[must_use]
-pub(super) fn schema_digest(schema: &Value, description: &str) -> String {
-    format!(
-        "req={};props={};desc={}",
-        required_list(schema),
-        property_list(schema),
-        description
-    )
-}
-
-#[must_use]
-pub(super) fn required_list(schema: &Value) -> String {
-    let mut names = schema
-        .get("required")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .map(ToOwned::to_owned)
-        .collect::<Vec<_>>();
-    names.sort();
-    names.join(",")
-}
-
-#[must_use]
-pub(super) fn property_list(schema: &Value) -> String {
-    let mut names = schema
-        .get("properties")
-        .and_then(Value::as_object)
-        .map(|object| object.keys().cloned().collect::<Vec<_>>())
-        .unwrap_or_default();
-    names.sort();
-    names.join(",")
 }
 
 fn file_stem(path: &str) -> &str {

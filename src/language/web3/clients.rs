@@ -1,3 +1,4 @@
+use super::code_span;
 use super::identity::resolve_import;
 use super::span::span_for;
 use crate::language::ImportFact;
@@ -30,12 +31,13 @@ pub(super) struct ConsumerOccurrence {
 
 #[must_use]
 pub(super) fn extract(path: &str, raw: &str, imports: &[ImportFact]) -> Vec<ConsumerOccurrence> {
-    if !has_library_import(imports, raw) {
+    let code = code_span::mask(raw);
+    if !has_library_import(imports, raw, &code) {
         return Vec::new();
     }
     let mut occurrences = Vec::new();
     let mut search_from = 0_usize;
-    while let Some(rel) = next_api(raw, search_from) {
+    while let Some(rel) = next_api(raw, search_from, &code) {
         let start = rel.0;
         let api = rel.1;
         let body = object_after(raw, start + api.len());
@@ -62,8 +64,8 @@ pub(super) fn extract(path: &str, raw: &str, imports: &[ImportFact]) -> Vec<Cons
         let import_path = abi_local
             .as_deref()
             .and_then(|local| import_target(imports, local))
-            .or_else(|| json_spec(raw))
             .and_then(|spec| resolve_import(path, spec));
+        let resolved = import_path.is_some();
         occurrences.push(ConsumerOccurrence {
             api: api.to_owned(),
             member_name: literal_prop(object, "functionName")
@@ -71,7 +73,7 @@ pub(super) fn extract(path: &str, raw: &str, imports: &[ImportFact]) -> Vec<Cons
             member_kind: member_kind(api),
             abi_local,
             import_path,
-            resolved: true,
+            resolved,
             span: span_for(path, raw, start, end),
             ordinal: occurrences.len() + 1,
         });
@@ -80,49 +82,51 @@ pub(super) fn extract(path: &str, raw: &str, imports: &[ImportFact]) -> Vec<Cons
     occurrences
 }
 
-fn has_library_import(imports: &[ImportFact], raw: &str) -> bool {
-    imports.iter().any(|import| {
-        let target = import.target.as_str();
-        target == "viem"
-            || target == "wagmi"
-            || target.starts_with("viem/")
-            || target.starts_with("wagmi/")
-            || target.starts_with("@wagmi/")
-    }) || raw.contains("from \"viem\"")
-        || raw.contains("from 'viem'")
-        || raw.contains("from \"wagmi\"")
-        || raw.contains("from 'wagmi'")
+fn has_library_import(imports: &[ImportFact], raw: &str, code: &[bool]) -> bool {
+    imports.iter().any(is_web3_import) || named_import(raw, code)
 }
 
-fn json_spec(raw: &str) -> Option<&str> {
-    for quote in ['"', '\''] {
-        let marker = format!("from {quote}");
-        if let Some(at) = raw.find(&marker) {
-            let rest = &raw[at + marker.len()..];
-            if let Some(end) = rest.find(quote) {
-                let spec = &rest[..end];
-                if std::path::Path::new(spec)
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
-                {
-                    return Some(spec);
-                }
-            }
-        }
-    }
-    None
+fn is_web3_import(import: &ImportFact) -> bool {
+    let target = import.target.as_str();
+    target == "viem"
+        || target == "wagmi"
+        || target.starts_with("viem/")
+        || target.starts_with("wagmi/")
+        || target.starts_with("@wagmi/")
 }
 
-fn next_api(raw: &str, from: usize) -> Option<(usize, &'static str)> {
+fn named_import(raw: &str, code: &[bool]) -> bool {
+    raw.match_indices("from ")
+        .filter(|(index, _)| code_span::at(code, *index))
+        .any(|(index, _)| {
+            let rest = raw[index + 5..].trim_start();
+            rest.starts_with("\"viem\"")
+                || rest.starts_with("'viem'")
+                || rest.starts_with("\"wagmi\"")
+                || rest.starts_with("'wagmi'")
+                || rest.starts_with("\"viem/")
+                || rest.starts_with("'viem/")
+                || rest.starts_with("\"wagmi/")
+                || rest.starts_with("'wagmi/")
+                || rest.starts_with("\"@wagmi/")
+                || rest.starts_with("'@wagmi/")
+        })
+}
+
+fn next_api(raw: &str, from: usize, code: &[bool]) -> Option<(usize, &'static str)> {
     let rest = raw.get(from..)?;
     let mut best: Option<(usize, &'static str)> = None;
     for api in VIEM_APIS {
         let mut offset = 0;
         while let Some(at) = rest.get(offset..).and_then(|slice| slice.find(api)) {
             let local = offset + at;
-            if is_call(&rest[local + api.len()..]) {
+            let absolute = from + local;
+            if code_span::at(code, absolute)
+                && code_span::ident_start(raw, absolute)
+                && is_call(&rest[local + api.len()..])
+            {
                 if best.is_none_or(|(current, _)| local < current) {
-                    best = Some((from + local, api));
+                    best = Some((absolute, api));
                 }
                 break;
             }
@@ -207,16 +211,6 @@ fn import_target<'a>(imports: &'a [ImportFact], local: &str) -> Option<&'a str> 
         .iter()
         .find(|import| import.bindings.iter().any(|binding| binding.local == local))
         .map(|import| import.target.as_str())
-        .or_else(|| {
-            imports
-                .iter()
-                .find(|import| {
-                    std::path::Path::new(&import.target)
-                        .extension()
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
-                })
-                .map(|import| import.target.as_str())
-        })
 }
 
 fn member_kind(api: &str) -> &'static str {

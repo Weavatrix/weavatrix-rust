@@ -116,7 +116,7 @@ fn workflow(
         }
         record
             .nodes
-            .push(node_record(&key, node, path, raw, sites, ordinal));
+            .push(node_record(&key, node, path, raw, sites, index, ordinal));
     }
     record_name_conflicts(&record, diagnostics);
     let names = unique_connection_names(&record);
@@ -130,7 +130,7 @@ fn workflow(
     if connection_count(&record) > MAX_CONNECTIONS {
         return Err(format!("n8n connection count exceeds {MAX_CONNECTIONS}"));
     }
-    expressions::collect(&mut record, &nodes, sites, path, raw);
+    expressions::collect(&mut record, &nodes, sites, path, raw, index);
     embedded::collect(&mut record, &nodes, sites, path, raw);
     nodes::collect(&mut record, &nodes, value, path);
     record.coverage = coverage_of(&record);
@@ -150,6 +150,7 @@ fn node_record(
     path: &str,
     raw: &str,
     sites: &[StringSite],
+    document_index: Option<usize>,
     ordinal: usize,
 ) -> NodeRecord {
     let name = node
@@ -176,7 +177,7 @@ fn node_record(
         type_name,
         type_version,
         semantics,
-        span: node_span(path, raw, sites, ordinal),
+        span: node_span(path, raw, sites, document_index, ordinal),
     }
 }
 
@@ -184,10 +185,14 @@ fn node_span(
     path: &str,
     raw: &str,
     sites: &[StringSite],
+    document_index: Option<usize>,
     ordinal: usize,
 ) -> weavatrix_graph::SourceSpan {
-    let suffix = format!("/nodes/{ordinal}/name");
-    if let Some(site) = sites.iter().find(|site| site.pointer.ends_with(&suffix)) {
+    let pointer = match document_index {
+        Some(document) => format!("/{document}/nodes/{ordinal}/name"),
+        None => format!("/nodes/{ordinal}/name"),
+    };
+    if let Some(site) = sites.iter().find(|site| site.pointer == pointer) {
         return locations::span_for(path, raw, site.raw_start, site.raw_end);
     }
     let column = u32::try_from(ordinal.saturating_add(2)).unwrap_or(u32::MAX);

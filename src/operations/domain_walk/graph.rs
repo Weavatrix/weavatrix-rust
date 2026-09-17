@@ -119,6 +119,17 @@ impl Adjacency {
             .get(id)
             .is_some_and(|kind| self.owner_kinds.contains(kind))
     }
+
+    fn projected(&self, id: &str) -> String {
+        if self.is_port(id) {
+            self.parent
+                .get(id)
+                .cloned()
+                .unwrap_or_else(|| id.to_owned())
+        } else {
+            id.to_owned()
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -192,8 +203,8 @@ pub(super) fn walk_relation(
     }
 }
 
-pub(super) fn relation_has_cycle(steps: &[Value], relation: &str) -> bool {
-    let mut outgoing = BTreeMap::<&str, Vec<&str>>::new();
+pub(super) fn relation_has_cycle(index: &Adjacency, steps: &[Value], relation: &str) -> bool {
+    let mut outgoing = BTreeMap::<String, Vec<String>>::new();
     for step in steps {
         if step["relation"].as_str() != Some(relation) {
             continue;
@@ -204,21 +215,23 @@ pub(super) fn relation_has_cycle(steps: &[Value], relation: &str) -> bool {
         let Some(to) = step["to"].as_str() else {
             continue;
         };
-        outgoing.entry(from).or_default().push(to);
+        outgoing
+            .entry(index.projected(from))
+            .or_default()
+            .push(index.projected(to));
     }
-    let mut color = BTreeMap::<&str, u8>::new();
+    let mut color = BTreeMap::<String, u8>::new();
     outgoing
         .keys()
-        .copied()
         .any(|node| color.get(node).copied().unwrap_or(0) == 0 && dfs(node, &outgoing, &mut color))
 }
 
-fn dfs<'a>(
-    node: &'a str,
-    outgoing: &BTreeMap<&'a str, Vec<&'a str>>,
-    color: &mut BTreeMap<&'a str, u8>,
+fn dfs(
+    node: &str,
+    outgoing: &BTreeMap<String, Vec<String>>,
+    color: &mut BTreeMap<String, u8>,
 ) -> bool {
-    color.insert(node, 1);
+    color.insert(node.to_owned(), 1);
     for next in outgoing.get(node).into_iter().flatten() {
         match color.get(next).copied().unwrap_or(0) {
             1 => return true,
@@ -226,6 +239,6 @@ fn dfs<'a>(
             _ => {}
         }
     }
-    color.insert(node, 2);
+    color.insert(node.to_owned(), 2);
     false
 }

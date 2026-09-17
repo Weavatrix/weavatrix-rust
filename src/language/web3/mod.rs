@@ -5,6 +5,7 @@
 mod abi;
 mod artifacts;
 mod clients;
+mod code_span;
 mod detect;
 mod facts;
 mod hash;
@@ -13,7 +14,9 @@ mod kinds;
 mod limits;
 mod span;
 
-pub(crate) use abi::silent_misdecode_example;
+pub(crate) use abi::{
+    AbiDocument, AbiMember, Completeness, MemberKind, Profile, compare as compare_abi,
+};
 pub(crate) use detect::{admitted_size, looks_promising};
 pub(crate) use kinds::binds as web3_binds;
 pub(crate) use limits::MAX_BUILD_INFO_BYTES;

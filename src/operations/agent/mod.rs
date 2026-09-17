@@ -1,4 +1,5 @@
 mod impact;
+mod schema_cmp;
 mod view;
 
 use crate::engine::RepositoryState;

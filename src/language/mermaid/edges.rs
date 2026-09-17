@@ -1,6 +1,12 @@
 use super::lex::Scanner;
-use super::model::{Diagram, Element, Relation};
+use super::model::{Diagram, Element, MAX_EDGES, Relation};
 use super::span::span_for;
+
+pub(super) enum StatementResult {
+    Parsed,
+    Limit,
+    Invalid,
+}
 
 pub(super) fn parse_statement(
     path: &str,
@@ -8,14 +14,20 @@ pub(super) fn parse_statement(
     scanner: &mut Scanner<'_>,
     diagram: &mut Diagram,
     group: Option<&String>,
-) -> bool {
+) -> StatementResult {
     let Some(mut sources) = parse_node_list(path, raw, scanner, diagram, group) else {
-        return false;
+        return StatementResult::Invalid;
     };
     while let Some(edge) = take_edge(scanner) {
         let Some(targets) = parse_node_list(path, raw, scanner, diagram, group) else {
-            return false;
+            return StatementResult::Invalid;
         };
+        let Some(extra) = sources.len().checked_mul(targets.len()) else {
+            return StatementResult::Limit;
+        };
+        if diagram.relations.len().saturating_add(extra) > MAX_EDGES {
+            return StatementResult::Limit;
+        }
         let occurrence = u32::try_from(diagram.relations.len()).unwrap_or(u32::MAX);
         let span = span_for(path, raw, edge.start, scanner.absolute());
         for from in &sources {
@@ -32,7 +44,7 @@ pub(super) fn parse_statement(
         }
         sources = targets;
     }
-    true
+    StatementResult::Parsed
 }
 
 pub(super) fn take_until(scanner: &mut Scanner<'_>, close: char) -> Option<String> {
@@ -79,10 +91,14 @@ fn parse_node(
     scanner.skip_trivia();
     let start = scanner.absolute();
     let id = scanner.take_ident()?;
-    let label = take_shape(scanner).unwrap_or_else(|| id.clone());
+    let explicit = take_shape(scanner);
+    let label = explicit.clone().unwrap_or_else(|| id.clone());
     let span = span_for(path, raw, start, scanner.absolute());
     if let Some(existing) = diagram.elements.iter_mut().find(|element| element.id == id) {
         existing.occurrences.push(span);
+        if explicit.is_some() {
+            existing.label = label;
+        }
         return Some(id);
     }
     diagram.elements.push(Element {

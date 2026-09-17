@@ -138,3 +138,39 @@ fn agent_profile_includes_change_impact() {
             .any(|tool| tool.name == "agent_change_impact")
     );
 }
+
+#[test]
+fn decorator_keeps_public_name_and_impl_identity() {
+    let (_fixture, engine) = engine();
+    let registration = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .find(|node| node.kind.as_str() == "agent.registration" && node.label == "public_lookup")
+        .expect("public tool name");
+    let domains = engine
+        .state()
+        .graph()
+        .edges()
+        .iter()
+        .filter(|edge| edge.source.as_str() == registration.id.as_str())
+        .filter_map(|edge| engine.state().graph().node(edge.target.as_str()))
+        .map(|node| node.label.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        domains.contains(&"impl:private_lookup_impl")
+            || domains.contains(&"handler:private_lookup_impl"),
+        "{domains:?}"
+    );
+    assert!(
+        !engine
+            .state()
+            .graph()
+            .nodes()
+            .iter()
+            .any(|node| node.kind.as_str() == "agent.registration"
+                && node.label == "private_lookup_impl"),
+        "impl name must not replace the exported tool name"
+    );
+}

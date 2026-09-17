@@ -28,13 +28,22 @@ fn deposit_indexed_mask_change_reaches_old_viem_consumers() {
         "both proven decodeEventLog sites must remain: {events}"
     );
 
-    let impact = tools::call(&mut engine, "web3_impact", json!({"task": "change-event"})).unwrap();
+    let impact = tools::call(
+        &mut engine,
+        "web3_impact",
+        json!({
+            "task": "change-event",
+            "baseline": "app/abis/Vault.json",
+            "candidate": "out/Vault.sol/Vault.json"
+        }),
+    )
+    .unwrap();
     let report = dump(&impact);
     assert!(report.contains("EVENT_LAYOUT_CHANGED"), "{report}");
-    assert!(report.contains("silent_misdecode"), "{report}");
+    assert_eq!(impact["changes"][0]["silent_misdecode"], true, "{report}");
     assert!(
-        report.contains("0x000000000000000000000000000000000000002a"),
-        "{report}"
+        !report.contains("0x000000000000000000000000000000000000002a"),
+        "educational example must not be a computed witness: {report}"
     );
     assert!(report.contains("not_provided"), "{report}");
     assert!(
@@ -77,16 +86,27 @@ fn output_change_is_kept_when_selector_matches() {
         .unwrap()
         .id
         .clone();
+    let impact = tools::call(
+        &mut engine,
+        "web3_impact",
+        json!({
+            "baseline": "contracts/Other.json",
+            "candidate": "contracts/Copy.json"
+        }),
+    )
+    .unwrap();
+    let text = dump(&impact);
+    assert!(text.contains("OUTPUT_CHANGED"), "{text}");
     let context = tools::call(
         &mut engine,
         "web3_context",
         json!({"label": left.as_str(), "task": "change-output"}),
     )
     .unwrap();
-    let text = dump(&context);
+    let context_text = dump(&context);
     assert!(
-        text.contains("(bool)") || text.contains("web3.return"),
-        "{text}"
+        context_text.contains("(bool)") || context_text.contains("web3.return"),
+        "{context_text}"
     );
 }
 
