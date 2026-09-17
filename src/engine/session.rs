@@ -3,6 +3,7 @@ use crate::analyzer::Analyzer;
 use crate::model::{Error, Result};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const IDLE_UNLOAD: Duration = Duration::from_secs(20 * 60);
@@ -66,9 +67,9 @@ impl Weavatrix {
     pub fn refresh_if_stale(&mut self) -> Result<bool> {
         let scan = self
             .analyzer
-            .scan(&self.state.root, Some(&self.state.scan))?;
+            .scan(&self.state.root, Some(self.state.scan.as_ref()))?;
         if scan.revision == self.state.scan.revision {
-            self.state.scan = scan;
+            self.state.scan = Arc::new(scan);
             self.remember_active_state();
             return Ok(false);
         }

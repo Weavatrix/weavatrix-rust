@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 2.16.1 - 2026-09-17
+
+- Session state shares the snapshot, graph, and scan through `Arc`, so
+  retargeting a repository no longer clones node and edge vectors.
+- `graph_stats` reuses a once-built kind/relation/evidence census instead of
+  walking the graph on every call.
+- One-pass parse workers share the language registry and flush per worker,
+  not per file.
+- Competitor wall-clock round and in-process speed gate for this working
+  tree are recorded in `docs/benchmarks.md`.
+
 ## 2.16.0 - 2026-09-17
 
 - Agent schema impact compares a supported JSON Schema subset. A type,

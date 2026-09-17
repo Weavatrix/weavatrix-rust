@@ -16,14 +16,22 @@ use weavatrix_scan::ScanReport;
 pub use repository_state::git_head;
 
 #[derive(Debug, Clone)]
+pub struct GraphCensus {
+    pub kinds: BTreeMap<String, u64>,
+    pub relations: BTreeMap<String, u64>,
+    pub evidence: BTreeMap<String, u64>,
+}
+
+#[derive(Debug, Clone)]
 pub struct RepositoryState {
     root: PathBuf,
-    snapshot: Snapshot,
+    snapshot: Arc<Snapshot>,
     graph: Arc<Graph>,
-    scan: ScanReport,
+    scan: Arc<ScanReport>,
     build_time: Duration,
     built_at: Instant,
     weak_components: Arc<OnceLock<Vec<Vec<NodeIndex>>>>,
+    census: Arc<OnceLock<GraphCensus>>,
 }
 
 pub struct Weavatrix {

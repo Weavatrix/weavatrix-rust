@@ -1,9 +1,84 @@
 ﻿# Benchmark report
 
-Current release evidence was measured on 2026-08-03 on the same Windows
-workstation. Historical product, component, and in-process graph measurements
-remain below so changes in methodology are visible rather than silently
+The latest working-tree measurements are in the 2.16.x competitor round
+below. Historical product, component, and in-process graph measurements
+remain after it so changes in methodology stay visible rather than silently
 replacing old numbers.
+
+## 2.16.x working-tree competitor round
+
+Measured 2026-09-17 on the same Windows workstation as the 2.1.0 gate. The
+committed tag at measurement was `720afcd` (`2.16.0`); the release binary and
+`repository_suite` harness included the unpublished session-`Arc`, census,
+and parse-batch speed work on that tree. Fat-LTO release, `CARGO_INCREMENTAL=0`.
+
+These tools are **not equivalent products**. Wall-clock is reported so the
+cost of each contract is visible. ripgrep and tokei win at listing and
+counting. Weavatrix is the only row that emits a typed evidence graph with
+provenance. Serena, Aider RepoMap, CodeQL, GitNexus, and Gitingest were not
+timed: they are not a small local CLI on this machine, and installing them
+would not produce a comparable artifact.
+
+### In-process engine gate
+
+Same harness as 2.0.0–2.1.0: three cold `Weavatrix::open` samples and 1,000
+hot `graph_stats` calls in one process.
+
+```sh
+cargo bench --locked --all-features --bench repository_suite -- .
+```
+
+| Measurement | 2.1.0 (2026-08-03) | This working tree | Read |
+|---|---:|---:|---|
+| Repository view | 212 files / 1,693 nodes / 8,203 edges | 454 files / 4,805 nodes / 21,621 edges | Corpus and extractors grew (n8n, Dify, Agent, Mermaid, Web3). |
+| Cold build median | **78.55 ms** | **223.6 ms** | Absolute time tracks size. Per node both sit at ~46 µs. |
+| `graph_stats`, 1,000 hot calls | **656 µs/call** | **102 µs/call** | Census cache: ~6.4× faster on a 2.8× larger graph. |
+| Unchanged refresh | 7.09 ms/call | **3.38 ms/call** | Cheap `Arc` scan reuse. |
+| Literal search (`TODO`) | 7.20 ms/call | 14.83 ms/call | Larger tree; not the target of this pass. |
+
+Cold open is not claimed faster than 2.1.0. The repo more than doubled, and
+the new domain extractors run on that tree. The speed work removes the
+session-clone tax and the per-call graph walk.
+
+The in-process graph is one file larger than the CLI `graph_stats` sample
+(454 vs 453 files) because `benchmark-results/*.json` landed before
+`repository_suite` ran.
+
+Raw evidence:
+
+- `benchmark-results/rust-engine-2.16.1-speed.json`
+  (SHA-256 `16ABD8A696DC13C610E3572BD75D62BD00B7C70E44F6A0F78383E689B8519D05`).
+
+### Process-level wall clock on this tree
+
+Three samples after one discarded `npx` warmup. Medians. `target/` and
+`.git/` excluded where the tool has a flag.
+
+| Tool | Version | Median | What the process produced |
+|---|---|---:|---|
+| ripgrep `--files` | 15.1.0 | **41.3 ms** | 458 paths |
+| tokei `. -e target` | 15.0.0 | **95.6 ms** | 455 files; Rust 376 files / 50,767 code lines |
+| ripgrep `-n "fn "` | 15.1.0 | **107.2 ms** | 2,367 matching lines |
+| git `ls-files --cached` | 2.54.0 | **148.3 ms** | 466 tracked names |
+| weavatrix-rust `Weavatrix::open` | working tree | **223.6 ms** | In-process typed graph (harness above) |
+| weavatrix-rust `tool graph_stats` | 2.16.0 CLI | **668.7 ms** | Fresh process + compact JSON; 4,804 nodes / 21,620 edges |
+| weavatrix-rust `analyze` | 2.16.0 CLI | **724.9 ms** | Full snapshot JSON on stdout |
+| ast-grep `fn $NAME($$$)` | 0.45.3 via npx | **814.7 ms** | 5 structural matches (strict pattern, not the rg count) |
+| Repomix `--quiet` | 1.18.0 | **3,284 ms** | 3.8 MB packed XML, then deleted |
+| scc / Gitingest / Serena / CodeQL | — | — | Not installed; skipped |
+
+A second consecutive `graph_stats` CLI process was 705 ms. That is not
+in-process reuse; each invocation rebuilds. The 102 µs figure is the
+in-engine hot path after `open`.
+
+Raw evidence:
+
+- `benchmark-results/competitor-round-2026-09-17.json`
+  (SHA-256 `DAF8B8547DED9B0EB238B5A586AAB8CFD928A745DC834B52810D5ED3DDEB3079`).
+
+Current release evidence from 2026-08-03 remains below for the published
+2.1.0 gate. Historical product, component, and in-process graph measurements
+follow so methodology drift stays visible.
 
 ## 2.1.0 minor release basic and short-load gate
 

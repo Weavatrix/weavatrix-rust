@@ -1,0 +1,240 @@
+﻿{
+    "schemaVersion":  1,
+    "measuredAt":  "2026-09-17T15:14:56.9828649Z",
+    "sourceRevision":  "720afcd41286174b9818f7a9f39396f1e0b10109",
+    "environment":  {
+                        "platform":  "win32-x64",
+                        "node":  "v24.15.0",
+                        "freeDiskGbStart":  19.18,
+                        "freeDiskGbEnd":  17.05,
+                        "cargoIncremental":  0,
+                        "buildProfile":  "release fat-LTO"
+                    },
+    "caveat":  "Tools measure different things; wall-clock only on this repo working tree.",
+    "method":  {
+                   "samplesPerTool":  3,
+                   "npxWarmupDiscarded":  1,
+                   "targetExcludedWhereSupported":  true
+               },
+    "compile":  {
+                    "releaseBin":  "success",
+                    "architectureSelfTest":  "ok: 4 passed, 0 failed (architecture_self, --test-threads=1)"
+                },
+    "artifacts":  {
+                      "graph_stats":  {
+                                          "build_ms":  512.8306,
+                                          "capabilities":  null,
+                                          "edges":  21620,
+                                          "evidence":  {
+                                                           "parsed":  15249,
+                                                           "resolved":  6371
+                                                       },
+                                          "freshness":  {
+                                                            "content_reads":  453,
+                                                            "incremental_hashes_reused":  0,
+                                                            "source_revision":  "sha256:47811ebb9c60d23048c6cb3b30b0210d8e71f1c6d6266767a412cee6bec8bf16",
+                                                            "state":  "CURRENT"
+                                                        },
+                                          "node_kinds":  {
+                                                             "agent.registration":  65,
+                                                             "agent.skill":  1,
+                                                             "binding":  3,
+                                                             "column":  27,
+                                                             "config_key":  6,
+                                                             "constant":  239,
+                                                             "dify.app":  11,
+                                                             "dify.node":  19,
+                                                             "dify.port":  2,
+                                                             "endpoint":  7,
+                                                             "enum":  38,
+                                                             "file":  453,
+                                                             "function":  1961,
+                                                             "heading":  141,
+                                                             "kubernetes_resource":  1,
+                                                             "mermaid.binding":  1,
+                                                             "mermaid.diagram":  2,
+                                                             "mermaid.element":  12,
+                                                             "mermaid.group":  1,
+                                                             "method":  331,
+                                                             "module":  383,
+                                                             "n8n.ai":  1,
+                                                             "n8n.node":  31,
+                                                             "n8n.port":  38,
+                                                             "n8n.workflow":  24,
+                                                             "package":  24,
+                                                             "repository":  1,
+                                                             "selector":  11,
+                                                             "static":  12,
+                                                             "struct":  159,
+                                                             "trait":  1,
+                                                             "type_alias":  31,
+                                                             "unknown":  738,
+                                                             "variable":  12,
+                                                             "web3.abi":  3,
+                                                             "web3.abi.event":  5,
+                                                             "web3.abi.function":  2,
+                                                             "web3.artifact":  2,
+                                                             "web3.consumer":  5
+                                                         },
+                                          "nodes":  4804,
+                                          "relations":  {
+                                                            "binds_input":  5,
+                                                            "calls":  3035,
+                                                            "calls_workflow":  4,
+                                                            "configured_with":  20,
+                                                            "configures":  744,
+                                                            "contains":  4076,
+                                                            "declared_architecture":  8,
+                                                            "depends_on_output":  73,
+                                                            "deploys":  1,
+                                                            "flows_to":  56,
+                                                            "imports":  9887,
+                                                            "method":  320,
+                                                            "re_exports":  130,
+                                                            "reads_field":  11,
+                                                            "reads_variable":  7,
+                                                            "references":  3233,
+                                                            "uses_credential":  1,
+                                                            "uses_model":  3,
+                                                            "writes_variable":  6
+                                                        },
+                                          "repository":  "//?/C:/Users/SergiiZiborov/Documents/GitHub/MyProjects/weavatrix-rust",
+                                          "repository_context":  {
+                                                                     "git_head":  "720afcd41286174b9818f7a9f39396f1e0b10109",
+                                                                     "graph_age_seconds":  0,
+                                                                     "root":  "\\\\?\\C:\\Users\\SergiiZiborov\\Documents\\GitHub\\MyProjects\\weavatrix-rust",
+                                                                     "scan_revision":  "sha256:47811ebb9c60d23048c6cb3b30b0210d8e71f1c6d6266767a412cee6bec8bf16"
+                                                                 },
+                                          "revision":  "sha256:47811ebb9c60d23048c6cb3b30b0210d8e71f1c6d6266767a412cee6bec8bf16"
+                                      },
+                      "rg_files_count":  458,
+                      "rg_fn_match_lines":  2367,
+                      "git_tracked_files":  466,
+                      "tokei_output":  "ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü\r\n Language              Files        Lines         Code     Comments       Blanks\r\nΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü\r\n CSS                       1          181          154            0           27\r\n JavaScript               17         1781         1627           33          121\r\n JSON                     28        46092        46092            0            0\r\n PowerShell                1          268          240           11           17\r\n Plain Text                1           58            0           58            0\r\n TOML                      1           71           61            0           10\r\n TypeScript                1           33           30            0            3\r\n YAML                     13          355          355            0            0\r\nΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ\r\n Markdown                 16         2291            0         1851          440\r\n |- JSON                   1           53           53            0            0\r\n |- PowerShell             1            7            6            0            1\r\n |- Rust                   3           60           47            0           13\r\n |- TOML                   3           17           17            0            0\r\n (Total)                             2428          123         1851          454\r\nΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ\r\n Rust                    376        54046        50767          202         3077\r\n |- Markdown             141         1021            0          932           89\r\n (Total)                            55067        50767         1134         3166\r\nΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü\r\n Total                   455       106334        99449         3087         3798\r\nΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü"
+                  },
+    "timings":  {
+                    "weavatrix_analyze":  {
+                                              "note":  "{\"schema_version\":1,\"generator\":\"weavatrix-rust/2.16.0\",\"repository\":\"//?/C:/Users/SergiiZiborov/Documents/GitHub/MyProjects/weavatrix-rust\",\"revision\":\"sha256:47811ebb9c60d23048c6cb3b30b0210d8e71f1c6d6266767a412cee6bec8bf16\",\"capabilities\"â€¦",
+                                              "version":  "weavatrix-rust 2.16.0",
+                                              "exitCode":  0,
+                                              "command":  "C:\\Users\\SergiiZiborov\\Documents\\GitHub\\MyProjects\\weavatrix-rust\\target\\release\\weavatrix-rust.exe analyze .",
+                                              "samplesMs":  [
+                                                                716.2024,
+                                                                724.8763,
+                                                                750.87700000000007
+                                                            ],
+                                              "medianMs":  724.8763
+                                          },
+                    "weavatrix_graph_stats":  {
+                                                  "note":  "{\"build_ms\":512.8306,\"capabilities\":null,\"edges\":21620,\"evidence\":{\"parsed\":15249,\"resolved\":6371},\"freshness\":{\"content_reads\":453,\"incremental_hashes_reused\":0,\"source_revision\":\"sha256:47811ebb9c60d23048c6cb3b30b0210d8e71f1c6d6266767a412â€¦",
+                                                  "version":  "weavatrix-rust 2.16.0",
+                                                  "exitCode":  0,
+                                                  "command":  "C:\\Users\\SergiiZiborov\\Documents\\GitHub\\MyProjects\\weavatrix-rust\\target\\release\\weavatrix-rust.exe tool graph_stats . --compact",
+                                                  "samplesMs":  [
+                                                                    668.6998,
+                                                                    672.6321,
+                                                                    609.0637
+                                                                ],
+                                                  "medianMs":  668.6998
+                                              },
+                    "weavatrix_graph_stats_consecutive_process":  {
+                                                                      "firstMs":  698.149,
+                                                                      "lastOutput":  "{\"build_ms\":518.6246,\"capabilities\":null,\"edges\":21620,\"evidence\":{\"parsed\":15249,\"resolved\":6371},\"freshness\":{\"content_reads\":453,\"incremental_hashes_reused\":0,\"source_revision\":\"sha256:47811ebb9c60d23048c6cb3b30b0210d8e71f1c6d6266767a412â€¦",
+                                                                      "command":  "two back-to-back CLI invocations (not in-process)",
+                                                                      "note":  "First call ms then second call ms in same shell; not same process.",
+                                                                      "secondMs":  704.8624
+                                                                  },
+                    "rg_files":  {
+                                     "note":  "458 file paths listed",
+                                     "version":  "ripgrep 15.1.0-cursor5 (rev c3e3c2f7ec)",
+                                     "exitCode":  0,
+                                     "command":  "rg --files --glob \u0027!target/**\u0027 --glob \u0027!.git/**\u0027 .",
+                                     "samplesMs":  [
+                                                       106.58210000000001,
+                                                       41.342600000000004,
+                                                       40.518100000000004
+                                                   ],
+                                     "medianMs":  41.3426
+                                 },
+                    "rg_fn_lines":  {
+                                        "note":  "2367 lines with matches",
+                                        "version":  "ripgrep 15.1.0-cursor5 (rev c3e3c2f7ec)",
+                                        "exitCode":  0,
+                                        "command":  "rg -n \"fn \" --glob \u0027!target/**\u0027 --glob \u0027!.git/**\u0027 .",
+                                        "samplesMs":  [
+                                                          107.20110000000001,
+                                                          97.19680000000001,
+                                                          113.658
+                                                      ],
+                                        "medianMs":  107.2011
+                                    },
+                    "git_ls_files":  {
+                                         "note":  "466 tracked files (line count)",
+                                         "version":  "git version 2.54.0.windows.1",
+                                         "exitCode":  0,
+                                         "command":  "git ls-files --cached | Measure-Object -Line",
+                                         "samplesMs":  [
+                                                           498.77430000000004,
+                                                           148.2562,
+                                                           118.7425
+                                                       ],
+                                         "medianMs":  148.2562
+                                     },
+                    "tokei":  {
+                                  "note":  "ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüâ€¦",
+                                  "version":  "tokei 15.0.0 compiled with serialization support: json",
+                                  "exitCode":  0,
+                                  "command":  "tokei . -e target",
+                                  "samplesMs":  [
+                                                    119.9026,
+                                                    95.60690000000001,
+                                                    92.7488
+                                                ],
+                                  "medianMs":  95.6069
+                              },
+                    "scc":  {
+                                "skipped":  true,
+                                "reason":  "crates.io scc is a library; boyter/scc has no Cargo.toml (Go tool). Not installed."
+                            },
+                    "ast_grep":  {
+                                     "command":  "npx -p @ast-grep/cli ast-grep run -l rust -p \u0027fn $NAME($$$)\u0027 --globs \u0027!target/**\u0027 --globs \u0027!.git/**\u0027 .",
+                                     "version":  "ast-grep 0.45.3",
+                                     "samplesMs":  [
+                                                       814.7,
+                                                       797.67,
+                                                       1545.68
+                                                   ],
+                                     "medianMs":  814.7,
+                                     "exitCode":  0,
+                                     "note":  "5 structural fn matches (JSON lines); not comparable to rg fn line count"
+                                 },
+                    "repomix":  {
+                                    "note":  "Packed repo to XML; output bytes=3845237",
+                                    "version":  "repomix 1.18.0",
+                                    "exitCode":  0,
+                                    "command":  "npx --yes repomix --quiet --ignore \u0027target/**\u0027 -o C:\\Users\\SergiiZiborov\\Documents\\GitHub\\MyProjects\\weavatrix-rust\\benchmark-results\\_repomix_tmp.xml .",
+                                    "samplesMs":  [
+                                                      3549.1245000000004,
+                                                      3283.6952,
+                                                      2656.6393000000003
+                                                  ],
+                                    "medianMs":  3283.6952
+                                },
+                    "gitingest":  {
+                                      "reason":  "npx gitingest CLI not available or failed help probe",
+                                      "probe":  "node.exe : npm warn Unknown env config \"devdir\". This will stop working in the next major version of npm. See `npm \r | help npmrc` for supported config options.\r | At line:1 char:1\r",
+                                      "skipped":  true
+                                  }
+                },
+    "inProcessBench":  {
+                           "outputPath":  "benchmark-results/rust-engine-2.16.1-speed.json",
+                           "engine_version":  "2.16.0",
+                           "cold_build_ms_median":  223.624,
+                           "hot_graph_stats_us":  101.7967,
+                           "unchanged_refresh_ms":  3.3832333333333331,
+                           "literal_search_ms":  14.82666,
+                           "nodes":  4805,
+                           "edges":  21621,
+                           "files":  454
+                       }
+}

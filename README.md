@@ -8,12 +8,14 @@
 
 The protocol-independent evidence engine of the [Weavatrix ecosystem](https://weavatrix.com/ecosystem); MCP remains in the separate `weavatrix` product.
 
-**Turn a repository into deterministic evidence your Rust code can trust.**
+**Embed a revision-bound typed evidence graph. Do not spawn an LSP, pack a
+prompt, or compile a query database.**
 
-`weavatrix-rust` maps a codebase into a typed, revision-bound evidence graph
-with exact source provenance. It answers impact, architecture, API, health,
-history, search, semantic, and temporal-memory questions without executing the
-repository it analyzes.
+`weavatrix-rust` is the crate you link when the program — not a chat client —
+must own the graph. It builds a `Snapshot` with exact spans, extractor
+identity, and `proven` / `undetermined` / `BLOCKED` verdicts. It answers
+impact, architecture, API, health, history, search, semantic, and
+temporal-memory questions without executing the repository it analyzes.
 
 Use it to:
 
@@ -28,6 +30,29 @@ Use it to:
 > This crate is an engine, not an MCP server. Protocol transport, npm
 > packaging, profiles, and filesystem watching live in
 > [`weavatrix`](https://github.com/Weavatrix/weavatrix).
+
+## What this crate is not
+
+These tools show up in the same buyer conversations. They are not substitutes
+for this crate, and this crate is not a substitute for them. The
+[2026-09-17 competitor round](docs/benchmarks.md#216x-working-tree-competitor-round)
+times whatever was installable on this repository; the contracts below are why
+the times are not ranked as a race.
+
+| Adjacent tool | What it actually produces | Why it is not this crate |
+| --- | --- | --- |
+| Serena | LSP-over-MCP symbols, refs, and edits | Weavatrix never starts a language server and never writes source. |
+| Aider RepoMap | A token-budget ranked tag map for one chat | This crate keeps every proven node, not the slice that fits a prompt. |
+| Repomix / Gitingest | One packed XML/text blob for an LLM | A packer is a prompt I/O tool. This crate answers bounded operations. |
+| GitNexus / CodeGraph MCP | Daemon or SQLite/Neo4j agent graphs | This crate is embeddable Rust: no service, no extra database process. |
+| ast-grep | Structural search matches | Search is one operation here, beside impact and architecture verdicts. |
+| CodeQL | A QL database and vulnerability queries | This crate does not compile QL or claim a security proof. |
+| madge / dependency-cruiser | JavaScript import graphs | The snapshot is polyglot typed evidence, not imports-only. |
+| ripgrep / tokei | Text matches and line counts | They are faster at listing and counting. They do not emit a typed graph. |
+
+The unique surface is the combination: one deterministic `Snapshot`, exact
+provenance, an enforceable `.weavatrix/architecture.json` firewall, and domain
+extractors (n8n, Dify, Agent catalogs, Mermaid, Web3 ABI) on the same graph.
 
 ## Architecture Firewall
 
@@ -51,7 +76,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.16.0"
+weavatrix-rust = "2.16.1"
 ```
 
 ```rust
@@ -86,7 +111,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.16.0", default-features = false }
+weavatrix-rust = { version = "2.16.1", default-features = false }
 ```
 
 ## MCP product

@@ -1,7 +1,6 @@
 use crate::engine::RepositoryState;
 use crate::operations::{arg_str, arg_u64, optional_bool};
 use blazingly_json::{Value, json};
-use std::collections::BTreeMap;
 use weavatrix_graph::{Direction, NodeIndex, NodeKind, shortest_path};
 
 mod coupling;
@@ -17,18 +16,7 @@ use walk::resolve_seeds;
 pub(super) use walk::traverse;
 
 pub fn stats(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    let mut kinds = BTreeMap::<String, u64>::new();
-    let mut relations = BTreeMap::<String, u64>::new();
-    let mut evidence = BTreeMap::<String, u64>::new();
-    for node in state.graph().nodes() {
-        *kinds.entry(node.kind.as_str().to_owned()).or_default() += 1;
-    }
-    for edge in state.graph().edges() {
-        *relations.entry(edge.kind.as_str().to_owned()).or_default() += 1;
-        *evidence
-            .entry(edge.provenance.evidence.as_str().to_owned())
-            .or_default() += 1;
-    }
+    let census = state.census();
     // Static per build, not per repository or per call: opt in rather than pay for it every time.
     let capabilities = if optional_bool(args, "include_capabilities")?.unwrap_or(false) {
         json!(state.snapshot().capabilities)
@@ -41,9 +29,9 @@ pub fn stats(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         "nodes": state.graph().node_count(),
         "edges": state.graph().edge_count(),
         "build_ms": state.build_time().as_secs_f64() * 1000.0,
-        "node_kinds": kinds,
-        "relations": relations,
-        "evidence": evidence,
+        "node_kinds": census.kinds,
+        "relations": census.relations,
+        "evidence": census.evidence,
         "capabilities": capabilities,
         "freshness": {
             "state": "CURRENT",

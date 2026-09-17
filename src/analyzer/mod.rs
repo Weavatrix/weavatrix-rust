@@ -12,6 +12,7 @@ use crate::model::{Result, Snapshot};
 use pipeline::parse_parallel;
 use state::{AnalysisState, parse_source};
 use std::path::Path;
+use std::sync::Arc;
 use support::{canonical_repository, capabilities};
 
 #[derive(Debug, Clone)]
@@ -36,7 +37,7 @@ impl Default for AnalyzerConfig {
 
 pub struct Analyzer {
     config: AnalyzerConfig,
-    languages: LanguageRegistry,
+    languages: Arc<LanguageRegistry>,
 }
 
 #[derive(Debug, Clone)]
@@ -57,7 +58,7 @@ impl Analyzer {
     pub fn new(config: AnalyzerConfig) -> Self {
         Self {
             config,
-            languages: LanguageRegistry::default(),
+            languages: Arc::new(LanguageRegistry::default()),
         }
     }
 
@@ -112,7 +113,7 @@ impl Analyzer {
                 &source.path,
                 &source.bytes,
                 source.content_hash.as_deref(),
-                &self.languages,
+                self.languages.as_ref(),
             )
         })?;
         mounts::apply(&mut parsed);
@@ -122,7 +123,11 @@ impl Analyzer {
             state.integrate(item)?;
         }
         state.resolve_references()?;
-        state.into_snapshot(&repository, revision.into(), capabilities(&self.languages))
+        state.into_snapshot(
+            &repository,
+            revision.into(),
+            capabilities(self.languages.as_ref()),
+        )
     }
 
     /// Analyzes a repository and serializes the snapshot as JSON.

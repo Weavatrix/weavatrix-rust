@@ -1,13 +1,16 @@
 ﻿# Getting started
 
-Choose the smallest surface that matches your application: an immutable
-snapshot, a live repository engine, or the standalone CLI.
+This page is the **library and CLI** path into `weavatrix-rust`. It is not the
+MCP install guide — that lives in the `weavatrix` host — and it is not a
+tutorial for Serena, Repomix, or ripgrep. Choose the smallest surface that
+matches the program you are writing: an immutable snapshot, a live repository
+engine, or the standalone CLI.
 
 ## 1. Build a snapshot
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.16.0", default-features = false }
+weavatrix-rust = { version = "2.16.1", default-features = false }
 ```
 
 ```rust
@@ -36,7 +39,7 @@ CLI. It has no network implementation or external executable dependency.
 ```toml
 [dependencies]
 weavatrix-rust = {
-    version = "2.16.0",
+    version = "2.16.1",
     default-features = false,
     features = ["lang-rust", "git", "search"]
 }

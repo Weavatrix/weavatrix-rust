@@ -1,7 +1,6 @@
 use super::state::{AnalysisState, ParsedSource, parse_source};
 use super::support::{canonical_repository, capabilities};
 use super::{Analyzer, mounts};
-use crate::language::LanguageRegistry;
 use crate::model::{Error, Result, Snapshot};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -59,14 +58,18 @@ impl Analyzer {
         let repository = canonical_repository(repository.as_ref())?;
         let timing = std::env::var_os("WEAVATRIX_PHASE_TIMING").is_some();
         let started = std::time::Instant::now();
-        let parsed = Arc::new(Mutex::new(Vec::<(u64, Result<ParsedSource>)>::new()));
+        let parsed = Arc::new(Mutex::new(Vec::<Vec<(u64, Result<ParsedSource>)>>::new()));
         let sink = Arc::clone(&parsed);
+        let languages = Arc::clone(&self.languages);
         let visit = Scanner::new(&repository)
             .options(self.scan_options())
             .visit_content_manifest(move |_| {
-                let sink = Arc::clone(&sink);
-                let registry = LanguageRegistry::default();
+                let languages = Arc::clone(&languages);
                 let mut bytes = Vec::new();
+                let mut batch = ParseBatch {
+                    sink: Arc::clone(&sink),
+                    items: Vec::new(),
+                };
                 move |event| {
                     match event {
                         ContentVisitEvent::FileStart { file, .. } => {
@@ -86,11 +89,13 @@ impl Analyzer {
                             content_hash,
                             ..
                         } => {
-                            let result =
-                                parse_source(file.relative, &bytes, content_hash, &registry);
-                            sink.lock()
-                                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                                .push((file.sequence, result));
+                            let result = parse_source(
+                                file.relative,
+                                &bytes,
+                                content_hash,
+                                languages.as_ref(),
+                            );
+                            batch.items.push((file.sequence, result));
                         }
                         ContentVisitEvent::FileEnd { .. } => bytes.clear(),
                     }
@@ -103,6 +108,9 @@ impl Analyzer {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
             std::mem::take(&mut *guard)
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
         };
         parsed.sort_unstable_by_key(|(sequence, _)| *sequence);
         let mut parsed = parsed
@@ -148,7 +156,7 @@ impl Analyzer {
                 &file.relative,
                 &bytes,
                 file.content_hash.as_deref(),
-                &self.languages,
+                self.languages.as_ref(),
             )
         })?;
         mounts::apply(&mut parsed);
@@ -186,7 +194,7 @@ impl Analyzer {
         let snapshot = state.into_snapshot(
             repository,
             scan.revision.clone(),
-            capabilities(&self.languages),
+            capabilities(self.languages.as_ref()),
         )?;
         Ok((snapshot, integrated_at, resolved_at))
     }
@@ -207,5 +215,22 @@ impl Analyzer {
         options.content_discovery = ContentDiscoveryMode::BufferedParallel;
         options.evidence = EvidenceMode::SelectedFiles;
         options
+    }
+}
+
+struct ParseBatch {
+    sink: Arc<Mutex<Vec<Vec<(u64, Result<ParsedSource>)>>>>,
+    items: Vec<(u64, Result<ParsedSource>)>,
+}
+
+impl Drop for ParseBatch {
+    fn drop(&mut self) {
+        if self.items.is_empty() {
+            return;
+        }
+        self.sink
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(std::mem::take(&mut self.items));
     }
 }

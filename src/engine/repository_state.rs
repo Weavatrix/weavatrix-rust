@@ -18,12 +18,13 @@ impl RepositoryState {
             .map_err(|source| Error::io(&snapshot_root, source))?;
         Ok(Self {
             root,
-            snapshot,
+            snapshot: Arc::new(snapshot),
             graph: Arc::new(graph),
-            scan,
+            scan: Arc::new(scan),
             build_time: started.elapsed(),
             built_at: Instant::now(),
             weak_components: Arc::new(OnceLock::new()),
+            census: Arc::new(OnceLock::new()),
         })
     }
 
@@ -33,12 +34,13 @@ impl RepositoryState {
         let graph = Graph::try_from_sorted_parts(snapshot.nodes.clone(), snapshot.edges.clone())?;
         Ok(Self {
             root: root.to_path_buf(),
-            snapshot,
+            snapshot: Arc::new(snapshot),
             graph: Arc::new(graph),
-            scan,
+            scan: Arc::new(scan),
             build_time: started.elapsed(),
             built_at: Instant::now(),
             weak_components: Arc::new(OnceLock::new()),
+            census: Arc::new(OnceLock::new()),
         })
     }
 
@@ -54,8 +56,8 @@ impl RepositoryState {
     }
 
     #[must_use]
-    pub const fn snapshot(&self) -> &Snapshot {
-        &self.snapshot
+    pub fn snapshot(&self) -> &Snapshot {
+        self.snapshot.as_ref()
     }
 
     #[must_use]
@@ -69,8 +71,30 @@ impl RepositoryState {
     }
 
     #[must_use]
-    pub const fn scan_report(&self) -> &ScanReport {
-        &self.scan
+    pub fn scan_report(&self) -> &ScanReport {
+        self.scan.as_ref()
+    }
+
+    pub(crate) fn census(&self) -> &super::GraphCensus {
+        self.census.get_or_init(|| {
+            let mut kinds = std::collections::BTreeMap::<String, u64>::new();
+            let mut relations = std::collections::BTreeMap::<String, u64>::new();
+            let mut evidence = std::collections::BTreeMap::<String, u64>::new();
+            for node in self.graph.nodes() {
+                *kinds.entry(node.kind.as_str().to_owned()).or_default() += 1;
+            }
+            for edge in self.graph.edges() {
+                *relations.entry(edge.kind.as_str().to_owned()).or_default() += 1;
+                *evidence
+                    .entry(edge.provenance.evidence.as_str().to_owned())
+                    .or_default() += 1;
+            }
+            super::GraphCensus {
+                kinds,
+                relations,
+                evidence,
+            }
+        })
     }
 
     pub(crate) fn coupled_components(&self) -> &[Vec<NodeIndex>] {
