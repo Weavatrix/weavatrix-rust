@@ -139,7 +139,7 @@ fn property_removed(left: &[Value], right: &[Value]) -> bool {
 }
 
 fn enum_restricted(left: &[Value], right: &[Value]) -> bool {
-    prefixed(left, "enum:").into_iter().any(|(name, before)| {
+    let lost_value = prefixed(left, "enum:").into_iter().any(|(name, before)| {
         prefixed(right, "enum:").into_iter().any(|(other, after)| {
             other == name
                 && before
@@ -147,7 +147,11 @@ fn enum_restricted(left: &[Value], right: &[Value]) -> bool {
                     .filter(|item| !item.is_empty())
                     .any(|value| !after.split(',').any(|item| item == value))
         })
-    })
+    });
+    let first_enum = prefixed(right, "enum:").into_iter().any(|(name, _)| {
+        !prefixed(left, "enum:").iter().any(|(other, _)| other == &name)
+    });
+    lost_value || first_enum
 }
 
 fn bounds_tightened(left: &[Value], right: &[Value]) -> bool {
@@ -274,4 +278,21 @@ pub(super) fn selected_consumers(
         .take(max)
         .map(view::selected)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use blazingly_json::json;
+
+    #[test]
+    fn first_enum_on_unrestricted_string_is_breaking() {
+        let before = vec![json!({"name": "type:mode=string"})];
+        let after = vec![
+            json!({"name": "type:mode=string"}),
+            json!({"name": "enum:mode=safe"}),
+        ];
+        assert!(enum_restricted(&before, &after));
+        assert!(breaking(&before, &after));
+    }
 }

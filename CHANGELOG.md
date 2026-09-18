@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Agent schema impact treats the first AFTER-only enum on an unrestricted
+  string as a breaking restriction. A witness valid as a free string and
+  invalid after `enum: [safe]` is no longer reported as compatible.
+
 ## 2.16.1 - 2026-09-17
 
 - Session state shares the snapshot, graph, and scan through `Arc`, so
