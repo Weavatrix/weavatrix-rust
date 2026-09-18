@@ -149,7 +149,9 @@ fn enum_restricted(left: &[Value], right: &[Value]) -> bool {
         })
     });
     let first_enum = prefixed(right, "enum:").into_iter().any(|(name, _)| {
-        !prefixed(left, "enum:").iter().any(|(other, _)| other == &name)
+        !prefixed(left, "enum:")
+            .iter()
+            .any(|(other, _)| other == &name)
     });
     lost_value || first_enum
 }
