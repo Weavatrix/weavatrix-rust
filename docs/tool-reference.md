@@ -63,7 +63,11 @@ schemas are authoritative.
 - `find_dead_code`: review candidates with entry-point, test, configuration,
   dynamic, and external-use classification.
 - `run_audit`: dependency, runtime, graph, and capability health.
-- `coverage_map`: measured coverage attached to graph nodes.
+- `coverage_map`: ingest LCOV, Istanbul, Tarpaulin JSON, or LLVM coverage
+  onto graph nodes. The engine does not run tests. Weavatrix Quality writes
+  `.weavatrix/coverage/lcov.info` onto the search path. Absence is
+  `measured_coverage.present = false` plus labeled static reachability,
+  never a 0% or 100% claim.
 - `hot_path_review`: high-connectivity/change paths for review.
 
 These operations do not auto-delete code or turn a missing artifact into a

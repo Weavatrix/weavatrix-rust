@@ -91,7 +91,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.16.2"
+weavatrix-rust = "2.16.3"
 ```
 
 ```rust
@@ -126,7 +126,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.16.2", default-features = false }
+weavatrix-rust = { version = "2.16.3", default-features = false }
 ```
 
 ## MCP product
@@ -226,6 +226,11 @@ The default full build exposes 64 operations:
 | Change | `get_dependents`, `change_impact`, `select_tests`, `verified_change`, `prepare_change`, `graph_diff` |
 | Source | `search_code`, `read_source`, `inspect_symbol`, `go_to_definition`, `find_references`, `context_bundle`, `map_stacktrace` |
 | Health | `find_duplicates`, `find_dead_code`, `run_audit`, `coverage_map`, `hot_path_review` |
+
+`coverage_map` attaches a report that already exists. It does not spawn
+`cargo test`, Vitest, or Playwright. Weavatrix Quality is the sibling
+product that builds `.weavatrix/coverage/lcov.info` from the repository's
+own runner.
 | Measurement | `perf_attribution` |
 | APIs | `list_endpoints`, `trace_endpoint`, `trace_api_contract` |
 | Architecture | `get_architecture_contract`, `verify_architecture`, `verify_capabilities`, explain/propose exception |

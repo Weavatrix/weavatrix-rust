@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.16.3 - 2026-09-19
+
+- `coverage_map` MCP text states it only ingests a report. Weavatrix
+  Quality writes `.weavatrix/coverage/lcov.info`. A missing report is
+  unmeasured, not 0%. Skills and the evidence model say the same so an
+  agent does not treat this operation as a test runner.
+
 ## 2.16.2 - 2026-09-19
 
 - Agent schema impact treats the first AFTER-only enum on an unrestricted

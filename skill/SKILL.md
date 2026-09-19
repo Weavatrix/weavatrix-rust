@@ -37,7 +37,11 @@ server's refresh completed or when deliberately changing graph mode.
 - Branch or patch impact: `change_impact`; transitive symbol risk:
   `get_dependents`; structural drift: `graph_diff`.
 - Repository health: `run_audit`, then targeted `find_dead_code`,
-  `find_duplicates`, `coverage_map`, and `hot_path_review`.
+  `find_duplicates`, and `hot_path_review`. For measured coverage, run
+  Weavatrix Quality `quality_run` first (or place a report on a
+  `coverage_map` search path), then call `coverage_map`. `coverage_map`
+  never executes tests. A missing report is unmeasured, not 0%. Read
+  [references/tools/coverage_map.md](references/tools/coverage_map.md).
 - Intended architecture: `get_architecture_contract`, `prepare_change`, then
   `verify_architecture`; explain or propose an exception only for a concrete
   violation fingerprint.
@@ -62,7 +66,8 @@ among similar tools or reviewing transport evidence.
 
 - Treat source spans, extractor identity, graph revision, relation type, and
   confidence as part of every finding.
-- Distinguish static reachability from measured coverage.
+- Distinguish static reachability from measured coverage. `coverage_map`
+  only ingests a report; Quality is what builds `.weavatrix/coverage/lcov.info`.
 - Confirm dead-code and clone candidates in source and framework registration
   points before editing.
 - Preserve exact transport identity. Do not merge AMQP, RabbitMQ, NATS, Kafka,

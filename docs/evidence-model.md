@@ -35,9 +35,12 @@ source span for an agent without selecting an unrelated same-named symbol.
 ## Coverage
 
 `coverage_map` ingests measured LCOV, Istanbul, Tarpaulin JSON, and LLVM
-coverage. Static reachability may identify likely affected tests but is never
-labeled as measured coverage. Artifact absence cannot become a zero-risk or
-fully-covered conclusion.
+coverage. It does not execute tests. Weavatrix Quality is the product that
+builds `.weavatrix/coverage/lcov.info` from the repository's own runner
+(llvm-cov or tarpaulin when installed, otherwise Vitest/Jest/Bun/Go
+coverage — not Playwright by default). Static reachability may identify
+likely affected tests but is never labeled as measured coverage. Artifact
+absence cannot become a zero-risk or fully-covered conclusion.
 
 ## Bounded correctness
 

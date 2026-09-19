@@ -132,7 +132,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "coverage_map",
-        description: "Measured coverage discovery or explicit static reachability.",
+        description: "Ingest LCOV, Istanbul, Tarpaulin, or LLVM reports onto graph nodes. Does not run tests. A missing report is unmeasured, not 0%. Quality writes `.weavatrix/coverage/lcov.info`.",
         required: &[],
     },
     ToolSpec {

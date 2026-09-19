@@ -44,7 +44,7 @@ repositories: the call fails instead of answering about the wrong root.
 - `find_dead_code`: conservative production-symbol review queue; confidence
   tiers are 25 (file), 50 (exported), 85 (private symbol).
 - `find_duplicates`: Type-1, Type-2, and Type-3 clone families.
-- `coverage_map`: measured reports and separately labeled static reachability.
+- `coverage_map`: ingest only — see [tools/coverage_map.md](tools/coverage_map.md). Quality builds `.weavatrix/coverage/lcov.info`. A missing report is unmeasured, not 0%.
 - `hot_path_review`: static complexity times resolved call fan-in, with
   `min_score` and cyclomatic/call/loop-depth thresholds.
 - `get_architecture_contract`, `prepare_change`, `verify_architecture`,
