@@ -39,7 +39,7 @@ jobs:
             exit 1
           fi
       - name: Enforce the repository architecture contract
-        run: cargo test --locked --all-features --test architecture_self
+        run: cargo test --locked --all-features --test architecture
 
   test:
     strategy:

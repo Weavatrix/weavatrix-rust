@@ -346,7 +346,7 @@ cargo fmt --all -- --check
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo clippy --locked --all-targets --no-default-features -- -D warnings
 cargo test --locked --no-default-features
-cargo test --locked --test architecture_self
+cargo test --locked --test architecture
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps --all-features
 ```
 

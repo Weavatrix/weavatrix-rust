@@ -70,7 +70,7 @@ This crate composes them. It does not duplicate their algorithms.
 ## Enforced contract
 
 The checked-in `.weavatrix/architecture.json` is executable, not descriptive
-decoration. `verify_architecture` and `tests/architecture_self.rs` enforce:
+decoration. `verify_architecture` and `tests/architecture.rs` enforce:
 
 - no forbidden inward-to-outward imports;
 - no runtime dependency cycles;
