@@ -2,6 +2,15 @@
 
 #[path = "language_fixture/mod.rs"]
 mod language_fixture;
+#[cfg(all(
+    feature = "clone",
+    feature = "git",
+    feature = "lang-rust",
+    feature = "memory",
+    feature = "search",
+    feature = "semantic",
+    feature = "vector"
+))]
 #[path = "read_only_contract/mod.rs"]
 mod read_only_contract;
 #[path = "support/mod.rs"]

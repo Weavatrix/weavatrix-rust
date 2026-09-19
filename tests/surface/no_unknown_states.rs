@@ -1,6 +1,5 @@
 #[cfg(feature = "git")]
 use crate::support::GitFixture;
-#[cfg(feature = "git")]
 use blazingly_json::Value;
 #[cfg(feature = "git")]
 use blazingly_json::json;
