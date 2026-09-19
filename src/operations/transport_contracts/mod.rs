@@ -9,27 +9,46 @@ use std::path::{Component, Path};
 use weavatrix_graph::{AttributeValue, EdgeKind, NodeKind};
 use weavatrix_parse::{Language, Token, TokenKind, tokenize};
 
+#[path = "brokers/amqp.rs"]
 mod amqp;
 mod arguments;
+#[path = "brokers/aws.rs"]
 mod aws;
+#[path = "matching/bindings.rs"]
 mod bindings;
+#[path = "scan/detection.rs"]
 mod detection;
+#[path = "runtime/event.rs"]
 mod event;
+#[path = "scan/fallback.rs"]
 mod fallback;
+#[path = "http/contracts.rs"]
 mod http;
+#[path = "http/evidence.rs"]
 mod http_evidence;
+#[path = "http/route.rs"]
 mod http_route;
+#[path = "brokers/jms.rs"]
 mod jms;
+#[path = "brokers/kafka.rs"]
 mod kafka;
+#[path = "matching/evaluate.rs"]
 mod matching;
 mod model;
+#[path = "brokers/nats.rs"]
 mod nats;
+#[path = "runtime/load.rs"]
 mod runtime;
+#[path = "runtime/normalization.rs"]
 mod runtime_normalization;
+#[path = "scan/walk.rs"]
 mod scan;
+#[path = "scan/syntax.rs"]
 mod syntax;
 mod time;
+#[path = "matching/typed.rs"]
 mod typed;
+#[path = "matching/typed_matching.rs"]
 mod typed_matching;
 
 use amqp::detect_amqp;

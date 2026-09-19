@@ -1,3 +1,4 @@
+use super::schema_rules::{self, field};
 use super::view::owned_domains;
 use crate::engine::RepositoryState;
 use blazingly_json::{Value, json};
@@ -84,7 +85,7 @@ fn decide(
             vec!["unsupported or unresolved schema construct is present"],
         );
     }
-    if breaking(left, right) || !remaining.is_empty() {
+    if schema_rules::breaking(left, right) || !remaining.is_empty() {
         return (
             "proven-incompatible",
             checked,
@@ -111,86 +112,6 @@ fn flagged(domains: &[Value]) -> bool {
             name == "schema:unresolved_ref" || name.starts_with("schema:unsupported:")
         })
     })
-}
-
-fn breaking(left: &[Value], right: &[Value]) -> bool {
-    type_changed(left, right)
-        || property_removed(left, right)
-        || enum_restricted(left, right)
-        || bounds_tightened(left, right)
-        || additional_restricted(left, right)
-}
-
-fn type_changed(left: &[Value], right: &[Value]) -> bool {
-    prefixed(left, "type:").into_iter().any(|(name, before)| {
-        prefixed(right, "type:")
-            .into_iter()
-            .any(|(other, after)| other == name && after != before)
-    })
-}
-
-fn property_removed(left: &[Value], right: &[Value]) -> bool {
-    let before = field(left, "properties:").unwrap_or_default();
-    let after = field(right, "properties:").unwrap_or_default();
-    before
-        .split(',')
-        .filter(|item| !item.is_empty())
-        .any(|name| !after.split(',').any(|item| item == name))
-}
-
-fn enum_restricted(left: &[Value], right: &[Value]) -> bool {
-    let lost_value = prefixed(left, "enum:").into_iter().any(|(name, before)| {
-        prefixed(right, "enum:").into_iter().any(|(other, after)| {
-            other == name
-                && before
-                    .split(',')
-                    .filter(|item| !item.is_empty())
-                    .any(|value| !after.split(',').any(|item| item == value))
-        })
-    });
-    let first_enum = prefixed(right, "enum:").into_iter().any(|(name, _)| {
-        !prefixed(left, "enum:")
-            .iter()
-            .any(|(other, _)| other == &name)
-    });
-    lost_value || first_enum
-}
-
-fn bounds_tightened(left: &[Value], right: &[Value]) -> bool {
-    prefixed(left, "bound:").into_iter().any(|(name, before)| {
-        prefixed(right, "bound:")
-            .into_iter()
-            .any(|(other, after)| other == name && tighter(&before, &after))
-    }) || prefixed(right, "bound:").into_iter().any(|(name, _)| {
-        !prefixed(left, "bound:")
-            .iter()
-            .any(|(other, _)| other == &name)
-    })
-}
-
-fn additional_restricted(left: &[Value], right: &[Value]) -> bool {
-    let before = field(left, "additionalProperties:").unwrap_or_else(|| "absent".into());
-    let after = field(right, "additionalProperties:").unwrap_or_else(|| "absent".into());
-    matches!(
-        (before.as_str(), after.as_str()),
-        ("true" | "absent", "false")
-    )
-}
-
-fn tighter(before: &str, after: &str) -> bool {
-    matches!(
-        (int_part(before, "min:"), int_part(after, "min:")),
-        (Some(old), Some(new)) if new > old
-    ) || matches!(
-        (int_part(before, "max:"), int_part(after, "max:")),
-        (Some(old), Some(new)) if new < old
-    )
-}
-
-fn int_part(spec: &str, key: &str) -> Option<i64> {
-    spec.split(',')
-        .find_map(|part| part.strip_prefix(key))
-        .and_then(|part| part.parse().ok())
 }
 
 fn scoped_transform<'a>(
@@ -228,28 +149,6 @@ fn injected(state: &RepositoryState, transform: &Node) -> Vec<String> {
         .collect()
 }
 
-fn prefixed(domains: &[Value], prefix: &str) -> Vec<(String, String)> {
-    domains
-        .iter()
-        .filter_map(|item| {
-            item["name"]
-                .as_str()
-                .and_then(|name| name.strip_prefix(prefix))
-                .and_then(|rest| rest.split_once('='))
-                .map(|(name, value)| (name.to_owned(), value.to_owned()))
-        })
-        .collect()
-}
-
-pub(super) fn field(domains: &[Value], prefix: &str) -> Option<String> {
-    domains.iter().find_map(|item| {
-        item["name"]
-            .as_str()
-            .and_then(|name| name.strip_prefix(prefix))
-            .map(ToOwned::to_owned)
-    })
-}
-
 fn added_csv(before: &str, after: &str) -> Vec<String> {
     after
         .split(',')
@@ -260,7 +159,7 @@ fn added_csv(before: &str, after: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::super::schema_rules;
     use blazingly_json::json;
 
     #[test]
@@ -268,9 +167,18 @@ mod tests {
         let before = vec![json!({"name": "type:mode=string"})];
         let after = vec![
             json!({"name": "type:mode=string"}),
-            json!({"name": "enum:mode=safe"}),
+            json!({"name": "enum:mode=[\"safe\"]"}),
         ];
-        assert!(enum_restricted(&before, &after));
-        assert!(breaking(&before, &after));
+        assert!(schema_rules::breaking(&before, &after));
+    }
+
+    #[test]
+    fn boolean_enum_of_both_values_is_not_a_restriction() {
+        let before = vec![json!({"name": "type:flag=boolean"})];
+        let after = vec![
+            json!({"name": "type:flag=boolean"}),
+            json!({"name": "enum:flag=[true,false]"}),
+        ];
+        assert!(!schema_rules::breaking(&before, &after));
     }
 }

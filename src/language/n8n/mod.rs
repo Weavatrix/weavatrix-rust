@@ -2,6 +2,7 @@
 
 mod connections;
 mod coverage;
+#[path = "parse/decode.rs"]
 mod decode;
 mod detect;
 mod embedded;
@@ -10,6 +11,7 @@ mod facts;
 mod families;
 mod locations;
 mod model;
+#[path = "parse/nodes.rs"]
 mod nodes;
 mod redaction;
 

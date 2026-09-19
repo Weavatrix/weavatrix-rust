@@ -104,3 +104,20 @@ fn has_control_flow(
         .iter()
         .any(|line| MARKERS.iter().any(|marker| line.contains(marker)))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{is_boilerplate, is_semantic_contract_path};
+
+    #[test]
+    fn boilerplate_and_contract_paths_are_named() {
+        assert!(is_boilerplate("src/app.router.ts"));
+        assert!(is_boilerplate("src\\users.routes.js"));
+        assert!(is_boilerplate("api.handlers.mjs"));
+        assert!(!is_boilerplate("src/model.ts"));
+        assert!(is_semantic_contract_path("src/models/user.ts"));
+        assert!(is_semantic_contract_path("pkg/schema/v1.json"));
+        assert!(is_semantic_contract_path("contracts/vault.rs"));
+        assert!(!is_semantic_contract_path("src/util.ts"));
+    }
+}

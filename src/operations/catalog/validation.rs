@@ -85,9 +85,14 @@ pub(super) fn enum_schema(tool: &str, name: &str) -> Option<Value> {
         ("cross_repo_git", "action") => &["histories", "shared_commits", "diff"],
         ("get_architecture_contract", "action") => &["preview"],
         ("run_audit", "debt") => &["new", "existing", "all"],
-        ("run_audit", "category") => {
-            &["all", "diagnostics", "structure", "dependencies", "runtime"]
-        }
+        ("run_audit", "category") => &[
+            "all",
+            "diagnostics",
+            "structure",
+            "dependencies",
+            "runtime",
+            "tests",
+        ],
         ("run_audit", "min_severity") => &["low", "medium", "high", "critical"],
         ("verified_change", "phase") => &["plan", "verify"],
         ("perf_attribution", "direction") => &["lower_is_better", "higher_is_better"],

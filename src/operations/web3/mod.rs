@@ -11,23 +11,28 @@ pub(super) fn inventory(state: &RepositoryState, args: &Value) -> Result<Value, 
     reject_unknown_arguments("web3_inventory", args, &["path", "max_results"])?;
     let path = optional_str(args, "path")?;
     let max = bounded(optional_u64(args, "max_results")?.unwrap_or(200), 500)?;
-    let artifacts = take_nodes(state, "web3.artifact", path, max);
-    let members = take_nodes(state, "web3.abi.event", path, max)
-        .into_iter()
-        .chain(take_nodes(state, "web3.abi.function", path, max))
-        .take(max)
-        .collect::<Vec<_>>();
-    let consumers = take_nodes(state, "web3.consumer", path, max);
+    let (artifacts, art_found) = take_nodes(state, "web3.artifact", path, max);
+    let (events, event_found) = take_nodes(state, "web3.abi.event", path, max);
+    let (functions, fn_found) = take_nodes(state, "web3.abi.function", path, max);
+    let mut members = events;
+    members.extend(functions);
+    let member_found = event_found + fn_found;
+    let member_cut = members.len() > max;
+    members.truncate(max);
+    let (consumers, consumer_found) = take_nodes(state, "web3.consumer", path, max);
+    let found = art_found + member_found + consumer_found;
+    let shown = artifacts.len() + members.len() + consumers.len();
+    let truncated = art_found > artifacts.len() || member_cut || consumer_found > consumers.len();
     Ok(json!({
         "artifacts": artifacts,
         "members": members,
         "consumers": consumers,
         "coverage": view::coverage(state),
         "bounds": {
-            "truncated": false,
-            "found": artifacts.len() + members.len() + consumers.len(),
-            "shown": artifacts.len() + members.len() + consumers.len(),
-            "reasons": Value::Array(Vec::new()),
+            "truncated": truncated,
+            "found": found,
+            "shown": shown,
+            "reasons": if truncated { vec!["max_results"] } else { Vec::<&str>::new() },
             "revision": state.snapshot().revision,
             "runtime": false
         }
@@ -50,36 +55,7 @@ pub(super) fn trace(state: &RepositoryState, args: &Value) -> Result<Value, Stri
     let offset = domain_walk::page_offset_for(args, &state.snapshot().revision)?;
     let index = state.resolve_node(label)?;
     let node = state.node(index)?;
-    let mut steps = vec![json!({
-        "id": node.id,
-        "label": node.label,
-        "kind": node.kind,
-        "span": node.span,
-        "hop": 0
-    })];
-    if depth > 0 {
-        for edge in state.graph().edges() {
-            if edge.source.as_str() != node.id.as_str() && edge.target.as_str() != node.id.as_str()
-            {
-                continue;
-            }
-            let other = if edge.source.as_str() == node.id.as_str() {
-                edge.target.as_str()
-            } else {
-                edge.source.as_str()
-            };
-            if let Some(next) = state.graph().node(other) {
-                steps.push(json!({
-                    "id": next.id,
-                    "label": next.label,
-                    "kind": next.kind,
-                    "relation": edge.kind,
-                    "span": next.span,
-                    "hop": 1
-                }));
-            }
-        }
-    }
+    let (steps, depth_cut) = walk_steps(state, node, depth);
     let total = steps.len();
     let end = offset.saturating_add(max).min(total);
     let page = if offset > total {
@@ -88,7 +64,7 @@ pub(super) fn trace(state: &RepositoryState, args: &Value) -> Result<Value, Stri
         steps[offset..end].to_vec()
     };
     let mut reasons = Vec::new();
-    if depth == 1 && total > 1 {
+    if depth_cut {
         reasons.push("depth");
     }
     if end < total {
@@ -130,10 +106,11 @@ pub(super) fn context(state: &RepositoryState, args: &Value) -> Result<Value, St
     let index = state.resolve_node(label)?;
     let node = state.node(index)?;
     let domains = view::domain_names(state, node.id.as_str());
-    let consumers = view::consumers_of(state, node.id.as_str())
-        .into_iter()
-        .take(max)
-        .collect::<Vec<_>>();
+    let all_consumers = view::consumers_of(state, node.id.as_str());
+    let consumer_found = all_consumers.len();
+    let consumers = all_consumers.into_iter().take(max).collect::<Vec<_>>();
+    let domains_all = domains.len();
+    let domain_cut = domains_all > max;
     let mut gaps = vec![
         "deployment state is not_provided".to_owned(),
         "historical log coverage is not_provided".to_owned(),
@@ -153,24 +130,78 @@ pub(super) fn context(state: &RepositoryState, args: &Value) -> Result<Value, St
         "gaps": gaps,
         "coverage": view::coverage(state),
         "bounds": {
-            "truncated": false,
-            "found": 0,
-            "shown": 0,
-            "reasons": Value::Array(Vec::new()),
+            "truncated": domain_cut || consumer_found > consumers.len(),
+            "found": domains_all + consumer_found,
+            "shown": domains_all.min(max) + consumers.len(),
+            "reasons": if domain_cut || consumer_found > max { vec!["max_related"] } else { Vec::<&str>::new() },
             "revision": state.snapshot().revision,
             "runtime": false
         }
     }))
 }
 
-fn take_nodes(state: &RepositoryState, kind: &str, path: Option<&str>, max: usize) -> Vec<Value> {
-    state
+fn walk_steps(state: &RepositoryState, start: &Node, depth: usize) -> (Vec<Value>, bool) {
+    let mut steps = vec![json!({
+        "id": start.id,
+        "label": start.label,
+        "kind": start.kind,
+        "span": start.span,
+        "hop": 0
+    })];
+    let mut seen = std::collections::BTreeSet::from([start.id.as_str().to_owned()]);
+    let mut frontier = vec![(start.id.as_str().to_owned(), 0_usize)];
+    let mut depth_cut = false;
+    while let Some((id, hop)) = frontier.pop() {
+        if hop >= depth {
+            continue;
+        }
+        for edge in state.graph().edges() {
+            if edge.source.as_str() != id && edge.target.as_str() != id {
+                continue;
+            }
+            let other = if edge.source.as_str() == id {
+                edge.target.as_str()
+            } else {
+                edge.source.as_str()
+            };
+            if !seen.insert(other.to_owned()) {
+                continue;
+            }
+            if hop + 1 == depth {
+                depth_cut |= state.graph().edges().iter().any(|next| {
+                    (next.source.as_str() == other || next.target.as_str() == other)
+                        && next.source.as_str() != id
+                        && next.target.as_str() != id
+                });
+            }
+            if let Some(next) = state.graph().node(other) {
+                steps.push(json!({
+                    "id": next.id,
+                    "label": next.label,
+                    "kind": next.kind,
+                    "relation": edge.kind,
+                    "span": next.span,
+                    "hop": hop + 1
+                }));
+                frontier.push((other.to_owned(), hop + 1));
+            }
+        }
+    }
+    (steps, depth_cut)
+}
+
+fn take_nodes(
+    state: &RepositoryState,
+    kind: &str,
+    path: Option<&str>,
+    max: usize,
+) -> (Vec<Value>, usize) {
+    let all = state
         .graph()
         .nodes()
         .iter()
         .filter(|node| node.kind.as_str() == kind && node.id.as_str().starts_with("symbol:"))
         .filter(|node| path.is_none_or(|filter| view::in_path(node, filter)))
-        .take(max)
         .map(|node| {
             json!({
                 "id": node.id,
@@ -180,7 +211,9 @@ fn take_nodes(state: &RepositoryState, kind: &str, path: Option<&str>, max: usiz
                 "span": node.span
             })
         })
-        .collect()
+        .collect::<Vec<_>>();
+    let found = all.len();
+    (all.into_iter().take(max).collect(), found)
 }
 
 fn fragments(state: &RepositoryState, node: &Node) -> Vec<Value> {

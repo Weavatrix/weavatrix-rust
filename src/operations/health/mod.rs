@@ -1,9 +1,11 @@
 mod audit;
 mod clones;
 mod coverage;
+#[path = "graph/cycles.rs"]
 mod cycles;
 mod dead_code;
 mod debt;
+#[path = "deps/dependencies.rs"]
 mod dependencies;
 mod entry_points;
 mod hot_paths;
@@ -11,7 +13,10 @@ mod manifests;
 pub(in crate::operations) mod paths;
 mod project_identity;
 pub(super) mod runtime;
+#[path = "graph/scc.rs"]
 mod scc;
+#[path = "evidence/test_evidence.rs"]
+mod test_evidence;
 
 pub(super) use audit::audit;
 pub(super) use clones::duplicates;

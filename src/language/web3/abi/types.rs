@@ -129,3 +129,41 @@ pub(super) fn join_types(params: &[AbiType]) -> String {
         .collect::<Vec<_>>()
         .join(",")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{join_types, normalize_alias, parse_param};
+    use blazingly_json::json;
+
+    #[test]
+    fn abi_types_normalize_tuples_aliases_and_limits() {
+        assert_eq!(normalize_alias("uint"), "uint256");
+        assert_eq!(normalize_alias("int"), "int256");
+        let simple = parse_param(&json!({"type": "uint", "name": "x", "indexed": true}), 0);
+        assert_eq!(simple.canonical, "uint256");
+        assert!(simple.indexed);
+        let bytes = parse_param(&json!({"type": "bytes32"}), 0);
+        assert!(bytes.supported);
+        let fixed = parse_param(&json!({"type": "fixed128x18"}), 0);
+        assert!(!fixed.supported);
+        assert!(parse_param(&json!({"type": "string"}), 0).supported);
+        assert!(parse_param(&json!({"type": "function"}), 0).supported);
+        assert!(parse_param(&json!({"type": "bytes"}), 0).supported);
+        assert!(parse_param(&json!({"type": "bytes16"}), 0).supported);
+        assert!(!parse_param(&json!({"type": "int7"}), 0).supported);
+        assert!(!parse_param(&json!({}), 0).supported);
+        let tuple = parse_param(
+            &json!({
+                "type": "tuple[]",
+                "components": [{"type": "address"}, {"type": "uint"}]
+            }),
+            0,
+        );
+        assert!(tuple.canonical.contains("address"));
+        assert!(tuple.canonical.contains("uint256"));
+        let deep = parse_param(&json!({"type": "uint"}), 80);
+        assert_eq!(deep.canonical, "unsupported");
+        assert!(!deep.supported);
+        assert_eq!(join_types(&[simple, bytes]), "uint256,bytes32");
+    }
+}

@@ -91,6 +91,42 @@ pub(super) fn page_offset_for(args: &Value, revision: &str) -> Result<usize, Str
     Ok(offset)
 }
 
+pub(super) struct TraceRequest {
+    pub label: String,
+    pub depth: usize,
+    pub max_nodes: usize,
+}
+
+pub(super) fn parse_trace(
+    operation: &str,
+    args: &Value,
+    default_max_nodes: u64,
+) -> Result<TraceRequest, String> {
+    crate::operations::reject_unknown_arguments(
+        operation,
+        args,
+        &["label", "depth", "max_nodes", "cursor", "direction"],
+    )?;
+    let label = crate::operations::arg_str(args, "label")?.to_owned();
+    let depth = usize::try_from(crate::operations::optional_u64(args, "depth")?.unwrap_or(8))
+        .map_err(|_| "depth is too large")?;
+    if !(1..=32).contains(&depth) {
+        return Err("depth must be between 1 and 32".to_owned());
+    }
+    let max_nodes = usize::try_from(
+        crate::operations::optional_u64(args, "max_nodes")?.unwrap_or(default_max_nodes),
+    )
+    .map_err(|_| "max_nodes is too large")?;
+    if max_nodes == 0 || max_nodes > 500 {
+        return Err("max_nodes must be between 1 and 500".to_owned());
+    }
+    Ok(TraceRequest {
+        label,
+        depth,
+        max_nodes,
+    })
+}
+
 pub(super) fn incoming_arg(args: &Value) -> Result<bool, String> {
     match args.get("direction").and_then(Value::as_str) {
         None | Some("outgoing") => Ok(false),

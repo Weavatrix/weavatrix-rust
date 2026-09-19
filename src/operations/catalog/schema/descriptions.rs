@@ -71,6 +71,19 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
 
 fn tool_field(tool: &str, name: &str) -> Option<Value> {
     match (tool, name) {
+        ("run_audit", "include_tests") => Some(json!({
+            "type": "boolean",
+            "default": true,
+            "description": "When true (the default), attach revision-bound external test evidence if the caller supplied test_evidence or test_evidence_path. Weavatrix still does not execute tests"
+        })),
+        ("run_audit", "test_evidence") => Some(json!({
+            "type": "object",
+            "description": "Inline weavatrix.test-evidence.v1 object. Mutually exclusive with test_evidence_path. The engine does not run the suite"
+        })),
+        ("run_audit", "test_evidence_path") => Some(json!({
+            "type": "string",
+            "description": "Repository-relative JSON file with schema weavatrix.test-evidence.v1. Mutually exclusive with test_evidence"
+        })),
         ("find_dead_code", "min_confidence") => Some(json!({
             "type": "integer",
             "minimum": 0,

@@ -1,19 +1,27 @@
 //! Agent Plugins, Agent Skills, MCP configs, catalogs, and observations.
 
+#[path = "ingest/a2a.rs"]
 mod a2a;
+#[path = "ingest/catalog.rs"]
 mod catalog;
 mod detect;
 mod facts;
+#[path = "ingest/mcp.rs"]
 mod mcp;
 mod model;
 mod names;
+#[path = "ingest/observe.rs"]
 mod observe;
+#[path = "ingest/origin.rs"]
 mod origin;
 mod paths;
+#[path = "ingest/plugin.rs"]
 mod plugin;
 mod redaction;
 mod register;
 mod schema;
+mod schema_bounds;
+#[path = "ingest/skill.rs"]
 mod skill;
 
 pub(crate) use detect::looks_promising;

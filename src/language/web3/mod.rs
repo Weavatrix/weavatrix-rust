@@ -3,8 +3,11 @@
 //! Read-only. Does not compile contracts, call RPC, or execute repository code.
 
 mod abi;
+#[path = "extract/artifacts.rs"]
 mod artifacts;
+#[path = "extract/clients.rs"]
 mod clients;
+#[path = "extract/code_span.rs"]
 mod code_span;
 mod detect;
 mod facts;
@@ -64,6 +67,26 @@ pub(crate) fn overlay_clients(path: &str, raw: &str, facts: &mut FileFacts) {
 mod tests {
     use super::overlay_clients;
     use crate::language::FileFacts;
+
+    #[test]
+    fn solc_input_is_recorded_without_abi_members() {
+        let raw = r#"{"language":"Solidity","sources":{}}"#;
+        let value = blazingly_json::from_str(raw).unwrap();
+        let facts = super::analyze("in.json", raw, &value).unwrap();
+        assert!(
+            facts
+                .diagnostics
+                .iter()
+                .any(|item| item.code == "web3.artifact.input_only")
+        );
+    }
+
+    #[test]
+    fn ordinary_json_is_not_a_web3_artifact() {
+        let raw = r#"{"name":"pkg"}"#;
+        let value = blazingly_json::from_str(raw).unwrap();
+        assert!(super::analyze("package.json", raw, &value).is_none());
+    }
 
     #[test]
     fn viem_decode_event_log_is_a_consumer() {

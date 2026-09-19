@@ -32,13 +32,11 @@ pub(super) fn change_impact(state: &RepositoryState, args: &Value) -> Result<Val
     let after_complete = catalog_complete(state, after);
     let mut changes = Vec::new();
     for name in &names {
-        let left = before_tools.iter().find(|node| node.label == *name);
-        let right = after_tools.iter().find(|node| node.label == *name);
         changes.push(diff_tool(
             state,
             name,
-            left,
-            right,
+            named(&before_tools, name),
+            named(&after_tools, name),
             &transforms,
             before_complete,
             after_complete,
@@ -75,23 +73,56 @@ fn catalog_complete(state: &RepositoryState, path: &str) -> bool {
         })
 }
 
+fn named<'a>(tools: &'a [&Node], name: &str) -> ToolMatch<'a> {
+    let hits = tools
+        .iter()
+        .copied()
+        .filter(|node| node.label == name)
+        .collect::<Vec<_>>();
+    match hits.as_slice() {
+        [] => ToolMatch::None,
+        [one] => ToolMatch::One(one),
+        many => ToolMatch::Ambiguous(many.len()),
+    }
+}
+
+enum ToolMatch<'a> {
+    None,
+    One(&'a Node),
+    Ambiguous(usize),
+}
+
 fn diff_tool(
     state: &RepositoryState,
     name: &str,
-    before: Option<&&Node>,
-    after: Option<&&Node>,
+    before: ToolMatch<'_>,
+    after: ToolMatch<'_>,
     transforms: &[&Node],
     before_complete: bool,
     after_complete: bool,
 ) -> Value {
+    if let (count, true) = match (&before, &after) {
+        (ToolMatch::Ambiguous(left), ToolMatch::Ambiguous(right)) => (*left.max(right), true),
+        (ToolMatch::Ambiguous(left), _) => (*left, true),
+        (_, ToolMatch::Ambiguous(right)) => (*right, true),
+        _ => (0, false),
+    } {
+        return json!({
+            "tool": name,
+            "change": "ambiguous-identity",
+            "compatibility": "undetermined",
+            "matches": count,
+            "premises": ["multiple tools share this label; pick an exact server or catalog"]
+        });
+    }
     match (before, after) {
-        (None, Some(after)) => json!({
+        (ToolMatch::None, ToolMatch::One(after)) => json!({
             "tool": name,
             "change": "added",
             "compatibility": "undetermined",
             "witness": after.span
         }),
-        (Some(before), None) => {
+        (ToolMatch::One(before), ToolMatch::None) => {
             let removed = before_complete && after_complete;
             json!({
                 "tool": name,
@@ -100,9 +131,9 @@ fn diff_tool(
                 "witness": before.span
             })
         }
-        (Some(before), Some(after)) => {
+        (ToolMatch::One(before), ToolMatch::One(after)) => {
             schema_cmp::schema_change(state, name, before, after, transforms)
         }
-        (None, None) => json!({"tool": name, "change": "none", "compatibility": "undetermined"}),
+        _ => json!({"tool": name, "change": "none", "compatibility": "undetermined"}),
     }
 }

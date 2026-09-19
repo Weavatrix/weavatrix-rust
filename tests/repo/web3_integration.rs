@@ -1,0 +1,199 @@
+use crate::web3_support::{dump, engine};
+use blazingly_json::json;
+use weavatrix_rust::tools;
+
+#[test]
+fn deposit_indexed_mask_change_reaches_old_viem_consumers() {
+    let (_fixture, mut engine) = engine();
+    let inventory = tools::call(&mut engine, "web3_inventory", json!({})).unwrap();
+    let text = dump(&inventory);
+    assert!(text.contains("Deposit"), "{text}");
+    assert!(
+        text.contains("web3.consumer") || text.contains("decodeEventLog"),
+        "{text}"
+    );
+    assert_eq!(inventory["coverage"]["deployment"], "not_provided");
+
+    let events = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .filter(|node| node.kind.as_str() == "web3.consumer")
+        .count();
+    assert!(
+        events >= 2,
+        "both proven decodeEventLog sites must remain: {events}"
+    );
+
+    let impact = tools::call(
+        &mut engine,
+        "web3_impact",
+        json!({
+            "task": "change-event",
+            "baseline": "app/abis/Vault.json",
+            "candidate": "out/Vault.sol/Vault.json"
+        }),
+    )
+    .unwrap();
+    let report = dump(&impact);
+    assert!(report.contains("EVENT_LAYOUT_CHANGED"), "{report}");
+    assert_eq!(impact["changes"][0]["silent_misdecode"], true, "{report}");
+    assert!(
+        !report.contains("0x000000000000000000000000000000000000002a"),
+        "educational example must not be a computed witness: {report}"
+    );
+    assert!(report.contains("not_provided"), "{report}");
+    assert!(
+        !report.contains("deployed implementation was verified"),
+        "{report}"
+    );
+}
+
+#[test]
+fn same_selector_does_not_merge_two_contracts() {
+    let (_fixture, engine) = engine();
+    let transfers = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .filter(|node| node.label == "transfer(address,uint256)")
+        .count();
+    assert_eq!(
+        transfers, 2,
+        "two contracts must keep separate transfer members"
+    );
+}
+
+#[test]
+fn output_change_is_kept_when_selector_matches() {
+    let (_fixture, mut engine) = engine();
+    let left = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .find(|node| {
+            node.label == "transfer(address,uint256)"
+                && node
+                    .span
+                    .as_ref()
+                    .is_some_and(|span| span.file.contains("Other.json"))
+        })
+        .unwrap()
+        .id
+        .clone();
+    let impact = tools::call(
+        &mut engine,
+        "web3_impact",
+        json!({
+            "baseline": "contracts/Other.json",
+            "candidate": "contracts/Copy.json"
+        }),
+    )
+    .unwrap();
+    let text = dump(&impact);
+    assert!(text.contains("OUTPUT_CHANGED"), "{text}");
+    let context = tools::call(
+        &mut engine,
+        "web3_context",
+        json!({"label": left.as_str(), "task": "change-output"}),
+    )
+    .unwrap();
+    let context_text = dump(&context);
+    assert!(
+        context_text.contains("(bool)") || context_text.contains("web3.return"),
+        "{context_text}"
+    );
+}
+
+#[test]
+fn unknown_spread_stays_unresolved() {
+    let (_fixture, engine) = engine();
+    let unresolved = engine.state().graph().nodes().iter().any(|node| {
+        node.kind.as_str() == "web3.consumer"
+            && engine
+                .state()
+                .graph()
+                .nodes()
+                .iter()
+                .any(|domain| domain.label == "web3.unresolved:dynamic_or_spread")
+    });
+    assert!(unresolved, "spread after abi must not invent a target");
+}
+
+#[test]
+fn inventory_trace_and_context_page_the_same_graph() {
+    let (_fixture, mut engine) = engine();
+    let scoped = tools::call(
+        &mut engine,
+        "web3_inventory",
+        json!({"path": "app/abis", "max_results": 8}),
+    )
+    .unwrap();
+    assert!(scoped["artifacts"].as_array().is_some());
+    assert!(
+        tools::call(&mut engine, "web3_inventory", json!({"max_results": 0}))
+            .unwrap_err()
+            .contains("between 1 and")
+    );
+    let consumer = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .find(|node| node.kind.as_str() == "web3.consumer")
+        .unwrap()
+        .id
+        .clone();
+    let traced = tools::call(
+        &mut engine,
+        "web3_trace",
+        json!({"label": consumer, "depth": 1, "max_nodes": 4}),
+    )
+    .unwrap();
+    assert_eq!(traced["bounds"]["depth"], 1);
+    let more = tools::call(
+        &mut engine,
+        "web3_trace",
+        json!({
+            "label": consumer,
+            "depth": 2,
+            "max_nodes": 1,
+            "cursor": format!("v1:0:{}", traced["bounds"]["revision"].as_str().unwrap())
+        }),
+    )
+    .unwrap();
+    assert!(more["page"]["returned"].as_u64().unwrap() <= 1);
+    let context = tools::call(
+        &mut engine,
+        "web3_context",
+        json!({"label": consumer, "task": "change-event", "max_related": 6}),
+    )
+    .unwrap();
+    assert!(context["gaps"].as_array().unwrap().len() >= 2);
+    assert!(
+        tools::call(
+            &mut engine,
+            "web3_trace",
+            json!({"label": consumer, "depth": 0})
+        )
+        .unwrap_err()
+        .contains("depth")
+    );
+}
+
+#[test]
+fn package_manifest_is_not_an_abi() {
+    let (_fixture, engine) = engine();
+    assert!(
+        engine
+            .state()
+            .graph()
+            .nodes()
+            .iter()
+            .filter(|node| node.label == "web3-fixtures")
+            .all(|node| node.kind.as_str() != "web3.abi")
+    );
+}

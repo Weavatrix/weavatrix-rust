@@ -146,6 +146,7 @@ fn inspect_property(
     if spec.get("$ref").is_some() {
         unsupported.push(format!("prop_ref:{name}"));
     }
+    mark_keywords(spec, unsupported);
     match spec.get("type") {
         Some(Value::String(ty))
             if matches!(
@@ -175,14 +176,12 @@ fn inspect_property(
                 || item.as_f64().is_some()
                 || item.as_bool().is_some()
         }) {
-            let mut rendered = values.iter().filter_map(render_enum).collect::<Vec<_>>();
-            rendered.sort();
-            enums.insert(name.to_owned(), rendered.join(","));
+            enums.insert(name.to_owned(), super::schema_bounds::encode_enum(values));
         } else {
             unsupported.push(format!("enum:{name}"));
         }
     }
-    if let Some(bound) = bound_spec(spec) {
+    if let Some(bound) = super::schema_bounds::bound_spec(spec) {
         bounds.insert(name.to_owned(), bound);
     }
 }
@@ -198,43 +197,6 @@ fn required_names(schema: &Value) -> Vec<String> {
         .collect::<Vec<_>>();
     names.sort();
     names
-}
-
-fn bound_spec(spec: &Value) -> Option<String> {
-    let min = spec
-        .get("minimum")
-        .or_else(|| spec.get("minLength"))
-        .or_else(|| spec.get("exclusiveMinimum"));
-    let max = spec
-        .get("maximum")
-        .or_else(|| spec.get("maxLength"))
-        .or_else(|| spec.get("exclusiveMaximum"));
-    if min.is_none() && max.is_none() {
-        return None;
-    }
-    Some(format!(
-        "min:{},max:{}",
-        min.map_or_else(|| "none".into(), render_number),
-        max.map_or_else(|| "none".into(), render_number)
-    ))
-}
-
-fn render_enum(value: &Value) -> Option<String> {
-    value
-        .as_str()
-        .map(ToOwned::to_owned)
-        .or_else(|| value.as_i64().map(|item| item.to_string()))
-        .or_else(|| value.as_bool().map(|item| item.to_string()))
-        .or_else(|| value.as_f64().map(|item| item.to_string()))
-}
-
-fn render_number(value: &Value) -> String {
-    value
-        .as_i64()
-        .map(|item| item.to_string())
-        .or_else(|| value.as_f64().map(|item| item.to_string()))
-        .or_else(|| value.as_str().map(ToOwned::to_owned))
-        .unwrap_or_else(|| "unknown".into())
 }
 
 fn digest(view: &SchemaView, description: &str) -> String {

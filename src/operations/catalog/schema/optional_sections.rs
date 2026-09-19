@@ -25,9 +25,12 @@ pub(super) fn health_fields(tool: &str) -> Option<&'static [&'static str]> {
             "max_findings",
             "include_classified",
             "include_capabilities",
+            "include_tests",
             "base_ref",
             "changed_files",
             "debt",
+            "test_evidence",
+            "test_evidence_path",
         ]),
         "coverage_map" => Some(&["top_n", "path"]),
         "hot_path_review" => Some(&[

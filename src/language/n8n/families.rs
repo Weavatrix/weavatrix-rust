@@ -59,3 +59,37 @@ fn known_version(type_name: &str, type_version: &str) -> bool {
         .find(|(name, _)| *name == type_name)
         .is_some_and(|(_, versions)| versions.contains(&type_version))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::model::NodeSemantics;
+    use super::semantics;
+
+    #[test]
+    fn node_families_name_supported_unsupported_and_structure_only() {
+        assert_eq!(
+            semantics("n8n-nodes-base.httpRequest", "4.2"),
+            NodeSemantics::Supported
+        );
+        assert_eq!(
+            semantics("n8n-nodes-base.httpRequest", "9"),
+            NodeSemantics::Unsupported
+        );
+        assert_eq!(
+            semantics("custom.unknown", "1"),
+            NodeSemantics::StructureOnly
+        );
+        assert_eq!(
+            semantics("@n8n/n8n-nodes-langchain.agent", "2"),
+            NodeSemantics::Supported
+        );
+        assert_eq!(
+            semantics("@n8n/n8n-nodes-langchain.unknown", "1"),
+            NodeSemantics::Supported
+        );
+        assert_eq!(
+            semantics("@n8n/n8n-nodes-langchain.unknown", "9"),
+            NodeSemantics::Unsupported
+        );
+    }
+}

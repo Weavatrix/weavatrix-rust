@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 2.16.4 - 2026-09-19
+
+- Agent schema comparison keeps enum values and numeric bounds without
+  CSV/i64 collapse. Unsupported keywords, including property `pattern`,
+  stay `undetermined`. A boolean `enum: [true, false]` is not a
+  restriction. `integer` → `number` is a widening. A new typed property
+  on an open object is a restriction.
+- Skill consumers are declared `allowed-tools` links, scoped by package.
+  Duplicate tool labels are `ambiguous-identity`, not the first match.
+- Web3 impact scopes consumers to the paired artifact files. A missing
+  candidate is `missing_input`, not `MEMBER_REMOVED`. `web3_trace` walks
+  the requested depth. Inventory and context report real truncation.
+- Call-site property search ignores comments inside the argument object.
+
 ## 2.16.3 - 2026-09-19
 
 - `coverage_map` MCP text states it only ingests a report. Weavatrix

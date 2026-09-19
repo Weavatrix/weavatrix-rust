@@ -223,3 +223,66 @@ pub(super) struct Detection {
     pub(super) certainty: Certainty,
     pub(super) uncertainty: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Certainty, Entity, Observation, Role, Transport};
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn transport_labels_and_observation_keys_are_stable() {
+        assert_eq!(Transport::Kafka.as_str(), "kafka");
+        assert_eq!(Transport::Amqp.as_str(), "amqp");
+        assert_eq!(Transport::RabbitMq.as_str(), "rabbitmq");
+        assert_eq!(Transport::Jms.as_str(), "jms");
+        assert_eq!(Transport::Nats.as_str(), "nats");
+        assert_eq!(Transport::Sqs.as_str(), "sqs");
+        assert_eq!(Transport::Sns.as_str(), "sns");
+        assert_eq!(Transport::RabbitMq.contract_family(), Transport::Amqp);
+        assert_eq!(Transport::Jms.contract_family(), Transport::Jms);
+        assert_eq!(Entity::Topic.as_str(), "topic");
+        assert_eq!(Entity::Queue.as_str(), "queue");
+        assert_eq!(Entity::Exchange.as_str(), "exchange");
+        assert_eq!(Entity::Subject.as_str(), "subject");
+        assert_eq!(Entity::Destination.as_str(), "destination");
+        assert_eq!(Entity::Binding.as_str(), "binding");
+        assert_eq!(Role::Producer.as_str(), "producer");
+        assert_eq!(Role::Consumer.as_str(), "consumer");
+        assert_eq!(Role::Declare.as_str(), "declare");
+        assert_eq!(Role::Bind.as_str(), "bind");
+        assert_eq!(Certainty::Exact.as_str(), "exact");
+        assert_eq!(Certainty::Derived.as_str(), "derived");
+        assert_eq!(Certainty::Ambiguous.as_str(), "ambiguous");
+        let observation = Observation {
+            repository: "repo".into(),
+            path: "src/app.rs".into(),
+            line: 1,
+            column: 1,
+            language: "rust".into(),
+            transport: Transport::Jms,
+            entity: Entity::Queue,
+            role: Role::Producer,
+            resource: Some("orders".into()),
+            exchange: None,
+            routing_key: None,
+            consumer_group: None,
+            receiver: None,
+            evidence: "createProducer".into(),
+            origin: "test",
+            certainty: Certainty::Exact,
+            uncertainty: None,
+            candidates: BTreeSet::from([Transport::Jms]),
+            runtime_observed: false,
+        };
+        let key = observation.key().expect("named resource");
+        assert_eq!(key.transport, Transport::Jms);
+        assert_eq!(key.resource, "orders");
+        let json = observation.to_json();
+        assert_eq!(json["transport"].as_str(), Some("jms"));
+        let unnamed = Observation {
+            resource: None,
+            ..observation
+        };
+        assert!(unnamed.key().is_none());
+    }
+}

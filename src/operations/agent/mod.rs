@@ -1,6 +1,7 @@
 mod consumers;
 mod impact;
 mod schema_cmp;
+mod schema_rules;
 mod view;
 
 use crate::engine::RepositoryState;

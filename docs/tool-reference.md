@@ -158,10 +158,11 @@ API, editor, or executor.
 - `agent_context`: source fragments plus explicit gaps. Commands are not
   executed. `allowed-tools` stays a declaration, not a grant.
 - `agent_change_impact`: compare two catalog snapshots on a supported
-  schema subset. Type, enum, and bound changes are incompatible.
-  Unsupported constructs stay undetermined. A known inject transform can
-  keep an exposure compatible while the upstream required list grew.
-  Incomplete pagination does not become a deletion.
+  schema subset. Unsupported keywords stay undetermined. A boolean
+  `enum: [true, false]` is not a restriction. `integer` to `number` is a
+  widening. Duplicate tool labels are `ambiguous-identity`. Skill hits
+  are declared `allowed-tools`, not proven calls. Incomplete pagination
+  does not become a deletion.
 
 Same display names in different packages stay distinct. Unknown extension
 namespaces remain visible. Native Cursor/Claude overlays are recorded as
@@ -172,14 +173,16 @@ runtime, gateway, or policy authority.
 
 - `web3_inventory`: supplied ABI JSON, solc/Foundry artifacts, and static
   viem/wagmi consumers.
-- `web3_trace`: bounded neighbors with `depth` and `cursor`.
-- `web3_impact`: requires baseline and candidate artifact paths and uses
-  the shared ABI compare. Layout risk is a boolean, not an educational
+- `web3_trace`: walks the requested `depth` from the seed. A cut reports
+  truncation instead of pretending the walk finished.
+- `web3_impact`: requires baseline and candidate artifact paths. A missing
+  candidate is `missing_input`, not `MEMBER_REMOVED`. Consumers stay on
+  the paired artifact files. Layout risk is a boolean, not an educational
   decoder witness.
 - `web3_context`: member fragments, consumers, and deployment gaps.
 
 Artifact decode is not a source/build proof. Comments and string examples
-are not consumers.
+are not consumers. Property text inside a comment is not the callee.
 
 ## Mermaid diagrams
 

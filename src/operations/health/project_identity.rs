@@ -50,3 +50,22 @@ fn cargo_package_name(manifest: &str) -> Option<String> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::cargo_package_name;
+
+    #[test]
+    fn cargo_package_name_reads_the_package_table() {
+        assert_eq!(
+            cargo_package_name("[package]\nname = \"weavatrix-rust\"\n"),
+            Some("weavatrix-rust".into())
+        );
+        assert_eq!(
+            cargo_package_name("[workspace]\n[package]\n# name = \"no\"\nname = 'inner'\n"),
+            Some("inner".into())
+        );
+        assert_eq!(cargo_package_name("[lib]\nname = \"x\"\n"), None);
+        assert_eq!(cargo_package_name("[package]\nversion = \"1\"\n"), None);
+    }
+}

@@ -85,3 +85,36 @@ impl From<weavatrix_scan::Error> for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+    use blazingly_json::Value;
+
+    #[test]
+    fn display_and_source_cover_each_variant() {
+        let io = Error::io("gone.rs", std::io::Error::other("denied"));
+        assert!(io.to_string().contains("gone.rs"));
+        assert!(std::error::Error::source(&io).is_some());
+
+        let invalid = Error::InvalidRepository("nope".into());
+        assert!(invalid.to_string().contains("nope"));
+        assert!(std::error::Error::source(&invalid).is_none());
+
+        let parse = Error::Parse {
+            language: "rust",
+            path: "x.rs".into(),
+            message: "boom".into(),
+        };
+        assert!(parse.to_string().contains("rust parse failed"));
+        assert!(std::error::Error::source(&parse).is_none());
+
+        let json: Error = blazingly_json::from_str::<Value>("{").unwrap_err().into();
+        assert!(json.to_string().contains("JSON"));
+        assert!(std::error::Error::source(&json).is_some());
+
+        let analysis = Error::Analysis("blocked".into());
+        assert!(analysis.to_string().contains("blocked"));
+        assert!(std::error::Error::source(&analysis).is_none());
+    }
+}

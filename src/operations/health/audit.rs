@@ -1,4 +1,4 @@
-use super::{coverage, cycles, debt, dependencies, runtime};
+use super::{coverage, cycles, debt, dependencies, runtime, test_evidence};
 use crate::engine::RepositoryState;
 use crate::operations::{optional_bool, optional_str, optional_u64};
 use blazingly_json::{Value, json};
@@ -34,6 +34,9 @@ pub(in crate::operations) fn audit(state: &RepositoryState, args: &Value) -> Res
         min_severity,
     );
     let coverage_report = coverage::coverage(state, &json!({}))?;
+    let tests_enabled = optional_bool(args, "include_tests")?.unwrap_or(true)
+        && category_matches(category, "tests");
+    let test_report = test_evidence::report(state, args, tests_enabled, max)?;
     let findings = if category_matches(category, "diagnostics") {
         state
             .snapshot()
@@ -48,7 +51,8 @@ pub(in crate::operations) fn audit(state: &RepositoryState, args: &Value) -> Res
         .iter()
         .any(|report| report["status"] == "REVIEW")
         || has_cycles
-        || !findings.is_empty();
+        || !findings.is_empty()
+        || test_report["status"] == "FAIL";
     let debt = debt::debt(state, args, max, &runtime_report)?;
     // A static property of the build: identical for every repository and every call, and it was
     // the single largest block of this payload. Callers that actually need it opt in.
@@ -79,8 +83,10 @@ pub(in crate::operations) fn audit(state: &RepositoryState, args: &Value) -> Res
             },
             "dependencies": dependency_report["manifest_evidence"].clone(),
             "runtime": runtime_report["runtime_evidence"].clone(),
-            "coverage": coverage_report["measured_coverage"].clone()
+            "coverage": coverage_report["measured_coverage"].clone(),
+            "tests": test_report["execution"].clone()
         },
+        "test_report": test_report,
         "debt": debt
     }))
 }
@@ -92,11 +98,12 @@ fn validate_options(args: &Value) -> Result<(Option<&str>, u8), String> {
     if category.is_some_and(|value| {
         !matches!(
             value,
-            "all" | "diagnostics" | "structure" | "dependencies" | "runtime"
+            "all" | "diagnostics" | "structure" | "dependencies" | "runtime" | "tests"
         )
     }) {
         return Err(
-            "category must be all, diagnostics, structure, dependencies, or runtime".to_owned(),
+            "category must be all, diagnostics, structure, dependencies, runtime, or tests"
+                .to_owned(),
         );
     }
     let min_severity = match optional_str(args, "min_severity")?.unwrap_or("low") {

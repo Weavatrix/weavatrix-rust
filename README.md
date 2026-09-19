@@ -26,6 +26,8 @@ Use it to:
   parser-proven `exported` evidence for public-surface consumers;
 - run 64 bounded read-only operations in the default full build;
 - enforce the current v1 architecture contract foundation;
+- hang a measured LCOV / Istanbul / Tarpaulin / LLVM report onto the same
+  graph with `coverage_map` (the crate does not run the tests);
 - power the separate `weavatrix` MCP product.
 
 ### What the new domains actually answer
@@ -35,8 +37,8 @@ grep hit or a green checkbox:
 
 | Ask | Operation | Honest limit |
 | --- | --- | --- |
-| Will this MCP schema still accept yesterday’s request? | `agent_change_impact` | `string` → `integer` is `proven-incompatible`. A missing tool in a partial catalog is `unconfirmed`, not removed. |
-| Who calls this ABI after an event layout change? | `web3_impact` | Baseline/candidate pairing. Comment/string “calls” are not consumers. ABI equality is not a live deployment. |
+| Will this MCP schema still accept yesterday’s request? | `agent_change_impact` | Supported-subset proof only. Unsupported keywords stay `undetermined`. Duplicate tool labels are `ambiguous-identity`. Skill hits are declared `allowed-tools`, not proven calls. |
+| Who calls this ABI after an event layout change? | `web3_impact` | Consumers stay on the paired artifact files. A missing candidate is `missing_input`, not `MEMBER_REMOVED`. Comment properties inside a call are not the callee. |
 | Who reads this field in an exported n8n workflow? | `n8n_trace` / `n8n_context` | Array documents keep `/0/nodes/…` pointers. Secrets stay off the graph. |
 | Which Dify nodes consume `start_node.query`? | `dify_trace` | Conversation variables are directed edges, not string presence. |
 | Does this Mermaid arrow prove a code call? | `diagram_*` | Arrows are `declared_architecture`, never `Calls`. They do not clear dead code. |
@@ -91,7 +93,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.16.3"
+weavatrix-rust = "2.16.4"
 ```
 
 ```rust
@@ -126,7 +128,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.16.3", default-features = false }
+weavatrix-rust = { version = "2.16.4", default-features = false }
 ```
 
 ## MCP product
@@ -226,11 +228,6 @@ The default full build exposes 64 operations:
 | Change | `get_dependents`, `change_impact`, `select_tests`, `verified_change`, `prepare_change`, `graph_diff` |
 | Source | `search_code`, `read_source`, `inspect_symbol`, `go_to_definition`, `find_references`, `context_bundle`, `map_stacktrace` |
 | Health | `find_duplicates`, `find_dead_code`, `run_audit`, `coverage_map`, `hot_path_review` |
-
-`coverage_map` attaches a report that already exists. It does not spawn
-`cargo test`, Vitest, or Playwright. Weavatrix Quality is the sibling
-product that builds `.weavatrix/coverage/lcov.info` from the repository's
-own runner.
 | Measurement | `perf_attribution` |
 | APIs | `list_endpoints`, `trace_endpoint`, `trace_api_contract` |
 | Architecture | `get_architecture_contract`, `verify_architecture`, `verify_capabilities`, explain/propose exception |
@@ -243,6 +240,49 @@ own runner.
 | Web3 | `web3_inventory`, `web3_trace`, `web3_impact`, `web3_context` |
 
 The complete schemas live in the [operation reference](docs/tool-reference.md).
+
+## Measured coverage
+
+`coverage_map` is useful when you need hit maps on the same graph as
+impact and architecture — which files a runner actually touched, not
+which tests *look* related. It is not a test runner and not a CI gate
+by itself.
+
+**What you need**
+
+1. A measured report already on disk. The engine opens the first of:
+   `lcov.info`, `coverage/lcov.info`, `.weavatrix/coverage/lcov.info`,
+   `tarpaulin-report.json`, `target/tarpaulin/tarpaulin-report.json`,
+   `target/llvm-cov/coverage.json`, `coverage/coverage-final.json`.
+2. A producer. Weavatrix Quality (`quality_run` / `wvq run`) writes
+   `.weavatrix/coverage/lcov.info` with the project's own frozen runner
+   (llvm-cov or tarpaulin when installed; Vitest/Jest/Bun/Go coverage;
+   Playwright only if no other JS runner owns the package). You can
+   also write that file yourself.
+3. A toolchain that can actually instrument. `windows-gnu` rustc cannot
+   link `profiler_builtins`, so `cargo llvm-cov` fails there. Use an
+   MSVC toolchain, or `cargo tarpaulin`, or a JS/Go coverage reporter.
+
+**Produce, then ingest**
+
+```sh
+# Sibling product — builds the file this crate searches for
+npx -y @weavatrix/wvq run --repo . --change current \
+  --base origin/main --head WORKTREE --scope all
+
+# Or the same LCOV path without Quality (MSVC rustc on this tree)
+cargo +stable-x86_64-pc-windows-msvc llvm-cov test \
+  -p weavatrix-rust --lib --lcov \
+  --output-path .weavatrix/coverage/lcov.info
+
+weavatrix-rust tool coverage_map .
+weavatrix-rust tool coverage_map . --select=/measured_coverage
+```
+
+`measured_coverage.present = true` means a report was parsed. `present =
+false` with `status: COMPLETE` is unmeasured plus labeled static
+reachability — not 0%, not a pass. `source` always says Weavatrix did
+not execute tests.
 
 ## Standalone CLI
 

@@ -39,6 +39,21 @@ mod tests {
     }
 
     #[test]
+    fn block_scalar_headers_cover_chomp_and_indent() {
+        let docs = parse(
+            "chomp.yml",
+            "keep: |+\n  a\n\nstrip: |-\n  a\n\nhinted: |2\n    a\n",
+        )
+        .unwrap();
+        assert!(docs[0].get("keep").and_then(|node| node.as_str()).is_some());
+        assert_eq!(
+            docs[0].get("strip").and_then(|node| node.as_str()),
+            Some("a")
+        );
+        assert!(parse("bad.yml", "x: |?\n  a\n").is_err());
+    }
+
+    #[test]
     fn invalid_unicode_escape_is_a_diagnostic() {
         let error = parse("bad.yml", "name: \"\\uD800\"\n").unwrap_err();
         assert_eq!(error.code, "yaml.limit");

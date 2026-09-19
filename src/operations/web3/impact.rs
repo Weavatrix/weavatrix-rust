@@ -48,48 +48,74 @@ pub(super) fn impact(state: &RepositoryState, args: &Value) -> Result<Value, Str
 }
 
 fn document_changes(state: &RepositoryState, baseline: &str, candidate: &str) -> Vec<Value> {
-    let left = document_from(state, baseline);
-    let right = document_from(state, candidate);
-    compare_abi(&left, &right)
-        .into_iter()
-        .map(|change| {
-            let member = members_named(state, &change.member);
-            let mut consumers = Vec::new();
-            for node in &member {
-                consumers.extend(view::consumers_of(state, node.id.as_str()));
-            }
-            json!({
-                "kind": change.kind,
-                "member": change.member,
-                "detail": change.detail,
-                "topicSignatureUnchanged": change.topic_signature_unchanged,
-                "silent_misdecode": change.silent_misdecode,
-                "baseline": { "file": baseline },
-                "candidate": { "file": candidate },
-                "consumers": consumers,
-                "deployment": "not_provided",
-                "gaps": ["educational decoder examples are not witnesses for this change"]
+    let left = load_document(state, baseline);
+    let right = load_document(state, candidate);
+    match (left, right) {
+        (None, _) | (_, None) => vec![json!({
+            "kind": "missing_input",
+            "member": "",
+            "detail": "baseline or candidate artifact was not found; this is not MEMBER_REMOVED",
+            "baseline": { "file": baseline },
+            "candidate": { "file": candidate },
+            "consumers": [],
+            "gaps": ["missing artifact is not an empty ABI"]
+        })],
+        (Some(left), Some(right)) => compare_abi(&left, &right)
+            .into_iter()
+            .map(|change| {
+                let member = members_named(state, &change.member, &[baseline, candidate]);
+                let mut consumers = Vec::new();
+                for node in &member {
+                    consumers.extend(view::consumers_of(state, node.id.as_str()));
+                }
+                json!({
+                    "kind": change.kind,
+                    "member": change.member,
+                    "detail": change.detail,
+                    "topicSignatureUnchanged": change.topic_signature_unchanged,
+                    "silent_misdecode": change.silent_misdecode,
+                    "baseline": { "file": baseline },
+                    "candidate": { "file": candidate },
+                    "consumers": consumers,
+                    "deployment": "not_provided",
+                    "gaps": ["educational decoder examples are not witnesses for this change"]
+                })
             })
-        })
-        .collect()
+            .collect(),
+    }
 }
 
-fn document_from(state: &RepositoryState, path: &str) -> AbiDocument {
+fn load_document(state: &RepositoryState, path: &str) -> Option<AbiDocument> {
+    if !artifact_present(state, path) {
+        return None;
+    }
     let members = state
         .graph()
         .nodes()
         .iter()
         .filter(|node| node.id.as_str().starts_with("symbol:"))
-        .filter(|node| view::file_of(node).contains(path))
+        .filter(|node| file_matches(&view::file_of(node), path))
         .filter_map(|node| member_from(state, node))
         .collect();
-    AbiDocument {
+    Some(AbiDocument {
         profile: Profile::AbiJson,
         contract_name: None,
         members,
-        provenance: "graph snapshot of a paired artifact".into(),
+        provenance: path.into(),
         completeness: Completeness::Partial,
-    }
+    })
+}
+
+fn artifact_present(state: &RepositoryState, path: &str) -> bool {
+    state.graph().nodes().iter().any(|node| {
+        file_matches(&view::file_of(node), path)
+            && (node.kind.as_str() == "web3.artifact"
+                || node.kind.as_str().starts_with("web3.abi."))
+    })
+}
+
+fn file_matches(file: &str, path: &str) -> bool {
+    file == path || file.ends_with(&format!("/{path}")) || file.ends_with(&format!("\\{path}"))
 }
 
 fn member_from(state: &RepositoryState, node: &Node) -> Option<AbiMember> {
@@ -130,12 +156,17 @@ fn member_from(state: &RepositoryState, node: &Node) -> Option<AbiMember> {
     })
 }
 
-fn members_named<'a>(state: &'a RepositoryState, signature: &str) -> Vec<&'a Node> {
+fn members_named<'a>(state: &'a RepositoryState, signature: &str, files: &[&str]) -> Vec<&'a Node> {
     state
         .graph()
         .nodes()
         .iter()
         .filter(|node| node.label == signature && node.kind.as_str().starts_with("web3.abi."))
+        .filter(|node| {
+            files
+                .iter()
+                .any(|path| file_matches(&view::file_of(node), path))
+        })
         .collect()
 }
 

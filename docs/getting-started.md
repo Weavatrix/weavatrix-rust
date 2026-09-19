@@ -10,7 +10,7 @@ engine, or the standalone CLI.
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.16.3", default-features = false }
+weavatrix-rust = { version = "2.16.4", default-features = false }
 ```
 
 ```rust
@@ -39,7 +39,7 @@ CLI. It has no network implementation or external executable dependency.
 ```toml
 [dependencies]
 weavatrix-rust = {
-    version = "2.16.3",
+    version = "2.16.4",
     default-features = false,
     features = ["lang-rust", "git", "search"]
 }

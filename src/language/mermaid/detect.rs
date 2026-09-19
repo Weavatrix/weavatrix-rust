@@ -39,3 +39,28 @@ fn has_flowchart_header(raw: &str) -> bool {
         .take(3)
         .any(|line| line.starts_with("flowchart") || line.starts_with("graph ") || line == "graph")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{is_links_file, is_standalone, looks_promising};
+
+    #[test]
+    fn mermaid_probes_cover_extension_fence_and_header() {
+        assert!(is_standalone("flow.mmd"));
+        assert!(is_standalone("Flow.MERMAID"));
+        assert!(!is_standalone("flow.md"));
+        assert!(is_links_file("diagram-links.json"));
+        assert!(!is_links_file("other.json"));
+        assert!(looks_promising(
+            "doc.md",
+            "```mermaid\nflowchart TD\nA-->B\n```"
+        ));
+        assert!(looks_promising("doc.md", "~~~Mermaid\nflowchart LR\n```"));
+        assert!(looks_promising(
+            "flow.txt",
+            "%% comment\n\ngraph TD\nA-->B\n"
+        ));
+        assert!(looks_promising("flow.txt", "graph\nA-->B\n"));
+        assert!(!looks_promising("note.md", "just a sentence"));
+    }
+}

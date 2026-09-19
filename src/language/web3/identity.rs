@@ -33,3 +33,27 @@ fn normalize(path: &Path) -> String {
     }
     parts.to_string_lossy().replace('\\', "/")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{member_key, resolve_import};
+
+    #[test]
+    fn import_specs_stay_relative_and_normalized() {
+        assert_eq!(
+            member_key("a.json", "event", "Deposit()"),
+            "a.json#event:Deposit()"
+        );
+        assert_eq!(
+            resolve_import("src/app.ts", "./abis/Vault.json"),
+            Some("src/abis/Vault.json".into())
+        );
+        assert_eq!(
+            resolve_import("src/app.ts", "../abis/Vault.json"),
+            Some("abis/Vault.json".into())
+        );
+        assert_eq!(resolve_import("src/app.ts", "https://x/abi.json"), None);
+        assert_eq!(resolve_import("src/app.ts", "ipfs://x"), None);
+        assert_eq!(resolve_import("src/app.ts", "vault"), None);
+    }
+}
