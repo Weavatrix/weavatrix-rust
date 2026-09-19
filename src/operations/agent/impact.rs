@@ -46,10 +46,9 @@ pub(super) fn change_impact(state: &RepositoryState, args: &Value) -> Result<Val
     }
     let found = changes.len();
     let shown = changes.into_iter().take(max).collect::<Vec<_>>();
-    let name_refs = names.iter().map(String::as_str).collect::<Vec<_>>();
     Ok(json!({
         "changes": shown,
-        "consumers": schema_cmp::selected_consumers(state, &name_refs, max),
+        "consumers": super::consumers::selected(state, &before_tools, &after_tools, max),
         "bounds": {
             "truncated": found > max,
             "found": found,

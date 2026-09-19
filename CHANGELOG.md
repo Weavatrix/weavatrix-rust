@@ -2,9 +2,16 @@
 
 ## Unreleased
 
+## 2.16.2 - 2026-09-19
+
 - Agent schema impact treats the first AFTER-only enum on an unrestricted
   string as a breaking restriction. A witness valid as a free string and
   invalid after `enum: [safe]` is no longer reported as compatible.
+- Skill consumers of `agent_change_impact` stay inside the tool’s package
+  root. Observation import keeps `event_time`, sequence, boot, and phase,
+  and still does not promote a reported success to a verified effect.
+- Crate README names the 64 operations and the n8n / Dify / Agent /
+  Mermaid / Web3 answers they actually give.
 
 ## 2.16.1 - 2026-09-17
 

@@ -125,6 +125,91 @@ fn empty_catalog_path_is_not_complete_removal() {
     );
 }
 
+#[test]
+fn foreign_package_skill_is_not_a_proven_consumer() {
+    let fixture = Fixture::empty();
+    write_named(
+        &fixture,
+        "pkg-a/catalogs/before.json",
+        "search",
+        r#"{"type":"object","properties":{"q":{"type":"string"}}}"#,
+        true,
+    );
+    write_named(
+        &fixture,
+        "pkg-a/catalogs/after.json",
+        "search",
+        r#"{"type":"object","properties":{"q":{"type":"string"}}}"#,
+        true,
+    );
+    fixture.write(
+        "pkg-a/skills/alpha/SKILL.md",
+        "---\nname: alpha\nallowed-tools: search\n---\nA\n",
+    );
+    fixture.write(
+        "pkg-b/skills/beta/SKILL.md",
+        "---\nname: beta\nallowed-tools: search\n---\nB\n",
+    );
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "agent_change_impact",
+        json!({
+            "before": "pkg-a/catalogs/before.json",
+            "after": "pkg-a/catalogs/after.json"
+        }),
+    )
+    .unwrap();
+    let consumers = report["consumers"].as_array().unwrap();
+    assert!(
+        consumers.iter().any(|item| item["label"] == "alpha"),
+        "{}",
+        dump(&report)
+    );
+    assert!(
+        consumers.iter().all(|item| item["label"] != "beta"),
+        "{}",
+        dump(&report)
+    );
+}
+
+#[test]
+fn observation_keeps_event_time_and_does_not_promote_success() {
+    let fixture = Fixture::empty();
+    fixture.write(
+        "catalogs/events.json",
+        r#"{
+          "$schema": "https://weavatrix.dev/schemas/agent-observation/1.json",
+          "events": [
+            {
+              "id": "inv-1",
+              "producer": "granttap",
+              "kind": "invocation",
+              "target": "lookup",
+              "result": "success",
+              "event_time": 42,
+              "sequence": 7,
+              "boot_epoch": 3,
+              "phase": "request",
+              "evidence": "obs-1"
+            }
+          ]
+        }"#,
+    );
+    let engine = Weavatrix::open(&fixture.root).unwrap();
+    let labels = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .map(|node| node.label.as_str())
+        .collect::<Vec<_>>();
+    assert!(labels.contains(&"event_time:42"), "{labels:?}");
+    assert!(labels.contains(&"sequence:7"), "{labels:?}");
+    assert!(labels.contains(&"phase:request"), "{labels:?}");
+    assert!(labels.contains(&"result_is_not_effect"), "{labels:?}");
+}
+
 fn write_schema(fixture: &Fixture, path: &str, schema: &str, complete: bool) {
     write_named(fixture, path, "lookup", schema, complete);
 }

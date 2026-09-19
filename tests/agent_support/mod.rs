@@ -246,8 +246,8 @@ fn write_contracts(fixture: &Fixture) {
         r#"{
           "$schema": "https://weavatrix.dev/schemas/agent-observation/1.json",
           "events": [
-            { "id": "inv-1", "producer": "granttap", "kind": "invocation", "target": "lookup_customer", "result": "success" },
-            { "id": "inv-1", "producer": "granttap", "kind": "invocation", "target": "lookup_customer", "result": "success" }
+            { "id": "inv-1", "producer": "granttap", "kind": "invocation", "target": "lookup_customer", "result": "success", "event_time": 100, "sequence": 1, "boot_epoch": 1, "phase": "request", "evidence": "obs-1" },
+            { "id": "inv-1", "producer": "granttap", "kind": "invocation", "target": "lookup_customer", "result": "success", "event_time": 100, "sequence": 1, "boot_epoch": 1, "phase": "request", "evidence": "obs-1" }
           ]
         }"#,
     );

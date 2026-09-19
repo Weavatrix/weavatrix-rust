@@ -13,9 +13,10 @@ prompt, or compile a query database.**
 
 `weavatrix-rust` is the crate you link when the program — not a chat client —
 must own the graph. It builds a `Snapshot` with exact spans, extractor
-identity, and `proven` / `undetermined` / `BLOCKED` verdicts. It answers
-impact, architecture, API, health, history, search, semantic, and
-temporal-memory questions without executing the repository it analyzes.
+identity, and `proven` / `undetermined` / `BLOCKED` verdicts. The default
+full build exposes **64** bounded operations: impact, architecture, APIs,
+health, Git, search, memory, plus the domains agents actually ask about
+now — n8n, Dify, Agent catalogs, Mermaid, and Web3 ABI.
 
 Use it to:
 
@@ -23,9 +24,23 @@ Use it to:
 - serialize a `Snapshot` for CI, indexing, or review;
 - identify changed declarations by a content-safe symbol fingerprint and retain
   parser-proven `exported` evidence for public-surface consumers;
-- run 60 bounded read-only operations in the default full build;
+- run 64 bounded read-only operations in the default full build;
 - enforce the current v1 architecture contract foundation;
 - power the separate `weavatrix` MCP product.
+
+### What the new domains actually answer
+
+These are the questions the crate now closes with typed evidence, not a
+grep hit or a green checkbox:
+
+| Ask | Operation | Honest limit |
+| --- | --- | --- |
+| Will this MCP schema still accept yesterday’s request? | `agent_change_impact` | `string` → `integer` is `proven-incompatible`. A missing tool in a partial catalog is `unconfirmed`, not removed. |
+| Who calls this ABI after an event layout change? | `web3_impact` | Baseline/candidate pairing. Comment/string “calls” are not consumers. ABI equality is not a live deployment. |
+| Who reads this field in an exported n8n workflow? | `n8n_trace` / `n8n_context` | Array documents keep `/0/nodes/…` pointers. Secrets stay off the graph. |
+| Which Dify nodes consume `start_node.query`? | `dify_trace` | Conversation variables are directed edges, not string presence. |
+| Does this Mermaid arrow prove a code call? | `diagram_*` | Arrows are `declared_architecture`, never `Calls`. They do not clear dead code. |
+| Does `.weavatrix/architecture.json` still hold? | `verify_architecture` | Unknown rules fail closed. Transitive hits include the path that crossed the boundary. |
 
 > This crate is an engine, not an MCP server. Protocol transport, npm
 > packaging, profiles, and filesystem watching live in
@@ -76,7 +91,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.16.1"
+weavatrix-rust = "2.16.2"
 ```
 
 ```rust
@@ -111,7 +126,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.16.1", default-features = false }
+weavatrix-rust = { version = "2.16.2", default-features = false }
 ```
 
 ## MCP product
@@ -203,7 +218,7 @@ See the [evidence model](docs/evidence-model.md) and
 
 ## Operations
 
-The default full build exposes 60 operations:
+The default full build exposes 64 operations:
 
 | Workflow | Operations |
 | --- | --- |
@@ -220,6 +235,7 @@ The default full build exposes 60 operations:
 | Dify | `dify_inventory`, `dify_trace`, `dify_context` |
 | Agent | `agent_inventory`, `agent_trace`, `agent_context`, `agent_change_impact` |
 | Diagrams | `diagram_inventory`, `diagram_trace`, `diagram_context` |
+| Web3 | `web3_inventory`, `web3_trace`, `web3_impact`, `web3_context` |
 
 The complete schemas live in the [operation reference](docs/tool-reference.md).
 

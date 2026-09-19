@@ -1,4 +1,4 @@
-use super::view::{self, owned_domains};
+use super::view::owned_domains;
 use crate::engine::RepositoryState;
 use blazingly_json::{Value, json};
 use weavatrix_graph::Node;
@@ -255,30 +255,6 @@ fn added_csv(before: &str, after: &str) -> Vec<String> {
         .split(',')
         .filter(|item| !item.is_empty() && !before.split(',').any(|old| old == *item))
         .map(ToOwned::to_owned)
-        .collect()
-}
-
-pub(super) fn selected_consumers(
-    state: &RepositoryState,
-    names: &[&str],
-    max: usize,
-) -> Vec<Value> {
-    state
-        .graph()
-        .nodes()
-        .iter()
-        .filter(|node| node.kind.as_str() == "agent.skill")
-        .filter(|node| {
-            owned_domains(state, node.id.as_str()).iter().any(|item| {
-                item["name"].as_str().is_some_and(|label| {
-                    names
-                        .iter()
-                        .any(|name| label == format!("declared_allowed_tools:{name}"))
-                })
-            })
-        })
-        .take(max)
-        .map(view::selected)
         .collect()
 }
 

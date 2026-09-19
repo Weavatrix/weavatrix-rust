@@ -1,3 +1,4 @@
+mod consumers;
 mod impact;
 mod schema_cmp;
 mod view;

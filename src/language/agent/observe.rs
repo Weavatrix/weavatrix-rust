@@ -74,17 +74,12 @@ pub(super) fn decode(path: &str, raw: &str, value: &Value) -> Option<FileFacts> 
             kind: observation_kind(),
             span: span.clone(),
         };
-        let mut meta = vec![
-            format!("event:{id}"),
-            format!("kind:{kind}"),
-            format!("result:{result}"),
-            "plane:observed".to_owned(),
-            "effect:unverified".to_owned(),
-        ];
-        if result == "success" {
-            meta.push("result_is_not_effect".into());
-        }
-        push_meta(&mut facts, &item, &span, &meta);
+        push_meta(
+            &mut facts,
+            &item,
+            &span,
+            &event_meta(event, id, producer, kind, result),
+        );
     }
     if replayed > 0 {
         push_meta(
@@ -95,4 +90,45 @@ pub(super) fn decode(path: &str, raw: &str, value: &Value) -> Option<FileFacts> 
         );
     }
     Some(facts)
+}
+
+fn event_meta(
+    event: &blazingly_json::Map<String, Value>,
+    id: &str,
+    producer: &str,
+    kind: &str,
+    result: &str,
+) -> Vec<String> {
+    let mut meta = vec![
+        format!("event:{id}"),
+        format!("producer:{producer}"),
+        format!("kind:{kind}"),
+        format!("result:{result}"),
+        "plane:observed".to_owned(),
+        "effect:unverified".to_owned(),
+    ];
+    if result == "success" {
+        meta.push("result_is_not_effect".into());
+    }
+    push_u64(&mut meta, event, "event_time", "event_time:");
+    push_u64(&mut meta, event, "sequence", "sequence:");
+    push_u64(&mut meta, event, "boot_epoch", "boot:");
+    if let Some(phase) = event.get("phase").and_then(Value::as_str) {
+        meta.push(format!("phase:{phase}"));
+    }
+    if let Some(evidence) = event.get("evidence").and_then(Value::as_str) {
+        meta.push(format!("evidence:{evidence}"));
+    }
+    meta
+}
+
+fn push_u64(
+    meta: &mut Vec<String>,
+    event: &blazingly_json::Map<String, Value>,
+    key: &str,
+    prefix: &str,
+) {
+    if let Some(value) = event.get(key).and_then(Value::as_u64) {
+        meta.push(format!("{prefix}{value}"));
+    }
 }
