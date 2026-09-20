@@ -3,6 +3,7 @@ mod architecture;
 mod args;
 mod build;
 mod catalog;
+mod ci;
 mod diagram;
 mod dify;
 mod domain_walk;

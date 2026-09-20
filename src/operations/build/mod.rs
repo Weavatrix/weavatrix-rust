@@ -50,7 +50,9 @@ pub(in crate::operations) fn build_graph(
     workspaces.sort_by(|left, right| {
         (left.ecosystem, &left.aggregator).cmp(&(right.ecosystem, &right.aggregator))
     });
-    render::report(args, workspaces, &index)
+    let mut report = render::report(args, workspaces, &index)?;
+    super::ci::attach(state, &mut report);
+    Ok(report)
 }
 
 fn index(state: &RepositoryState) -> ManifestIndex {

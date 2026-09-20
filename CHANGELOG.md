@@ -21,6 +21,10 @@
   projection: a single bridge or a shared utility does not merge two
   modules. Weak coupling connectivity remains `view=connectivity`.
   Community keys stay stable when an unrelated group is added.
+- `build_graph` reports `analysis_identity` and `config_inputs` for local
+  CI/config files. Changing a workflow invalidates the digest; a
+  `.gitignore` hit is `excluded`, not a silent read. Snapshot schema
+  stays `1`.
 
 ## 2.16.4 - 2026-09-19
 

@@ -2,10 +2,8 @@
 
 Status: reuse map and acceptance boundary. Not an implemented detector.
 
-Re-checked worktree: Git `0466eaadb8e466af3d83b2a9b227606ca3b9f553` (19 Sep 2026
-Graphify PR01–04 on `main`) plus uncommitted PR05 (typed paths and subsystem
-communities). The earlier paper cut `ae52a5b` is an ancestor; do not treat it
-as HEAD.
+Re-checked worktree: Git `e8692677899bb84b7ada765a2ad2b1a66ac8493f` (PR05 on
+`main`). The earlier paper cut `ae52a5b` is an ancestor; do not treat it as HEAD.
 
 ## Reuse — do not rebuild
 
@@ -60,5 +58,6 @@ scripts, network in Core.
 
 ## Next
 
-P1: snapshot identity for build/CI/config inputs, spans, typed unknowns.
+P1 lands on this tree: `build_graph.analysis_identity` / `config_inputs`.
+P2 is observed architecture without a style label.
 P5 is the first complete user-visible delivery.
