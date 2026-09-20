@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- `query_graph` ranks question tokens against labels, paths, and kinds
+  instead of requiring the whole phrase in one label. Exact seeds stay
+  exact. The walk no longer returns edges to unshown nodes.
+- `context_bundle` fills caller/callee/contract/test quotas so a large
+  fan-in cannot hide the one important callee.
+- `change_impact` keeps transport `COMPLETE` but reports
+  `evidence_completeness` (`INCOMPLETE`) and `unresolved_seeds` when a changed file is
+  missing from the current graph.
+- `change_impact` maps hunks to declarations when a Git baseline is
+  available: one edited function is not the whole file, a deletion keeps
+  callers from the base graph, and a comment-only edit is not a proven
+  body change. File-level fallback is marked `coarse`.
+- `shortest_path` applies `max_hops` during search and returns per-hop
+  witnesses.
+
 ## 2.16.4 - 2026-09-19
 
 - Agent schema comparison keeps enum values and numeric bounds without

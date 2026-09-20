@@ -14,8 +14,11 @@ schemas are authoritative.
   capability matrix is static, so it is returned only with
   `include_capabilities`; `run_audit` takes the same argument.
 - `get_node`, `get_neighbors`: exact nodes and typed direct relationships.
-- `query_graph`: bounded BFS/DFS around exact file or symbol seeds.
-- `god_nodes`, `shortest_path`: connectivity review and typed paths.
+- `query_graph`: exact seeds stay exact; a `question` is ranked against
+  names, paths, and kinds. The walk is a witness subgraph: every returned
+  edge has shown endpoints, or the hop is listed on `frontier`.
+- `god_nodes`, `shortest_path`: connectivity review and typed paths with
+  per-hop witnesses. `max_hops` is enforced during search.
 - `get_community`, `list_communities`, `module_map`: deterministic territories.
 - `build_graph`: workspace aggregators, members, targets and runner
   configurations from manifest evidence; no build tool is executed.
@@ -23,7 +26,11 @@ schemas are authoritative.
 ## Change impact and exact context
 
 - `get_dependents`: bounded reverse blast radius.
-- `change_impact`: Git changes mapped onto the graph.
+- `change_impact`: Git changes mapped onto declarations when a baseline
+  graph can be built. Transport `status` is `COMPLETE` when the operation
+  finished; `evidence_completeness` is `INCOMPLETE` when a seed is missing,
+  the walk was capped, or the requested baseline is unavailable. A missing
+  file node is not proof of no dependents. File-level fallback is `coarse`.
 - `verified_change`: impact, architecture, duplicate, API, and optional test
   evidence for plan/verify phases.
 - `prepare_change`, `graph_diff`: relevant rules and structural change.
@@ -36,7 +43,8 @@ schemas are authoritative.
   answers in full and reports `token_budget.applied: false` with the estimated
   cost, so an unapplied budget is visible rather than silent.
 - `inspect_symbol`, `context_bundle`: exact declarations and compact task
-  worksets with ranked inbound/outbound evidence. `inspect_symbol` accepts a
+  worksets. `context_bundle` fills caller/callee/contract/test quotas so a
+  large fan-in cannot hide a single important callee. `inspect_symbol` accepts a
   `label` or a `(path, line, column)` occurrence; a usage position wins over
   a same-named declaration.
 - `go_to_definition`: `(path, line, column)` → resolved symbol → definition.

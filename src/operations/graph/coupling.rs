@@ -1,6 +1,6 @@
 /// Coupling relations for reverse walks. Containment and control flow are not
 /// treated as the same kind of dependency: `flows_to` stays off this list.
-pub(super) fn coupling_relations() -> std::collections::BTreeSet<String> {
+pub fn coupling_relations() -> std::collections::BTreeSet<String> {
     [
         "calls",
         "imports",

@@ -1,18 +1,24 @@
 use crate::engine::RepositoryState;
 use crate::operations::{arg_str, arg_u64, optional_bool};
 use blazingly_json::{Value, json};
-use weavatrix_graph::{Direction, NodeIndex, NodeKind, shortest_path};
+use weavatrix_graph::{NodeIndex, NodeKind};
 
+mod bounds;
 mod coupling;
 mod pagination;
+mod query;
+mod related;
+mod seeds;
 mod trace;
 mod views;
 mod walk;
 
+pub(crate) use coupling::coupling_relations;
 pub(crate) use pagination::page_offset;
+pub use query::{dependents, path, query};
+pub(crate) use related::pick_related;
 pub(super) use trace::endpoint as trace_endpoint;
 pub use views::{communities, endpoints, module_map};
-use walk::resolve_seeds;
 pub(super) use walk::traverse;
 
 pub fn stats(state: &RepositoryState, args: &Value) -> Result<Value, String> {
@@ -120,52 +126,6 @@ pub fn neighbors(state: &RepositoryState, args: &Value) -> Result<Value, String>
     }))
 }
 
-pub fn query(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    let seeds = resolve_seeds(state, args)?;
-    let depth = usize::try_from(arg_u64(args, "depth").unwrap_or(3)).unwrap_or(3);
-    let max_nodes = usize::try_from(arg_u64(args, "max_nodes").unwrap_or(80)).unwrap_or(80);
-    let direction = match arg_str(args, "flow_direction").unwrap_or("both") {
-        "forward" => Direction::Outgoing,
-        "backward" => Direction::Incoming,
-        _ => Direction::Both,
-    };
-    let dfs = arg_str(args, "mode").unwrap_or("bfs") == "dfs";
-    let relations = relation_filter(args)?;
-    let (visited, traversed) = traverse(
-        state,
-        seeds,
-        depth,
-        max_nodes,
-        direction,
-        dfs,
-        relations.as_ref(),
-    );
-    let nodes = visited
-        .iter()
-        .filter_map(|(index, distance)| {
-            let node = state.graph().node_at(*index)?;
-            crate::operations::node_is_visible(state, index.index(), args)
-                .then(|| json!({"node": node, "distance": distance}))
-        })
-        .collect::<Vec<_>>();
-    let edges = traversed
-        .into_iter()
-        .filter_map(|index| state.graph().edge_at(index))
-        .collect::<Vec<_>>();
-    let budget = crate::operations::token_budget::requested(args)?;
-    let mut report = json!({"nodes": nodes, "edges": edges, "truncated": nodes.len() == max_nodes});
-    crate::operations::token_budget::fit(&mut report, budget, &["/edges", "/nodes"]);
-    let dropped = report["token_budget"]["dropped_items"]
-        .as_u64()
-        .unwrap_or(0);
-    if dropped > 0
-        && let Some(value) = report.pointer_mut("/truncated")
-    {
-        *value = json!(true);
-    }
-    Ok(report)
-}
-
 pub fn hubs(state: &RepositoryState, args: &Value) -> Value {
     let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(10)).unwrap_or(10);
     let mut nodes = state
@@ -195,63 +155,9 @@ pub fn hubs(state: &RepositoryState, args: &Value) -> Value {
     })
 }
 
-pub fn path(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    let source = state.resolve_node(arg_str(args, "source")?)?;
-    let target = state.resolve_node(arg_str(args, "target")?)?;
-    let mut indices = shortest_path(state.graph(), source, target).unwrap_or_default();
-    let max_hops = usize::try_from(arg_u64(args, "max_hops").unwrap_or(8)).unwrap_or(8);
-    let bounded_out = indices.len().saturating_sub(1) > max_hops;
-    if bounded_out {
-        indices.clear();
-    }
-    let nodes = indices
-        .iter()
-        .filter_map(|index| state.graph().node_at(*index))
-        .collect::<Vec<_>>();
-    Ok(json!({
-        "found": !nodes.is_empty(),
-        "bounded_out": bounded_out,
-        "max_hops": max_hops,
-        "hops": nodes.len().saturating_sub(1),
-        "nodes": nodes
-    }))
-}
-
-pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    crate::operations::require_graph_precision(args)?;
-    let seed = state.resolve_node(arg_str(args, "label")?)?;
-    let depth = usize::try_from(arg_u64(args, "depth").unwrap_or(3)).unwrap_or(3);
-    let max = usize::try_from(arg_u64(args, "max_nodes").unwrap_or(40)).unwrap_or(40);
-    let (visited, _) = traverse(
-        state,
-        vec![seed],
-        depth,
-        max + 1,
-        Direction::Incoming,
-        false,
-        Some(&coupling::coupling_relations()),
-    );
-    // Remove the seed by identity: the traversal order is not sorted, so
-    // dropping the first entry would silently discard a real dependent.
-    let nodes = visited
-        .into_iter()
-        .filter(|(index, _)| *index != seed)
-        .filter_map(|(index, distance)| {
-            let node = state.graph().node_at(index)?;
-            Some(json!({"node": node, "distance": distance}))
-        })
-        .take(max)
-        .collect::<Vec<_>>();
-    Ok(json!({
-        "seed": state.node(seed)?,
-        "dependents": nodes,
-        "relations": coupling::coupling_relations().iter().collect::<Vec<_>>(),
-        "precision": "graph",
-        "semantic_precision": "BOUNDED_STATIC"
-    }))
-}
-
-fn relation_filter(args: &Value) -> Result<Option<std::collections::BTreeSet<String>>, String> {
+pub(super) fn relation_filter(
+    args: &Value,
+) -> Result<Option<std::collections::BTreeSet<String>>, String> {
     const EXPECTED: &str = "relation_filter must be a relation name or a non-empty array of them";
     let Some(value) = args.get("relation_filter") else {
         return Ok(None);

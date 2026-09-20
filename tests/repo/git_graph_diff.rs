@@ -154,6 +154,30 @@ fn change_impact_accepts_legacy_target_as_files() {
 }
 
 #[test]
+fn change_impact_marks_a_missing_file_as_unresolved_not_no_impact() {
+    let fixture = GitFixture::new();
+    fixture.write("src/value.js", "export const value = 1;\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let result = tools::call(
+        &mut engine,
+        "change_impact",
+        json!({"files": ["src/deleted.js"]}),
+    )
+    .unwrap();
+    assert_eq!(result["status"], "COMPLETE");
+    assert_eq!(result["execution_status"], "OK");
+    assert_eq!(result["evidence_completeness"], "INCOMPLETE");
+    assert_eq!(result["stop_reason"], "UNRESOLVED_SEEDS");
+    assert_eq!(result["unresolved_seeds"][0]["reason"], "missing_file_node");
+    assert!(
+        result["impacted_nodes"]
+            .as_array()
+            .is_some_and(Vec::is_empty),
+        "a missing seed must not be reported as a complete empty blast radius: {result}"
+    );
+}
+
+#[test]
 fn change_impact_rejects_unknown_argument_instead_of_empty_complete() {
     let fixture = GitFixture::new();
     fixture.write("src/value.js", "export const value = 1;\n");

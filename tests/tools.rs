@@ -18,6 +18,8 @@ mod support;
 #[path = "tool_fixture/mod.rs"]
 mod tool_fixture;
 
+#[path = "tools/graph_evidence.rs"]
+mod graph_evidence;
 #[path = "tools/tool_catalog_parity.rs"]
 mod tool_catalog_parity;
 #[path = "tools/tool_contract_architecture.rs"]

@@ -205,19 +205,11 @@ pub fn context(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         .and_then(Value::as_str)
         .ok_or_else(|| "resolved inspection is missing a node id".to_owned())?;
     let index = state.resolve_node(id)?;
+    let intent = args.get("intent").and_then(Value::as_str);
     let mut sources = Vec::new();
-    for edge in state
-        .graph()
-        .incoming_at(index)
-        .chain(state.graph().outgoing_at(index))
-        .take(related)
-    {
-        let id = if edge.source.as_str() == state.node(index)?.id.as_str() {
-            &edge.target
-        } else {
-            &edge.source
-        };
-        let Some(node) = state.graph().node(id.as_str()) else {
+    let mut categories = Vec::new();
+    for pick in super::graph::pick_related(state, index, id, related, intent) {
+        let Some(node) = state.graph().node(&pick.other_id) else {
             continue;
         };
         if node.span.is_some()
@@ -227,12 +219,18 @@ pub fn context(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             )
         {
             sources.push(source);
+            categories.push(json!({
+                "id": node.id,
+                "category": pick.category,
+                "relation": pick.edge.kind
+            }));
         }
     }
     let budget = super::token_budget::requested(args)?;
     let mut report = json!({
         "inspection": inspection,
         "related_source": sources,
+        "related_categories": categories,
         "bounded": true
     });
     // The target node and its own source are never trimmed: a bundle that

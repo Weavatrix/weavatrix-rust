@@ -22,7 +22,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "query_graph",
-        description: "Bounded BFS or DFS around exact or textual seeds.",
+        description: "Bounded BFS or DFS from exact seeds or a ranked question.",
         required: &[],
     },
     ToolSpec {
@@ -32,7 +32,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "shortest_path",
-        description: "Shortest typed dependency path between two nodes.",
+        description: "Shortest typed path with per-hop witnesses and hop limits.",
         required: &["source", "target"],
     },
     ToolSpec {
@@ -42,7 +42,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "change_impact",
-        description: "Read-only Git change impact with graph evidence.",
+        description: "Read-only Git change impact at symbol granularity when a baseline exists.",
         required: &[],
     },
     ToolSpec {
@@ -112,7 +112,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "context_bundle",
-        description: "Compact graph and source bundle for one symbol.",
+        description: "Task-aware source bundle with category quotas and dedup.",
         required: &[],
     },
     ToolSpec {

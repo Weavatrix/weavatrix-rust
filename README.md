@@ -239,6 +239,13 @@ The default full build exposes 64 operations:
 | Diagrams | `diagram_inventory`, `diagram_trace`, `diagram_context` |
 | Web3 | `web3_inventory`, `web3_trace`, `web3_impact`, `web3_context` |
 
+`query_graph` ranks a question against names, paths, and kinds; exact
+seeds stay exact. Walk answers are witness subgraphs: every returned edge
+has shown endpoints, or the hop is on `frontier`. `change_impact`
+finishing (`status: COMPLETE`) is not the same as a complete blast radius
+(`evidence_completeness`). `context_bundle` keeps caller, callee, contract,
+and test quotas so a large fan-in cannot hide one important callee.
+
 The complete schemas live in the [operation reference](docs/tool-reference.md).
 
 ## Measured coverage

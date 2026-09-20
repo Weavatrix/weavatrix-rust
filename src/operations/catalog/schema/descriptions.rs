@@ -225,6 +225,11 @@ fn domain_field(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "description": "Alias for candidate when comparing a new contract interface"
         })),
+        ("query_graph" | "context_bundle", "intent") => Some(json!({
+            "type": "string",
+            "enum": ["callers", "callees", "imports", "types", "why"],
+            "description": "Walk and context quota bias. Question text can also set this; exact seeds stay exact"
+        })),
         _ => None,
     }
 }

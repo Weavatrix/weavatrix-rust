@@ -137,7 +137,7 @@ fn data_flow_evidence(
         .into_iter()
         .map(str::to_owned)
         .collect::<BTreeSet<_>>();
-    let (_, traversed) = crate::operations::graph::traverse(
+    let walk = crate::operations::graph::traverse(
         state,
         seeds.to_vec(),
         depth,
@@ -146,18 +146,25 @@ fn data_flow_evidence(
         false,
         Some(&relations),
     );
-    let total = traversed.len();
-    let edges = traversed
-        .into_iter()
-        .filter_map(|index| state.graph().edge_at(index))
+    let total = walk.edges.len();
+    let edges = walk
+        .edges
+        .iter()
+        .filter_map(|index| state.graph().edge_at(*index))
         .take(max)
         .collect::<Vec<_>>();
     Ok(json!({
         "status": "COMPLETE",
+        "execution_status": "OK",
+        "evidence_completeness": if walk.evidence_complete() && total <= max {
+            "COMPLETE"
+        } else {
+            "INCOMPLETE"
+        },
         "model": "bounded call/reference graph evidence; not CFG or taint analysis",
         "depth": depth,
         "edges": edges,
         "total_edges": total,
-        "capped": total > max
+        "capped": total > max || !walk.evidence_complete()
     }))
 }

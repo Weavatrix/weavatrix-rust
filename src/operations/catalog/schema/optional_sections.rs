@@ -101,6 +101,7 @@ pub(super) fn occurrence_fields(tool: &str) -> Option<&'static [&'static str]> {
             "include_classified",
             "timeout_ms",
             "token_budget",
+            "intent",
         ]),
         _ => None,
     }

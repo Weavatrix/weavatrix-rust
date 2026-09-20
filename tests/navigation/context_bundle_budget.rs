@@ -101,3 +101,50 @@ fn max_references_caps_the_relationship_evidence() {
         "an out-of-range cap is a caller error: {error}"
     );
 }
+
+#[test]
+fn related_source_keeps_a_callee_when_callers_dominate() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "src/hub.js",
+        "import { helper } from './helper.js';\nexport function hub() { return helper(); }\n",
+    );
+    fixture.write("src/helper.js", "export function helper() { return 1; }\n");
+    let mut callers = String::new();
+    for index in 0..50 {
+        let _ = writeln!(
+            callers,
+            "import {{ hub }} from './hub.js';\nexport function caller{index}() {{ return hub(); }}"
+        );
+    }
+    fixture.write("src/callers.js", &callers);
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "context_bundle",
+        json!({"label": "hub", "max_related": 8}),
+    )
+    .unwrap();
+    let categories = report["related_categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|item| item["category"].as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        categories.iter().any(|category| *category == "callee"),
+        "a single callee must survive a large caller fan-in: {report}"
+    );
+    let ids = report["related_categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|item| item["id"].as_str())
+        .collect::<Vec<_>>();
+    let unique = ids.iter().collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        unique.len(),
+        ids.len(),
+        "one symbol must appear once even if several edges point at it: {ids:?}"
+    );
+}
