@@ -2,6 +2,7 @@ mod budgets;
 mod capabilities;
 mod contract;
 pub(crate) use contract::declared_component;
+mod observed;
 mod path_pattern;
 mod policy_diagnostics;
 mod policy_reachability;
@@ -19,24 +20,30 @@ pub fn contract(state: &RepositoryState, args: &Value) -> Result<Value, String> 
     if arg_str(args, "action").ok() == Some("approve") {
         return Err("read-only MCP never writes architecture contracts".to_owned());
     }
-    match contract::load_optional(state)? {
-        Some(value) => Ok(json!({
+    let report = match contract::load_optional(state)? {
+        Some(value) => json!({
             "state": "CONFIGURED",
             "source": ".weavatrix/architecture.json",
             "contract": value
-        })),
-        None if arg_str(args, "action").ok() == Some("preview") => Ok(json!({
+        }),
+        None if arg_str(args, "action").ok() == Some("preview") => json!({
             "state": "PREVIEW",
             "source": "derived graph folders",
             "contract": contract::starter(state),
             "warning": "no active architecture contract",
             "write": "NONE"
-        })),
-        None => Ok(contract::not_configured(
+        }),
+        None => contract::not_configured(
             state,
             "Save the starter as .weavatrix/architecture.json, review it, then verify.",
-        )),
-    }
+        ),
+    };
+    Ok(observed::attach(state, report))
+}
+
+#[must_use]
+pub fn inventory(state: &RepositoryState) -> Value {
+    observed::report(state)
 }
 
 pub fn prepare(state: &RepositoryState, args: &Value) -> Result<Value, String> {

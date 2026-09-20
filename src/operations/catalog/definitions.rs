@@ -186,6 +186,11 @@ pub(super) const SPECS: &[ToolSpec] = &[
         required: &[],
     },
     ToolSpec {
+        name: "architecture_inventory",
+        description: "Observed packages, production folders, and typed edges. Not a style label and not the starter contract.",
+        required: &[],
+    },
+    ToolSpec {
         name: "prepare_change",
         description: "Select architecture rules for intended changed files.",
         required: &["files"],

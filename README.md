@@ -14,7 +14,7 @@ prompt, or compile a query database.**
 `weavatrix-rust` is the crate you link when the program — not a chat client —
 must own the graph. It builds a `Snapshot` with exact spans, extractor
 identity, and `proven` / `undetermined` / `BLOCKED` verdicts. The default
-full build exposes **64** bounded operations: impact, architecture, APIs,
+full build exposes **65** bounded operations: impact, architecture, APIs,
 health, Git, search, memory, plus the domains agents actually ask about
 now — n8n, Dify, Agent catalogs, Mermaid, and Web3 ABI.
 
@@ -24,7 +24,7 @@ Use it to:
 - serialize a `Snapshot` for CI, indexing, or review;
 - identify changed declarations by a content-safe symbol fingerprint and retain
   parser-proven `exported` evidence for public-surface consumers;
-- run 64 bounded read-only operations in the default full build;
+- run 65 bounded read-only operations in the default full build;
 - enforce the current v1 architecture contract foundation;
 - hang a measured LCOV / Istanbul / Tarpaulin / LLVM report onto the same
   graph with `coverage_map` (the crate does not run the tests);
@@ -220,7 +220,7 @@ See the [evidence model](docs/evidence-model.md) and
 
 ## Operations
 
-The default full build exposes 64 operations:
+The default full build exposes 65 operations:
 
 | Workflow | Operations |
 | --- | --- |
@@ -230,7 +230,7 @@ The default full build exposes 64 operations:
 | Health | `find_duplicates`, `find_dead_code`, `run_audit`, `coverage_map`, `hot_path_review` |
 | Measurement | `perf_attribution` |
 | APIs | `list_endpoints`, `trace_endpoint`, `trace_api_contract` |
-| Architecture | `get_architecture_contract`, `verify_architecture`, `verify_capabilities`, explain/propose exception |
+| Architecture | `architecture_inventory`, `get_architecture_contract`, `verify_architecture`, `verify_capabilities`, explain/propose exception |
 | Repository | Git history, cross-repo, open/list/rebuild operations |
 | Extensions | Vector, semantic, SEO, and memory operations |
 | n8n | `n8n_inventory`, `n8n_trace`, `n8n_context` |

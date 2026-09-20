@@ -25,6 +25,9 @@
   CI/config files. Changing a workflow invalidates the digest; a
   `.gitignore` hit is `excluded`, not a silent read. Snapshot schema
   stays `1`.
+- `architecture_inventory` reports observed packages, production folders,
+  and typed edges. `get_architecture_contract` attaches the same facts as
+  `observed`. Neither assigns a style; the starter still does.
 
 ## 2.16.4 - 2026-09-19
 

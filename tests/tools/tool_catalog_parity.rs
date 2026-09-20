@@ -51,6 +51,7 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "rebuild_graph",
         "graph_diff",
         "get_architecture_contract",
+        "architecture_inventory",
         "prepare_change",
         "verify_architecture",
         "verify_capabilities",

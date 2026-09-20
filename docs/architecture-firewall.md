@@ -187,7 +187,9 @@ violations identify the source file and required target components.
 
 ## Operations
 
-- `get_architecture_contract`: reads or previews a contract;
+- `architecture_inventory`: observed folders and typed edges, not a style;
+- `get_architecture_contract`: reads or previews a contract and attaches
+  the same observed facts;
 - `verify_architecture`: evaluates the active contract;
 - `explain_architecture_violation`: explains one active fingerprint;
 - `propose_architecture_exception`: returns a reviewable exception proposal

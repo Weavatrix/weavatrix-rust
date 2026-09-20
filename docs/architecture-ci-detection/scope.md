@@ -2,8 +2,8 @@
 
 Status: reuse map and acceptance boundary. Not an implemented detector.
 
-Re-checked worktree: Git `e8692677899bb84b7ada765a2ad2b1a66ac8493f` (PR05 on
-`main`). The earlier paper cut `ae52a5b` is an ancestor; do not treat it as HEAD.
+Re-checked worktree: Git `037623c2097cdf6ddeaf83326ef48ad6d8ed2f6b` (P1 identity
+on `main`). The earlier paper cut `ae52a5b` is an ancestor; do not treat it as HEAD.
 
 ## Reuse — do not rebuild
 
@@ -39,8 +39,9 @@ Re-checked worktree: Git `e8692677899bb84b7ada765a2ad2b1a66ac8493f` (PR05 on
 
 ## Proposed public names (not catalogued yet)
 
-`architecture_inventory`, `ci_restrictions`, `explain_restriction`.
-Do not register them until P2/P4/P5 land with schemas and tests.
+`architecture_inventory` is registered. `ci_restrictions` and
+`explain_restriction` stay unregistered until P4/P5 land with schemas and
+tests.
 
 ## Supported in P1–P5 / unsupported until later
 
@@ -58,6 +59,6 @@ scripts, network in Core.
 
 ## Next
 
-P1 lands on this tree: `build_graph.analysis_identity` / `config_inputs`.
-P2 is observed architecture without a style label.
-P5 is the first complete user-visible delivery.
+P1 is on `037623c`. P2 lands `architecture_inventory` and
+`get_architecture_contract.observed` without a style label.
+P3 is the GitHub Actions graph. P5 is the first complete delivery.

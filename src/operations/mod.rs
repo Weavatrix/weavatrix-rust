@@ -138,6 +138,7 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "trace_endpoint" => graph::trace_endpoint(state, arguments),
         "graph_diff" => history::graph_diff(state, arguments),
         "get_architecture_contract" => architecture::contract(state, arguments),
+        "architecture_inventory" => Ok(architecture::inventory(state)),
         "prepare_change" => architecture::prepare(state, arguments),
         "verify_architecture" => architecture::verify(state),
         "verify_capabilities" => architecture::verify_capabilities(state, arguments),
