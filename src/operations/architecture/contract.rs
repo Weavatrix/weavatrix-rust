@@ -104,6 +104,11 @@ pub(super) fn rules_for_file<'contract>(
         .collect()
 }
 
+pub(crate) fn declared_component(state: &RepositoryState, file: &str) -> Option<String> {
+    let contract = load_optional(state).ok().flatten()?;
+    component_for(&contract, file).map(str::to_owned)
+}
+
 pub(super) fn component_for<'contract>(
     value: &'contract Value,
     file: &str,

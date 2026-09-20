@@ -52,6 +52,7 @@ pub(crate) fn field_schema(tool: &str, name: &str) -> Value {
             | "include_declarative"
             | "include_strings"
             | "include_non_product"
+            | "directed"
             | "build"
             | "allow_cross_language"
             | "exact"

@@ -67,6 +67,8 @@ pub(super) fn is_integer(name: &str) -> bool {
                 | "months"
                 | "token_budget"
                 | "community_id"
+                | "resolution"
+                | "hub_degree"
                 | "impact_depth"
                 | "data_flow_depth"
                 | "loop_depth_threshold"
@@ -79,7 +81,9 @@ pub(super) fn is_integer(name: &str) -> bool {
 pub(super) fn enum_schema(tool: &str, name: &str) -> Option<Value> {
     let values = match (tool, name) {
         ("query_graph", "mode") => &["bfs", "dfs"][..],
-        ("query_graph", "flow_direction") => &["forward", "backward", "both"],
+        ("query_graph" | "shortest_path", "flow_direction") => &["forward", "backward", "both"],
+        ("shortest_path", "path_kind") => &["calls", "dependency", "documentation"],
+        ("list_communities" | "get_community", "view") => &["subsystems", "connectivity"],
         ("find_duplicates", "mode") => &["strict", "exact", "renamed", "near_miss"],
         ("semantic_link" | "seo_link_suggestions", "selection") => &["union", "mutual", "directed"],
         ("cross_repo_git", "action") => &["histories", "shared_commits", "diff"],

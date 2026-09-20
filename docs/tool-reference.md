@@ -18,8 +18,13 @@ schemas are authoritative.
   names, paths, and kinds. The walk is a witness subgraph: every returned
   edge has shown endpoints, or the hop is listed on `frontier`.
 - `god_nodes`, `shortest_path`: connectivity review and typed paths with
-  per-hop witnesses. `max_hops` is enforced during search.
-- `get_community`, `list_communities`, `module_map`: deterministic territories.
+  per-hop witnesses. `max_hops` and `max_edges` bound the search. `path_kind`
+  selects calls, dependency, or documentation hops. Mixed hops are not an
+  execution chain.
+- `get_community`, `list_communities`, `module_map`: deterministic
+  territories. Communities default to a derived subsystem projection;
+  `view=connectivity` is the older weak-component grouping. Algorithm
+  parameters and explaining boundary edges are in the result.
 - `build_graph`: workspace aggregators, members, targets and runner
   configurations from manifest evidence; no build tool is executed.
 

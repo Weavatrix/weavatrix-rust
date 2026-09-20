@@ -32,7 +32,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "shortest_path",
-        description: "Shortest typed path with per-hop witnesses and hop limits.",
+        description: "Shortest typed path with per-hop witnesses, path kind, and work limits.",
         required: &["source", "target"],
     },
     ToolSpec {
@@ -82,7 +82,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "get_community",
-        description: "Return one coupling community (containment and package edges excluded).",
+        description: "Return one community: derived subsystems by default, or weak connectivity.",
         required: &["community_id"],
     },
     ToolSpec {
@@ -147,7 +147,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "list_communities",
-        description: "List deterministic coupling communities (containment and package edges excluded).",
+        description: "List derived subsystems by default, or weak coupling connectivity.",
         required: &[],
     },
     ToolSpec {

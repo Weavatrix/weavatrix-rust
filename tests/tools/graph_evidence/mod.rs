@@ -1,5 +1,8 @@
 //! Graphify-facing regressions: ranked seeds, honest bounds, path witnesses.
 
+mod communities;
+mod paths;
+
 use crate::language_fixture::Fixture;
 use blazingly_json::json;
 use weavatrix_rust::{Weavatrix, tools};
@@ -72,41 +75,4 @@ fn query_graph_does_not_return_dangling_edge_endpoints() {
     }
     assert_eq!(report["evidence_completeness"], "INCOMPLETE");
     assert_eq!(report["truncated"], true);
-}
-
-#[test]
-fn shortest_path_returns_witnesses_and_honors_max_hops() {
-    let fixture = Fixture::new();
-    fixture.write(
-        "src/a.js",
-        "import { b } from './b.js';\nexport function a() { return b(); }\n",
-    );
-    fixture.write(
-        "src/b.js",
-        "import { c } from './c.js';\nexport function b() { return c(); }\n",
-    );
-    fixture.write("src/c.js", "export function c() { return 1; }\n");
-    let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let found = tools::call(
-        &mut engine,
-        "shortest_path",
-        json!({"source": "a", "target": "c", "max_hops": 4}),
-    )
-    .unwrap();
-    assert_eq!(found["found"], true);
-    assert!(
-        found["witnesses"]
-            .as_array()
-            .is_some_and(|hops| !hops.is_empty()),
-        "a found path must name each hop: {found}"
-    );
-    let bounded = tools::call(
-        &mut engine,
-        "shortest_path",
-        json!({"source": "a", "target": "c", "max_hops": 1}),
-    )
-    .unwrap();
-    assert_eq!(bounded["found"], false);
-    assert_eq!(bounded["bounded_out"], true);
-    assert_eq!(bounded["stop_reason"], "MAX_HOPS");
 }

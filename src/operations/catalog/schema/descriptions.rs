@@ -155,6 +155,17 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "description": "Deprecated alias for a single path in files; equivalent to files:[target]. Errors when both are present and disagree"
         })),
+        ("list_communities" | "get_community", "view") => Some(json!({
+            "type": "string",
+            "enum": ["subsystems", "connectivity"],
+            "default": "subsystems",
+            "description": "subsystems is a derived directory projection that keeps weak bridges and shared utilities from merging modules; connectivity is the previous weak-component view"
+        })),
+        ("shortest_path", "path_kind") => Some(json!({
+            "type": "string",
+            "enum": ["calls", "dependency", "documentation"],
+            "description": "Restrict hop relations. A mixed found path is never an execution chain"
+        })),
         _ => None,
     }
 }

@@ -1,6 +1,7 @@
 mod budgets;
 mod capabilities;
 mod contract;
+pub(crate) use contract::declared_component;
 mod path_pattern;
 mod policy_diagnostics;
 mod policy_reachability;

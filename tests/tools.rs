@@ -18,7 +18,7 @@ mod support;
 #[path = "tool_fixture/mod.rs"]
 mod tool_fixture;
 
-#[path = "tools/graph_evidence.rs"]
+#[path = "tools/graph_evidence/mod.rs"]
 mod graph_evidence;
 #[path = "tools/tool_catalog_parity.rs"]
 mod tool_catalog_parity;

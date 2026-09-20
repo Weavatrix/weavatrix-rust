@@ -6,6 +6,7 @@ use weavatrix_graph::{NodeIndex, NodeKind};
 mod bounds;
 mod coupling;
 mod pagination;
+mod path;
 mod query;
 mod related;
 mod seeds;
@@ -15,7 +16,8 @@ mod walk;
 
 pub(crate) use coupling::coupling_relations;
 pub(crate) use pagination::page_offset;
-pub use query::{dependents, path, query};
+pub use path::path;
+pub use query::{dependents, query};
 pub(crate) use related::pick_related;
 pub(super) use trace::endpoint as trace_endpoint;
 pub use views::{communities, endpoints, module_map};

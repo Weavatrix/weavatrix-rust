@@ -14,8 +14,13 @@
   available: one edited function is not the whole file, a deletion keeps
   callers from the base graph, and a comment-only edit is not a proven
   body change. File-level fallback is marked `coarse`.
-- `shortest_path` applies `max_hops` during search and returns per-hop
-  witnesses.
+- `shortest_path` applies `max_hops` and `max_edges` during search, returns
+  per-hop witnesses (including parallel relations), and names `path_kind`.
+  A mixed path is not an execution chain.
+- `list_communities` / `get_community` default to a derived subsystem
+  projection: a single bridge or a shared utility does not merge two
+  modules. Weak coupling connectivity remains `view=connectivity`.
+  Community keys stay stable when an unrelated group is added.
 
 ## 2.16.4 - 2026-09-19
 
