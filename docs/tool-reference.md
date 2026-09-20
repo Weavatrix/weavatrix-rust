@@ -43,8 +43,8 @@ schemas are authoritative.
   suites, runner naming conventions in reverse, and suites reached through
   bounded reverse dependencies.
 - `search_code`, `read_source`: bounded search and verified excerpts; both
-  accept `token_budget`, as do `context_bundle` and `query_graph`. Those four
-  are the only operations that apply a budget; any other operation still
+  accept `token_budget`, as do `context_bundle`, `query_graph`, and
+  `ci_restrictions`. These five operations apply a budget; any other operation still
   answers in full and reports `token_budget.applied: false` with the estimated
   cost, so an unapplied budget is visible rather than silent.
 - `inspect_symbol`, `context_bundle`: exact declarations and compact task
@@ -120,6 +120,24 @@ is weak evidence for each of them, and profiler attribution it is not.
   The contract answer also carries `observed` facts.
 - `explain_architecture_violation`, `propose_architecture_exception`: bounded
   explanations and reviewable proposals without policy writes.
+
+## Local CI evidence
+
+- `ci_restrictions`: parse local GitHub Actions workflows into jobs, steps,
+  `needs`, static matrix declarations, artifact references, and literal check
+  invocations. It follows local composite actions and supported literal helper
+  and npm scripts without executing them. Pass `scenario.event`, `branch` (the
+  base branch for a pull request), and `changed_files` for bounded trigger
+  applicability. Dynamic expressions, shell control flow, remote action bodies,
+  execution, and remote merge enforcement remain explicit unknowns.
+- `explain_restriction`: retrieve one finding by its stable `id`, including
+  source digest, byte span when available, applicability, and failure effect.
+  A configured coverage threshold is not measured coverage. A local workflow
+  is not a required status check.
+
+`prepare_change`, `change_impact`, `verified_change`, and `graph_diff` include a
+compact `ci_protection` section with candidate checks and declared rule
+bindings. Execution and provider enforcement are reported as `NOT_OBSERVED`.
 
 ## Git and repositories
 

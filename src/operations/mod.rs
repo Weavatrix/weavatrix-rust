@@ -47,6 +47,7 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
     require_valid_output_format(&arguments)?;
     expect_repository(weavatrix, &arguments)?;
     let mut report = dispatch(weavatrix, name, &arguments)?;
+    ci::protect(weavatrix.state(), name, &arguments, &mut report);
     // A budget an operation cannot apply is reported, not refused: the answer
     // itself is never withheld.
     token_budget::annotate_unapplied(name, &arguments, &mut report)?;
@@ -139,6 +140,8 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "graph_diff" => history::graph_diff(state, arguments),
         "get_architecture_contract" => architecture::contract(state, arguments),
         "architecture_inventory" => Ok(architecture::inventory(state)),
+        "ci_restrictions" => ci::restrictions(state, arguments),
+        "explain_restriction" => ci::explain(state, arguments),
         "prepare_change" => architecture::prepare(state, arguments),
         "verify_architecture" => architecture::verify(state),
         "verify_capabilities" => architecture::verify_capabilities(state, arguments),

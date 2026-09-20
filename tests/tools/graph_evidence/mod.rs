@@ -36,7 +36,7 @@ fn query_graph_ranks_a_question_without_the_whole_phrase() {
         .filter_map(|node| node["label"].as_str())
         .collect::<Vec<_>>();
     assert!(
-        labels.iter().any(|label| *label == "validateSession"),
+        labels.contains(&"validateSession"),
         "the question must resolve the symbol, not the whole phrase: {report}"
     );
     assert_eq!(report["intent"], "callers");

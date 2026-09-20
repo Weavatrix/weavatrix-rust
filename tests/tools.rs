@@ -18,6 +18,8 @@ mod support;
 #[path = "tool_fixture/mod.rs"]
 mod tool_fixture;
 
+#[path = "tools/ci_restrictions/mod.rs"]
+mod ci_restrictions;
 #[path = "tools/config_identity.rs"]
 mod config_identity;
 #[path = "tools/graph_evidence/mod.rs"]

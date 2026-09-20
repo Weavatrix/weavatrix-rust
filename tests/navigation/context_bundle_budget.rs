@@ -132,7 +132,7 @@ fn related_source_keeps_a_callee_when_callers_dominate() {
         .filter_map(|item| item["category"].as_str())
         .collect::<Vec<_>>();
     assert!(
-        categories.iter().any(|category| *category == "callee"),
+        categories.contains(&"callee"),
         "a single callee must survive a large caller fan-in: {report}"
     );
     let ids = report["related_categories"]

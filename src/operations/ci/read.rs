@@ -25,18 +25,18 @@ pub(super) fn open(root: &Path, relative: &str) -> Outcome {
         };
     }
     let joined = root.join(relative);
-    if is_symlink(&joined) && escapes_root(root, &joined) {
-        return Outcome::Excluded {
-            path: relative.to_owned(),
-            reason: "symlink_escape",
-        };
-    }
     let Ok(metadata) = fs::metadata(&joined) else {
         return Outcome::Excluded {
             path: relative.to_owned(),
             reason: "missing",
         };
     };
+    if escapes_root(root, &joined) {
+        return Outcome::Excluded {
+            path: relative.to_owned(),
+            reason: "symlink_escape",
+        };
+    }
     if metadata.len() > MAX_CONFIG_BYTES {
         return Outcome::Excluded {
             path: relative.to_owned(),
@@ -65,10 +65,6 @@ fn is_repo_relative(relative: &str) -> bool {
     }
     path.components()
         .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
-}
-
-fn is_symlink(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink())
 }
 
 fn escapes_root(root: &Path, candidate: &Path) -> bool {

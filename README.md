@@ -43,6 +43,7 @@ grep hit or a green checkbox:
 | Which Dify nodes consume `start_node.query`? | `dify_trace` | Conversation variables are directed edges, not string presence. |
 | Does this Mermaid arrow prove a code call? | `diagram_*` | Arrows are `declared_architecture`, never `Calls`. They do not clear dead code. |
 | Does `.weavatrix/architecture.json` still hold? | `verify_architecture` | Unknown rules fail closed. Transitive hits include the path that crossed the boundary. |
+| Which CI checks are declared for this change? | `ci_restrictions` / `explain_restriction` | Local GitHub Actions and literal commands only. Applicability can be unknown; no run or remote merge rule is inferred. |
 
 > This crate is an engine, not an MCP server. Protocol transport, npm
 > packaging, profiles, and filesystem watching live in
@@ -87,13 +88,20 @@ relation kinds are rejected rather than silently skipped.
 See [Architecture Firewall](docs/architecture-firewall.md) for the contract,
 rule semantics, budgets, ratchet behavior, and operation reference.
 
+`architecture_inventory` separately reports observed packages, components,
+and typed edges without assigning a style. `ci_restrictions` reads local
+GitHub Actions workflows, local composite actions, supported helper scripts,
+and literal package scripts. It reports checks, conditions, matrix declarations,
+and source digests. `explain_restriction` retrieves one finding. Presence of a
+workflow is not proof that a job ran or that a remote merge rule requires it.
+
 ## Quick start
 
 Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.16.4"
+weavatrix-rust = "2.17.0"
 ```
 
 ```rust
@@ -220,7 +228,7 @@ See the [evidence model](docs/evidence-model.md) and
 
 ## Operations
 
-The default full build exposes 65 operations:
+The default full build exposes 67 operations:
 
 | Workflow | Operations |
 | --- | --- |
@@ -231,6 +239,7 @@ The default full build exposes 65 operations:
 | Measurement | `perf_attribution` |
 | APIs | `list_endpoints`, `trace_endpoint`, `trace_api_contract` |
 | Architecture | `architecture_inventory`, `get_architecture_contract`, `verify_architecture`, `verify_capabilities`, explain/propose exception |
+| Local CI | `ci_restrictions`, `explain_restriction` |
 | Repository | Git history, cross-repo, open/list/rebuild operations |
 | Extensions | Vector, semantic, SEO, and memory operations |
 | n8n | `n8n_inventory`, `n8n_trace`, `n8n_context` |

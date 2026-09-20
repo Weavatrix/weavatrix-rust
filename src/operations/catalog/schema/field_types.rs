@@ -2,6 +2,18 @@ use super::descriptions::documented;
 use blazingly_json::{Value, json};
 
 pub(crate) fn field_schema(tool: &str, name: &str) -> Value {
+    if matches!(tool, "ci_restrictions" | "explain_restriction") && name == "scenario" {
+        return json!({
+            "type": "object",
+            "description": "Optional local scenario. For pull_request, branch means the base branch. No secrets or credentials.",
+            "additionalProperties": false,
+            "properties": {
+                "event": {"type": "string"},
+                "branch": {"type": "string"},
+                "changed_files": {"type": "array", "items": {"type": "string"}}
+            }
+        });
+    }
     if let Some(documented) = documented(tool, name) {
         return documented;
     }
@@ -34,6 +46,7 @@ pub(crate) fn field_schema(tool: &str, name: &str) -> Value {
             | "client_wrappers"
             | "runtime_config"
             | "runtime_evidence_files"
+            | "scenario"
     ) {
         return json!({"type": "object"});
     }

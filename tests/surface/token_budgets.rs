@@ -89,7 +89,12 @@ fn search_code_reports_budget_truncation_honestly() {
 /// defect this list exists to catch - a schema that promises a bound the code
 /// does not apply.
 fn honoured() -> Vec<&'static str> {
-    let mut names = vec!["context_bundle", "query_graph", "read_source"];
+    let mut names = vec![
+        "ci_restrictions",
+        "context_bundle",
+        "query_graph",
+        "read_source",
+    ];
     if cfg!(feature = "git") {
         names.extend(["git_history", "git_read_blob", "graph_diff"]);
     }

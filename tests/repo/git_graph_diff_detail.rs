@@ -112,11 +112,10 @@ fn graph_diff_rolls_edge_churn_up_to_file_pairs_by_default() {
 }
 
 fn many_functions(changed_body: &str) -> String {
+    use std::fmt::Write;
     let mut source = String::new();
     for index in 0..40 {
-        source.push_str(&format!(
-            "export function fn{index}() {{ return {index}; }}\n"
-        ));
+        writeln!(source, "export function fn{index}() {{ return {index}; }}").unwrap();
     }
     source.push_str("export function target() { ");
     source.push_str(changed_body);

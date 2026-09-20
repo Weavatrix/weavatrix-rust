@@ -2,6 +2,8 @@
 /npm/dist/
 /.weavatrix/report/
 /.weavatrix/coverage/
+/.weavatrix/self-audit/
+/_wx_*.py
 *.tmp
 *.swp
 .DS_Store

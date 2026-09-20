@@ -1,5 +1,7 @@
 pub(super) fn health_fields(tool: &str) -> Option<&'static [&'static str]> {
     match tool {
+        "ci_restrictions" => Some(&["scope", "scenario", "max_results", "token_budget"]),
+        "explain_restriction" => Some(&["scenario"]),
         "find_duplicates" => Some(&[
             "min_similarity",
             "min_tokens",

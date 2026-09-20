@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.17.0 - 2026-09-20
+
+- Add local GitHub Actions job/step and check evidence through
+  `ci_restrictions` and `explain_restriction`. Resolve bounded local composite
+  actions, literal helper and npm scripts, and simple branch/path scenarios;
+  leave dynamic execution and remote enforcement unknown.
+- Add compact CI candidates and declared architecture rule bindings to change
+  reports. Inventory hashes local scripts and package metadata and reports
+  skipped or unsafe configuration paths.
+
 - `query_graph` ranks question tokens against labels, paths, and kinds
   instead of requiring the whole phrase in one label. Exact seeds stay
   exact. The walk no longer returns edges to unshown nodes.

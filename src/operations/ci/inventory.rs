@@ -8,6 +8,8 @@ use std::path::Path;
 const MAX_WALKED: usize = 200;
 
 const ROOT_CONFIGS: &[&str] = &[
+    "Cargo.toml",
+    "package.json",
     "rustfmt.toml",
     ".rustfmt.toml",
     "clippy.toml",
@@ -24,7 +26,7 @@ pub(super) fn collect(state: &RepositoryState) -> Inventory {
     let ignore = Ignore::load(state.root());
     let mut excluded = Vec::new();
     let mut read = Vec::new();
-    for path in candidates(state.root()) {
+    for path in candidates(state.root(), &mut excluded) {
         if ignore.excludes(&path) {
             excluded.push((path, "gitignore"));
             continue;
@@ -40,31 +42,65 @@ pub(super) fn collect(state: &RepositoryState) -> Inventory {
     Inventory { read, excluded }
 }
 
-fn candidates(root: &Path) -> BTreeSet<String> {
+fn candidates(root: &Path, excluded: &mut Vec<(String, &'static str)>) -> BTreeSet<String> {
     let mut paths = BTreeSet::new();
     for name in ROOT_CONFIGS {
         if root.join(name).is_file() {
             paths.insert((*name).to_owned());
         }
     }
-    walk(root, &root.join(".github"), &mut paths);
+    let mut walked = paths.len();
+    walk(
+        root,
+        &root.join(".github"),
+        &mut paths,
+        false,
+        excluded,
+        &mut walked,
+    );
+    walk(
+        root,
+        &root.join("scripts"),
+        &mut paths,
+        true,
+        excluded,
+        &mut walked,
+    );
     paths
 }
 
-fn walk(root: &Path, directory: &Path, paths: &mut BTreeSet<String>) {
-    if paths.len() >= MAX_WALKED || !directory.is_dir() {
+fn walk(
+    root: &Path,
+    directory: &Path,
+    paths: &mut BTreeSet<String>,
+    scripts: bool,
+    excluded: &mut Vec<(String, &'static str)>,
+    walked: &mut usize,
+) {
+    if *walked >= MAX_WALKED {
+        excluded.push((relative(root, directory), "limit"));
+        return;
+    }
+    if !directory.is_dir() {
         return;
     }
     let Ok(entries) = fs::read_dir(directory) else {
+        excluded.push((relative(root, directory), "unreadable_directory"));
         return;
     };
     for entry in entries.flatten() {
-        if paths.len() >= MAX_WALKED {
+        if *walked >= MAX_WALKED {
+            excluded.push((relative(root, directory), "limit"));
             return;
         }
+        *walked += 1;
         let path = entry.path();
+        if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+            excluded.push((relative(root, &path), "symlink"));
+            continue;
+        }
         if path.is_dir() {
-            walk(root, &path, paths);
+            walk(root, &path, paths, scripts, excluded, walked);
             continue;
         }
         let Some(relative) = path
@@ -75,12 +111,25 @@ fn walk(root: &Path, directory: &Path, paths: &mut BTreeSet<String>) {
             continue;
         };
         let relative = relative.replace('\\', "/");
-        let yaml = Path::new(&relative)
+        let supported = Path::new(&relative)
             .extension()
             .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("yml") || ext.eq_ignore_ascii_case("yaml"));
-        if yaml {
+            .is_some_and(|ext| {
+                if scripts {
+                    matches!(ext, "sh" | "ps1" | "js" | "mjs" | "cjs" | "ts")
+                } else {
+                    ext.eq_ignore_ascii_case("yml") || ext.eq_ignore_ascii_case("yaml")
+                }
+            });
+        if supported {
             paths.insert(relative);
         }
     }
+}
+
+fn relative(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
 }

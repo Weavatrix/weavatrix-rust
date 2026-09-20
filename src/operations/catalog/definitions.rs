@@ -191,6 +191,16 @@ pub(super) const SPECS: &[ToolSpec] = &[
         required: &[],
     },
     ToolSpec {
+        name: "ci_restrictions",
+        description: "Local GitHub Actions jobs, literal check invocations, configured restrictions and unobserved enforcement.",
+        required: &[],
+    },
+    ToolSpec {
+        name: "explain_restriction",
+        description: "Explain one local restriction with its invocation, applicability and evidence limits.",
+        required: &["id"],
+    },
+    ToolSpec {
         name: "prepare_change",
         description: "Select architecture rules for intended changed files.",
         required: &["files"],
