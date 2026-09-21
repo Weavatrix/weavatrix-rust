@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 2.17.1 - 2026-09-21
+
+- Recover nested architecture from a shared typed build model instead of
+  collapsing every source file to its first directory or first declaration.
+  Cargo, npm/TypeScript, Go, and Python adapters retain nested component
+  ownership, many-to-many declared memberships, collision-free identities,
+  and exact configuration evidence.
+- Keep immutable source evidence on recovered components and dependency edges.
+  Edge totals and SCC/cycle witnesses are computed on the complete projection
+  before pagination, so a presentation cap cannot hide a cycle.
+- Reuse the same target-aware build topology in architecture and local CI
+  analysis. Root files, repeated commands, UTF-8 BOM offsets, and conditional
+  build configurations now keep the correct evidence spans and applicability;
+  remote execution and mutually exclusive configuration unions remain explicit
+  unknowns instead of inferred facts.
+
 ## 2.17.0 - 2026-09-20
 
 - Add local GitHub Actions job/step and check evidence through

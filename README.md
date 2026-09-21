@@ -14,7 +14,7 @@ prompt, or compile a query database.**
 `weavatrix-rust` is the crate you link when the program — not a chat client —
 must own the graph. It builds a `Snapshot` with exact spans, extractor
 identity, and `proven` / `undetermined` / `BLOCKED` verdicts. The default
-full build exposes **65** bounded operations: impact, architecture, APIs,
+full build exposes **67** bounded operations: impact, architecture, APIs,
 health, Git, search, memory, plus the domains agents actually ask about
 now — n8n, Dify, Agent catalogs, Mermaid, and Web3 ABI.
 
@@ -24,7 +24,7 @@ Use it to:
 - serialize a `Snapshot` for CI, indexing, or review;
 - identify changed declarations by a content-safe symbol fingerprint and retain
   parser-proven `exported` evidence for public-surface consumers;
-- run 65 bounded read-only operations in the default full build;
+- run 67 bounded read-only operations in the default full build;
 - enforce the current v1 architecture contract foundation;
 - hang a measured LCOV / Istanbul / Tarpaulin / LLVM report onto the same
   graph with `coverage_map` (the crate does not run the tests);
@@ -88,12 +88,21 @@ relation kinds are rejected rather than silently skipped.
 See [Architecture Firewall](docs/architecture-firewall.md) for the contract,
 rule semantics, budgets, ratchet behavior, and operation reference.
 
-`architecture_inventory` separately reports observed packages, components,
-and typed edges without assigning a style. `ci_restrictions` reads local
-GitHub Actions workflows, local composite actions, supported helper scripts,
-and literal package scripts. It reports checks, conditions, matrix declarations,
-and source digests. `explain_restriction` retrieves one finding. Presence of a
-workflow is not proof that a job ran or that a remote merge rule requires it.
+`architecture_inventory` separately reports observed packages, nested
+components, declared memberships, and typed edges without assigning a style.
+Its collision-free component identities and evidence spans come from the same
+typed build model as `build_graph`. Cargo, npm/TypeScript, Go, and Python
+adapters preserve nested ownership and configuration context; totals and
+SCC/cycle witnesses are computed before response pagination, so a page cap does
+not change the graph verdict.
+
+`ci_restrictions` reuses that target-aware topology while reading local GitHub
+Actions workflows, local composite actions, supported helper scripts, and
+literal package scripts. It reports checks, conditions, matrix declarations,
+source digests, and exact evidence spans. Presence of a workflow is not proof
+that a job ran or that a remote merge rule requires it. Dynamic commands,
+remote enforcement, and mutually exclusive configuration unions stay explicit
+unknowns rather than being promoted to facts.
 
 ## Quick start
 
@@ -101,7 +110,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.17.0"
+weavatrix-rust = "2.17.1"
 ```
 
 ```rust
@@ -136,7 +145,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.16.4", default-features = false }
+weavatrix-rust = { version = "2.17.1", default-features = false }
 ```
 
 ## MCP product
