@@ -5,6 +5,7 @@ mod components;
 mod cycles;
 mod edges;
 mod packages;
+mod summary;
 
 use crate::engine::RepositoryState;
 use crate::model::digest::sha3_256;
@@ -25,14 +26,51 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
     reject_unknown_arguments(
         "architecture_inventory",
         args,
-        &["max_results", "edge_cursor", "token_budget"],
+        &["detail", "max_results", "edge_cursor", "token_budget"],
     )?;
+    let detail = optional_str(args, "detail")?.unwrap_or_else(|| {
+        if args.get("max_results").is_some() || args.get("edge_cursor").is_some() {
+            "full"
+        } else {
+            "summary"
+        }
+    });
+    if !matches!(detail, "summary" | "full") {
+        return Err("detail must be summary or full".to_owned());
+    }
+    if detail == "summary" {
+        if args.get("max_results").is_some() || args.get("edge_cursor").is_some() {
+            return Err("summary does not page edges; use detail=full".to_owned());
+        }
+        let full = facts(state, Some((usize::MAX, None)))?;
+        let mut report = summary::from_full(&full);
+        let budget = crate::operations::token_budget::requested(args)?;
+        crate::operations::token_budget::fit(
+            &mut report,
+            budget,
+            &[
+                "/coupling",
+                "/cycle_candidates/samples",
+                "/components",
+                "/packages",
+                "/build/runners",
+            ],
+        );
+        if report["token_budget"]["dropped_items"]
+            .as_u64()
+            .is_some_and(|dropped| dropped > 0)
+        {
+            report["status"] = json!("INCOMPLETE");
+        }
+        return Ok(report);
+    }
     let max = optional_u64(args, "max_results")?.unwrap_or(200).min(500) as usize;
     if max == 0 {
         return Err("max_results must be at least 1".to_owned());
     }
     let cursor = optional_str(args, "edge_cursor")?;
     let mut report = facts(state, Some((max, cursor)))?;
+    report["detail"] = json!("full");
     let budget = crate::operations::token_budget::requested(args)?;
     crate::operations::token_budget::fit(
         &mut report,

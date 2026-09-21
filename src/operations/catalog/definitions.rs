@@ -187,7 +187,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "architecture_inventory",
-        description: "Observed packages, production folders, and typed edges. Not a style label and not the starter contract.",
+        description: "Architecture orientation from observed packages, folders, typed coupling and cycle candidates. Defaults to a bounded summary; request detail=full for paged evidence. Not a style label or target contract.",
         required: &[],
     },
     ToolSpec {

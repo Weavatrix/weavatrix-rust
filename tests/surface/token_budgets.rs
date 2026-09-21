@@ -90,6 +90,7 @@ fn search_code_reports_budget_truncation_honestly() {
 /// does not apply.
 fn honoured() -> Vec<&'static str> {
     let mut names = vec![
+        "architecture_inventory",
         "ci_restrictions",
         "context_bundle",
         "query_graph",

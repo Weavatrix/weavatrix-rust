@@ -99,6 +99,22 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
         .find(|tool| tool.name == "query_graph")
         .unwrap();
     assert_eq!(query.input_schema["properties"]["depth"]["type"], "integer");
+    let architecture = catalog
+        .iter()
+        .find(|tool| tool.name == "architecture_inventory")
+        .unwrap();
+    assert_eq!(
+        architecture.input_schema["properties"]["detail"]["default"],
+        "summary"
+    );
+    assert_eq!(
+        architecture.input_schema["properties"]["edge_cursor"]["type"],
+        "string"
+    );
+    assert_eq!(
+        architecture.input_schema["properties"]["max_results"]["type"],
+        "integer"
+    );
     assert_eq!(
         query.input_schema["properties"]["seed_files"]["items"]["type"],
         "string"

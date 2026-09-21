@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 2.17.2 - 2026-09-21
+
+- Make `architecture_inventory` return a bounded architectural summary by
+  default, with complete graph totals, readable component paths, dominant
+  coupling, and explicitly qualified cycle candidates. The detailed evidence
+  graph remains available through `detail: "full"` and edge pagination.
+- Advertise the summary/full contract and pagination arguments in the tool
+  schema. Clarify that `output_format: "text"` changes MCP representation,
+  not the amount of architectural detail.
+
 ## 2.17.1 - 2026-09-21
 
 - Recover nested architecture from a shared typed build model instead of

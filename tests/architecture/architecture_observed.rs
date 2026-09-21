@@ -25,7 +25,12 @@ fn observed_architecture_has_no_style_and_is_not_the_starter() {
 fn an_import_across_folders_is_a_typed_edge() {
     let fixture = two_modules();
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     assert_eq!(report["status"], "COMPLETE");
     assert!(report.get("style").is_none(), "{report}");
     let lib = component_id(&report, "lib").unwrap();
@@ -42,7 +47,12 @@ fn an_import_across_folders_is_a_typed_edge() {
 fn declared_id_comes_only_from_the_contract() {
     let fixture = two_modules();
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let before = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let before = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     assert!(
         before["components"]
             .as_array()
@@ -67,7 +77,12 @@ fn declared_id_comes_only_from_the_contract() {
 fn a_manifest_is_a_package_and_a_source_file_is_not() {
     let fixture = two_modules();
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     let packages = report["packages"].as_array().unwrap();
     assert!(
         packages.iter().any(|package| {
@@ -94,7 +109,12 @@ fn nested_directories_retain_cross_boundary_dependencies() {
         "import { order } from '../domain/order.js';\nexport const db = order;\n",
     );
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     let owner = |path| {
         report["components"]
             .as_array()
@@ -131,7 +151,12 @@ fn component_keys_distinguish_underscores_dashes_and_root() {
         "import { root } from './root/a.js';\nexport const main = root;\n",
     );
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     let ids = component_ids(&report);
     assert_eq!(ids.len(), 4, "{report}");
     let unique = ids.iter().collect::<std::collections::BTreeSet<_>>();
@@ -155,7 +180,12 @@ fn declared_membership_preserves_multiple_matches_in_one_observed_component() {
     fixture.write("src/domain/b.js", "export const b = 1;\n");
     fixture.write(".weavatrix/architecture.json", r#"{"components":[{"id":"a","paths":["src/domain/a.js"]},{"id":"b","paths":["src/domain/b.js"]}]}"#);
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     let component = report["components"]
         .as_array()
         .unwrap()
@@ -171,7 +201,12 @@ fn invalid_declaration_does_not_erase_observation() {
     let fixture = two_modules();
     fixture.write(".weavatrix/architecture.json", "invalid json");
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     assert_eq!(report["status"], "INCOMPLETE");
     assert_eq!(report["components"].as_array().unwrap().len(), 2);
     assert!(!report["diagnostics"].as_array().unwrap().is_empty());

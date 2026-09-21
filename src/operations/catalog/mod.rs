@@ -77,7 +77,7 @@ fn tool(
                 "type": "string",
                 "enum": ["text", "json", "structured"],
                 "default": "json",
-                "description": "text returns the concise text block only; json returns \
+                "description": "Controls MCP representation, not summary length: text returns a JSON-encoded text block; json returns \
                                 structured output and mirrors it into text for clients that \
                                 read only content; structured drops that mirror, which is the \
                                 larger copy, and is safe only where the client reads \

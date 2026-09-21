@@ -35,6 +35,28 @@ fn measurement_field(name: &str) -> Option<Value> {
 
 /// The documented schema for one field, when its behaviour needs stating.
 pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
+    if tool == "architecture_inventory" && name == "detail" {
+        return Some(json!({
+            "type": "string",
+            "enum": ["summary", "full"],
+            "default": "summary",
+            "description": "summary gives bounded architectural orientation with complete graph counts, readable paths, dominant coupling and cycle candidates; full returns the detailed evidence graph with paged edges. max_results or edge_cursor without detail implies full"
+        }));
+    }
+    if tool == "architecture_inventory" && name == "edge_cursor" {
+        return Some(json!({
+            "type": "string",
+            "description": "Cursor from a detail=full page; bound to the captured graph. Do not use for summary"
+        }));
+    }
+    if tool == "architecture_inventory" && name == "max_results" {
+        return Some(json!({
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "description": "Maximum edges on one detail=full page (200 if omitted in full mode); not an overview size control"
+        }));
+    }
     if name == "token_budget" && tool != "context_bundle" {
         return Some(json!({
             "type": "integer",

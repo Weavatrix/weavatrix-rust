@@ -3,6 +3,37 @@ use blazingly_json::json;
 use weavatrix_rust::{Weavatrix, tools};
 
 #[test]
+fn default_inventory_is_a_bounded_architecture_overview() {
+    let fixture = GitFixture::new();
+    fixture.write("package.json", r#"{"name":"demo"}"#);
+    fixture.write("src/domain/order.js", "export const order = 1;\n");
+    fixture.write(
+        "src/infra/db.js",
+        "import { order } from '../domain/order.js';\nexport const db = order;\n",
+    );
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    assert_eq!(report["detail"], "summary", "{report}");
+    assert_eq!(report["components_total"], 2);
+    assert!(report["edges_total"].as_u64().unwrap() > 0);
+    assert_eq!(report["coupling"][0]["from"], "src/infra");
+    assert_eq!(report["coupling"][0]["to"], "src/domain");
+    assert!(report.get("edges").is_none(), "{report}");
+    assert!(report.get("build_topology").is_none(), "{report}");
+    assert!(blazingly_json::to_vec(&report).unwrap().len() < 8_000);
+    let full = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
+    assert_eq!(full["detail"], "full");
+    assert_eq!(report["edges_total"], full["edges_total"]);
+    assert_eq!(report["analysis_id"], full["analysis_id"]);
+    assert!(full["edges"].as_array().is_some());
+}
+
+#[test]
 fn quotient_cycle_is_not_claimed_as_symbol_recursion() {
     let fixture = GitFixture::new();
     fixture.write(
@@ -16,7 +47,12 @@ fn quotient_cycle_is_not_claimed_as_symbol_recursion() {
         "import { a2 } from '../a/a2.js';\nexport const b2 = a2;\n",
     );
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     assert_eq!(report["cycles"]["cyclic_scc_total"], 1, "{report}");
     assert_eq!(
         report["cycles"]["classification"],
@@ -58,7 +94,12 @@ fn internal_edges_are_connectivity_not_component_self_cycles() {
     );
     fixture.write("src/domain/b.js", "export const b = 1;\n");
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     assert_eq!(report["cycles"]["cyclic_scc_total"], 0, "{report}");
     assert!(report["internal_connectivity_total"].as_u64().unwrap() > 0);
     assert!(
@@ -77,7 +118,12 @@ fn architecture_inventory_reuses_the_typed_build_model() {
     );
     fixture.write("src/app.js", "export const app = 1;\n");
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"detail":"full"}),
+    )
+    .unwrap();
     assert_eq!(
         report["build_topology"]["schema_version"],
         "weavatrix.build-model.v1"

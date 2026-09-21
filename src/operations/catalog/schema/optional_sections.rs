@@ -111,6 +111,7 @@ pub(super) fn occurrence_fields(tool: &str) -> Option<&'static [&'static str]> {
 
 pub(super) fn extension_fields(tool: &str) -> Option<&'static [&'static str]> {
     match tool {
+        "architecture_inventory" => Some(&["detail", "max_results", "edge_cursor", "token_budget"]),
         "rebuild_graph" => Some(&["mode", "precision", "scope"]),
         "get_architecture_contract" => Some(&[
             "action",

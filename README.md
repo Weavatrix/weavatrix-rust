@@ -90,6 +90,11 @@ rule semantics, budgets, ratchet behavior, and operation reference.
 
 `architecture_inventory` separately reports observed packages, nested
 components, declared memberships, and typed edges without assigning a style.
+Its default `detail: "summary"` is a bounded orientation view: complete graph
+totals, representative components, dominant coupling, and clearly labeled
+cycle candidates with readable paths. Use `detail: "full"` for the evidence
+graph and paged edges (`max_results`, `edge_cursor`). `output_format: "text"`
+changes the MCP envelope, not the amount of architectural detail.
 Its collision-free component identities and evidence spans come from the same
 typed build model as `build_graph`. Cargo, npm/TypeScript, Go, and Python
 adapters preserve nested ownership and configuration context; totals and
@@ -110,7 +115,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.17.1"
+weavatrix-rust = "2.17.2"
 ```
 
 ```rust
@@ -145,7 +150,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.17.1", default-features = false }
+weavatrix-rust = { version = "2.17.2", default-features = false }
 ```
 
 ## MCP product
