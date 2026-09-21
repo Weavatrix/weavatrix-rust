@@ -170,6 +170,7 @@ impl<'ast> Visit<'ast> for Collector<'_> {
 
     fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
         self.with_test_context(&node.attrs, |collector| {
+            collector.collect_trait_implementation(node);
             if let Some(owner) = impl_owner(&node.self_ty) {
                 collector.with_owner(OwnerUpdate::Type(owner), |collector| {
                     syn::visit::visit_item_impl(collector, node);

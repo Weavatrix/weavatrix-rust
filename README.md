@@ -95,7 +95,9 @@ onion dependency direction, ports-and-adapters, layered dependencies, and
 deployment uncertainty. Each hypothesis has required and observed signals,
 counter-evidence, unknowns, and a `SUPPORTED`, `CANDIDATE`, `CONTRADICTED`, or
 `INSUFFICIENT_EVIDENCE` status. The declared contract's `style` field is never
-used as evidence of the actual architecture.
+used as evidence of the actual architecture. Rust `impl Trait for Type` provides
+an explicit typed implementation signal for onion and ports-and-adapters
+hypotheses; an inherent `impl Type` does not.
 Its default `detail: "summary"` is a bounded orientation view: complete graph
 totals, representative components, dominant coupling, and clearly labeled
 cycle candidates with readable paths. Use `detail: "full"` for the evidence

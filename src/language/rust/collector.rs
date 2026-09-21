@@ -8,6 +8,19 @@ use syn::spanned::Spanned;
 use weavatrix_graph::{EdgeKind, NodeKind};
 
 impl Collector<'_> {
+    pub(super) fn collect_trait_implementation(&mut self, node: &syn::ItemImpl) {
+        if let Some((trait_path, _)) = &node.trait_
+            && let Some(trait_name) = trait_path.segments.last()
+        {
+            self.add_reference(
+                trait_name.ident.to_string(),
+                EdgeKind::Implements,
+                false,
+                trait_name.ident.span(),
+            );
+        }
+    }
+
     pub(super) fn add_symbol(
         &mut self,
         name: &syn::Ident,
