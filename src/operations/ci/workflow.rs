@@ -129,7 +129,8 @@ fn parse(input: &super::read::Loaded) -> Result<Workflow, String> {
             steps: steps(key(raw, "steps"))?,
         });
     }
-    parsed_jobs.sort_by(|left, right| left.id.cmp(&right.id));
+    // LinkedHashMap preserves YAML order. Keeping it also lets sequential
+    // command occurrences retain the correct position across different jobs.
     Ok(Workflow {
         path: input.path.clone(),
         digest: input.digest.clone(),

@@ -49,6 +49,7 @@ fn npm_workspaces_expose_members_targets_and_internal_dependencies() {
             .any(|target| target["kind"] == "script" && target["name"] == "build"),
         "scripts are build targets: {api:?}"
     );
+    assert_eq!(api["targets"][0]["entity_kind"], "task");
     let internal = api["internal_dependencies"].as_array().unwrap();
     assert_eq!(
         internal.len(),

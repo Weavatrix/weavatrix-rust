@@ -3,16 +3,18 @@ use crate::engine::RepositoryState;
 use crate::operations::graph::coupling_relations;
 use crate::operations::node_path;
 use blazingly_json::{Value, json};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-const MAX_EDGES: usize = 200;
 const MAX_SAMPLE: usize = 3;
 
 pub(super) fn collect(state: &RepositoryState, components: &[Component]) -> Vec<Value> {
     let allowed = coupling_relations();
     let owner = file_owners(components);
-    let mut counts = BTreeMap::<(String, String, String), (u64, Vec<String>)>::new();
-    for edge in state.graph().edges() {
+    let mut counts = BTreeMap::<
+        (String, String, String),
+        (Vec<usize>, BTreeSet<(String, String)>, Vec<Value>),
+    >::new();
+    for (edge_index, edge) in state.graph().edges().iter().enumerate() {
         let relation = edge.kind.as_str();
         if !allowed.contains(relation) {
             continue;
@@ -37,21 +39,28 @@ pub(super) fn collect(state: &RepositoryState, components: &[Component]) -> Vec<
         let entry = counts
             .entry((from.clone(), to.clone(), relation.to_owned()))
             .or_default();
-        entry.0 = entry.0.saturating_add(1);
-        if entry.1.len() < MAX_SAMPLE {
-            entry.1.push(format!("{from_file} -> {to_file}"));
+        entry.0.push(edge_index);
+        entry.1.insert((from_file.clone(), to_file.clone()));
+        if entry.2.len() < MAX_SAMPLE {
+            entry
+                .2
+                .push(json!({"source_file": from_file, "target_file": to_file,
+                "base_edge_index": edge_index, "source_node": edge.source,
+                "target_node": edge.target, "provenance": edge.provenance}));
         }
     }
     counts
         .into_iter()
-        .take(MAX_EDGES)
-        .map(|((from, to, relation), (count, sample))| {
+        .map(|((from, to, relation), (base_edge_indices, file_pairs, evidence_sample))| {
             json!({
                 "from": from,
                 "to": to,
                 "relation": relation,
-                "count": count,
-                "sample": sample
+                "count": base_edge_indices.len(),
+                "file_pairs": file_pairs.len(),
+                "base_edge_indices": base_edge_indices,
+                "evidence_sample": evidence_sample,
+                "sample": file_pairs.iter().take(MAX_SAMPLE).map(|(from, to)| format!("{from} -> {to}")).collect::<Vec<_>>()
             })
         })
         .collect()

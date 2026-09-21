@@ -139,7 +139,7 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "trace_endpoint" => graph::trace_endpoint(state, arguments),
         "graph_diff" => history::graph_diff(state, arguments),
         "get_architecture_contract" => architecture::contract(state, arguments),
-        "architecture_inventory" => Ok(architecture::inventory(state)),
+        "architecture_inventory" => architecture::inventory(state, arguments),
         "ci_restrictions" => ci::restrictions(state, arguments),
         "explain_restriction" => ci::explain(state, arguments),
         "prepare_change" => architecture::prepare(state, arguments),

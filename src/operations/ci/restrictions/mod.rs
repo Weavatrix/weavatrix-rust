@@ -80,6 +80,7 @@ fn project_workflow(
     unresolved: &mut Vec<String>,
 ) -> Value {
     let mut jobs = Vec::new();
+    let mut span_cursor = 0_usize;
     for job in &workflow.jobs {
         let mut steps = Vec::new();
         for step in &job.steps {
@@ -92,14 +93,17 @@ fn project_workflow(
             let directory = working_directory(state.root(), working);
             let invocations = recognize::in_step(directory.as_deref(), step);
             let mut counts = BTreeMap::<&str, usize>::new();
+            let mut spans = BTreeMap::new();
             for found in invocations {
                 let sequence = counts.entry(found.kind).or_default();
                 *sequence += 1;
                 let effect = failure_effect_for(job, step, &found);
-                let span = crate::model::evidence::raw_byte_span(
-                    &workflow.bytes,
-                    found.source_text.as_bytes(),
-                );
+                let span = spans
+                    .entry(found.source_text.clone())
+                    .or_insert_with(|| {
+                        command_span(&workflow.bytes, &found.source_text, &mut span_cursor)
+                    })
+                    .clone();
                 restrictions.push(json!({
                     "id": format!("{id}/{}/{}", found.kind, sequence),
                     "kind": found.kind,
@@ -109,7 +113,8 @@ fn project_workflow(
                     "target_resolved": found.target_exists,
                     "recognition": found.reliability,
                     "source": {"path": workflow.path, "content_digest": workflow.digest,
-                               "job": job.id, "step": step.index, "byte_span": span},
+                               "job": job.id, "step": step.index, "byte_span": span,
+                               "span_method": "SEQUENTIAL_LITERAL_MATCH"},
                     "applicability": applicability(workflow, job, step, scenario),
                     "execution": "NOT_OBSERVED",
                     "failure_effect": effect,
@@ -145,21 +150,13 @@ fn project_workflow(
             }
             steps.push(step_summary(step, working));
         }
-        let reusable_resolved = resolve_reusable(workflow, job, all_workflows, unresolved);
-        let matrix = summarize_matrix(workflow, job, unresolved);
-        jobs.push(json!({
-            "id": job.id,
-            "needs": job.needs,
-            "outputs": job.outputs,
-            "runs_on": public_uses(job.runs_on.as_deref()),
-            "working_directory": public_uses(job.working_directory.as_deref().or(workflow.working_directory.as_deref())),
-            "matrix": matrix,
-            "condition": condition_class(job.condition.as_deref()),
-            "continue_on_error": condition_class(job.continue_on_error.as_deref()),
-            "reusable": public_uses(job.reusable.as_deref()),
-            "reusable_resolved": reusable_resolved,
-            "steps": steps
-        }));
+        jobs.push(job_summary(
+            workflow,
+            job,
+            all_workflows,
+            unresolved,
+            &steps,
+        ));
     }
     json!({
         "path": workflow.path,
@@ -168,6 +165,40 @@ fn project_workflow(
         "permissions": permissions(workflow.permissions.as_ref()),
         "jobs": jobs
     })
+}
+
+fn job_summary(
+    workflow: &Workflow,
+    job: &Job,
+    all_workflows: &[Workflow],
+    unresolved: &mut Vec<String>,
+    steps: &[Value],
+) -> Value {
+    let reusable_resolved = resolve_reusable(workflow, job, all_workflows, unresolved);
+    let matrix = summarize_matrix(workflow, job, unresolved);
+    json!({
+        "id": job.id,
+        "needs": job.needs,
+        "outputs": job.outputs,
+        "runs_on": public_uses(job.runs_on.as_deref()),
+        "working_directory": public_uses(job.working_directory.as_deref().or(workflow.working_directory.as_deref())),
+        "matrix": matrix,
+        "condition": condition_class(job.condition.as_deref()),
+        "continue_on_error": condition_class(job.continue_on_error.as_deref()),
+        "reusable": public_uses(job.reusable.as_deref()),
+        "reusable_resolved": reusable_resolved,
+        "steps": steps
+    })
+}
+
+fn command_span(
+    bytes: &[u8],
+    text: &str,
+    cursor: &mut usize,
+) -> Option<crate::model::evidence::ByteSpan> {
+    let span = crate::model::evidence::raw_byte_span_after(bytes, text.as_bytes(), *cursor)?;
+    *cursor = usize::try_from(span.end).ok()?;
+    Some(span)
 }
 
 fn summarize_matrix(workflow: &Workflow, job: &Job, unresolved: &mut Vec<String>) -> Value {

@@ -1,7 +1,6 @@
 mod budgets;
 mod capabilities;
-mod contract;
-pub(crate) use contract::declared_component;
+pub(crate) mod contract;
 mod observed;
 mod path_pattern;
 mod policy_diagnostics;
@@ -41,9 +40,12 @@ pub fn contract(state: &RepositoryState, args: &Value) -> Result<Value, String> 
     Ok(observed::attach(state, report))
 }
 
-#[must_use]
-pub fn inventory(state: &RepositoryState) -> Value {
-    observed::report(state)
+pub fn inventory(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    observed::report(state, args)
+}
+
+pub(crate) fn structural_memberships(state: &RepositoryState) -> Vec<(String, String)> {
+    observed::memberships(state)
 }
 
 pub fn prepare(state: &RepositoryState, args: &Value) -> Result<Value, String> {

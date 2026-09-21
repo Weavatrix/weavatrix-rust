@@ -21,6 +21,15 @@ pub(super) fn report(
         .iter()
         .map(|workspace| workspace.members.len())
         .sum::<usize>();
+    let targets_truncated = workspaces
+        .iter()
+        .flat_map(|workspace| &workspace.members)
+        .any(|member| member.targets.len() > MAX_TARGETS);
+    let runners_total = index
+        .labels()
+        .iter()
+        .filter(|path| runner_kind(path).is_some())
+        .count();
     let mut remaining = max_members;
     let rendered = workspaces
         .into_iter()
@@ -36,12 +45,15 @@ pub(super) fn report(
         })
         .collect::<Vec<_>>();
     Ok(json!({
-        "status": "COMPLETE",
+        "status": if members_total > max_members || targets_truncated || runners_total > MAX_RUNNERS {"INCOMPLETE"} else {"COMPLETE"},
         "workspaces": rendered,
         "workspaces_total": workspaces_total,
         "members_total": members_total,
         "members_truncated": members_total > max_members,
+        "targets_truncated": targets_truncated,
         "runners": runner_configs(index),
+        "runners_total": runners_total,
+        "runners_truncated": runners_total > MAX_RUNNERS,
         "model": "manifest and lockfile evidence only; no build tool was executed",
         "semantic_precision": "BOUNDED_STATIC"
     }))
@@ -52,7 +64,9 @@ fn member(member: &Member) -> Value {
         "name": member.name,
         "path": member.dir,
         "manifest": member.manifest,
-        "targets": member.targets,
+        "targets": member.targets.iter().take(MAX_TARGETS).collect::<Vec<_>>(),
+        "targets_total": member.targets.len(),
+        "targets_truncated": member.targets.len() > MAX_TARGETS,
         "internal_dependencies": member.internal
     })
 }
@@ -60,8 +74,7 @@ fn member(member: &Member) -> Value {
 pub(super) fn script_targets(scripts: &[(String, String)]) -> Vec<Value> {
     scripts
         .iter()
-        .take(MAX_TARGETS)
-        .map(|(name, command)| json!({"kind": "script", "name": name, "command": command}))
+        .map(|(name, command)| json!({"kind": "script", "entity_kind": "task", "name": name, "command": command}))
         .collect()
 }
 
@@ -73,8 +86,10 @@ pub(super) fn cargo_targets(
     let mut targets = parsed
         .targets
         .iter()
-        .take(MAX_TARGETS)
-        .map(|(kind, name)| json!({"kind": kind, "name": name}))
+        .map(|target| json!({"kind": target.kind, "name": target.name, "path": target.path,
+            "required_features": target.required_features,
+            "applicability": if target.required_features.is_empty() {"DECLARED"} else {"CONDITIONAL_FEATURES"},
+            "implicit": false}))
         .collect::<Vec<_>>();
     let source = |suffix: &str| {
         if dir.is_empty() {
@@ -83,15 +98,56 @@ pub(super) fn cargo_targets(
             format!("{dir}/{suffix}")
         }
     };
-    if index.contains_file(&source("src/main.rs")) {
-        targets.push(json!({
-            "kind": "bin", "name": parsed.name, "path": "src/main.rs", "implicit": true
-        }));
+    let mut add_implicit = |kind: &str, name: &str, path: &str| {
+        if !index.contains_file(&source(path))
+            || parsed.targets.iter().any(|target| {
+                target.kind == kind
+                    && (target.path.as_deref() == Some(path)
+                        || (target.name.as_deref() == Some(name)
+                            || (kind == "lib" && target.name.is_none())))
+            })
+        {
+            return;
+        }
+        targets.push(
+            json!({"kind": kind, "name": name, "path": path, "implicit": true,
+            "required_features": [], "applicability": "DECLARED"}),
+        );
+    };
+    let package_name = parsed.name.as_deref().unwrap_or_default();
+    if parsed.autobins != Some(false) {
+        add_implicit("bin", package_name, "src/main.rs");
     }
-    if index.contains_file(&source("src/lib.rs")) {
-        targets.push(json!({
-            "kind": "lib", "name": parsed.name, "path": "src/lib.rs", "implicit": true
-        }));
+    if parsed.autolib != Some(false) {
+        add_implicit("lib", &package_name.replace('-', "_"), "src/lib.rs");
+    }
+    for (kind, directory, enabled) in [
+        ("test", "tests", parsed.autotests != Some(false)),
+        ("bench", "benches", parsed.autobenches != Some(false)),
+        ("example", "examples", parsed.autoexamples != Some(false)),
+    ] {
+        if !enabled {
+            continue;
+        }
+        let prefix = source(&format!("{directory}/"));
+        for path in index
+            .labels()
+            .iter()
+            .filter_map(|file| file.strip_prefix(&prefix))
+        {
+            let name =
+                if let Some(name) = path.strip_suffix(".rs").filter(|name| !name.contains('/')) {
+                    name
+                } else if let Some(name) = path
+                    .strip_suffix("/main.rs")
+                    .filter(|name| !name.contains('/'))
+                {
+                    name
+                } else {
+                    continue;
+                };
+            add_implicit(kind, name, &format!("{directory}/{path}"));
+        }
     }
     targets
 }

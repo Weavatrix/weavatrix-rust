@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::io::ErrorKind;
 
-pub(super) fn load_optional(state: &RepositoryState) -> Result<Option<Value>, String> {
+pub(crate) fn load_optional(state: &RepositoryState) -> Result<Option<Value>, String> {
     let path = state.root().join(".weavatrix/architecture.json");
     let bytes = match fs::read(&path) {
         Ok(bytes) => bytes,
@@ -104,11 +104,6 @@ pub(super) fn rules_for_file<'contract>(
         .collect()
 }
 
-pub(crate) fn declared_component(state: &RepositoryState, file: &str) -> Option<String> {
-    let contract = load_optional(state).ok().flatten()?;
-    component_for(&contract, file).map(str::to_owned)
-}
-
 pub(super) fn component_for<'contract>(
     value: &'contract Value,
     file: &str,
@@ -131,6 +126,28 @@ pub(super) fn component_for<'contract>(
         })
         .max_by_key(|(length, _)| *length)
         .map(|(_, id)| id)
+}
+
+pub(crate) fn components_for<'contract>(
+    value: &'contract Value,
+    file: &str,
+) -> Vec<&'contract str> {
+    value
+        .get("components")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|component| {
+            let id = component.get("id")?.as_str()?;
+            component
+                .get("paths")?
+                .as_array()?
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|path| file == path || file.starts_with(&format!("{path}/")))
+                .then_some(id)
+        })
+        .collect()
 }
 
 pub(super) fn list_contains(value: Option<&Value>, expected: &str) -> bool {

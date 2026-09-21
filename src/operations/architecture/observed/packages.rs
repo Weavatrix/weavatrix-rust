@@ -27,7 +27,9 @@ pub(super) fn collect(state: &RepositoryState) -> Vec<Value> {
         packages.push(json!({
             "ecosystem": ecosystem,
             "manifest": manifest,
-            "path": path
+            "path": path,
+            "kind": "manifest_candidate",
+            "package_confirmed": false
         }));
     }
     packages

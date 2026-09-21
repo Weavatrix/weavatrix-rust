@@ -24,7 +24,11 @@ pub struct EvidenceRef {
 impl EvidenceRef {
     #[must_use]
     pub fn observed_file(path: &str, content_digest: &str, bytes: &[u8]) -> Self {
-        let start = raw_byte_span(bytes, &[0xef, 0xbb, 0xbf]).map_or(0, |bom| bom.end);
+        let start = if bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
+            3
+        } else {
+            0
+        };
         Self {
             artifact_id: format!("config:{path}"),
             path: Some(path.to_owned()),
@@ -43,9 +47,19 @@ impl EvidenceRef {
 /// Byte offsets into the raw file, including a leading UTF-8 BOM when present.
 #[must_use]
 pub(crate) fn raw_byte_span(bytes: &[u8], needle: &[u8]) -> Option<ByteSpan> {
-    let start = bytes
-        .windows(needle.len())
-        .position(|window| window == needle)?;
+    raw_byte_span_after(bytes, needle, 0)
+}
+
+pub(crate) fn raw_byte_span_after(bytes: &[u8], needle: &[u8], offset: usize) -> Option<ByteSpan> {
+    if needle.is_empty() {
+        return None;
+    }
+    let start = offset.checked_add(
+        bytes
+            .get(offset..)?
+            .windows(needle.len())
+            .position(|window| window == needle)?,
+    )?;
     Some(ByteSpan {
         start: u64::try_from(start).unwrap_or(u64::MAX),
         end: u64::try_from(start.saturating_add(needle.len())).unwrap_or(u64::MAX),
@@ -62,5 +76,26 @@ mod tests {
         let span = raw_byte_span(&bytes, b"name").unwrap();
         assert_eq!(span.start, 3);
         assert_eq!(span.end, 7);
+    }
+
+    #[test]
+    fn interior_bom_is_not_a_file_prefix() {
+        let bytes = [b'a', 0xef, 0xbb, 0xbf, b'b'];
+        assert_eq!(
+            EvidenceRef::observed_file("a", "digest", &bytes)
+                .byte_span
+                .unwrap()
+                .start,
+            0
+        );
+    }
+
+    #[test]
+    fn repeated_occurrences_can_be_distinguished() {
+        let bytes = b"run: cargo test\nrun: cargo test\n";
+        let first = raw_byte_span_after(bytes, b"cargo test", 0).unwrap();
+        let second =
+            raw_byte_span_after(bytes, b"cargo test", usize::try_from(first.end).unwrap()).unwrap();
+        assert!(second.start > first.start);
     }
 }

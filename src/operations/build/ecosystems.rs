@@ -98,11 +98,15 @@ pub(super) fn cargo_workspaces(
             continue;
         };
         let parsed = cargo_manifest(&text);
-        if parsed.workspace_members.is_empty() {
+        if !parsed.workspace {
             continue;
         }
         let aggregator_dir = parent_dir(&aggregator);
         let mut members = Vec::new();
+        if parsed.name.is_some() {
+            claimed.insert(format!("cargo:{aggregator}"));
+            members.push(cargo_member(state, index, &aggregator, &aggregator_dir));
+        }
         for manifest in locate(state, index, "Cargo.toml") {
             let dir = parent_dir(&manifest);
             if !dir_is_member(&aggregator_dir, &parsed.workspace_members, &dir)
@@ -236,7 +240,7 @@ pub(super) fn standalone_packages(
             continue;
         };
         let parsed = cargo_manifest(&text);
-        if !parsed.workspace_members.is_empty() || parsed.name.is_none() {
+        if parsed.workspace || parsed.name.is_none() {
             continue;
         }
         let dir = parent_dir(&manifest);

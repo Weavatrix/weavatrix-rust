@@ -23,5 +23,7 @@ mod analyze_rust_type_references;
 mod analyze_rust_visibility;
 #[path = "analyze_more/build_topology.rs"]
 mod build_topology;
+#[path = "analyze_more/build/p2.rs"]
+mod build_topology_p2;
 #[path = "analyze_more/di_graph.rs"]
 mod di_graph;

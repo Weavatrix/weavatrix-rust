@@ -1,7 +1,7 @@
 use super::super::pagination::page_offset;
 use super::projection::{Cluster, Projection, project};
 use crate::engine::RepositoryState;
-use crate::operations::architecture::declared_component;
+use crate::operations::architecture::contract;
 use crate::operations::{arg_str, arg_u64, optional_bool, optional_u64};
 use blazingly_json::{Value, json};
 use weavatrix_graph::{NodeIndex, NodeKind};
@@ -57,6 +57,7 @@ fn one_component(
 }
 
 fn subsystems(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    let declaration = contract::load_optional(state)?;
     let include_non_product = optional_bool(args, "include_non_product")?.unwrap_or(false);
     let resolution = optional_u64(args, "resolution")?.unwrap_or(2);
     let hub_degree = optional_u64(args, "hub_degree")?.unwrap_or(3);
@@ -65,7 +66,7 @@ fn subsystems(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     }
     let projection = project(state, include_non_product, resolution, hub_degree);
     if let Ok(id) = arg_u64(args, "community_id") {
-        return one_cluster(state, &projection, id, args);
+        return one_cluster(state, &projection, id, args, declaration.as_ref());
     }
     let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(20)).unwrap_or(20);
     Ok(json!({
@@ -78,7 +79,7 @@ fn subsystems(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             "relations": super::super::coupling::coupling_relations().iter().collect::<Vec<_>>()
         },
         "communities": projection.clusters.iter().take(top).enumerate().map(|(id, cluster)| {
-            summary(state, id, cluster)
+            summary(id, cluster, declaration.as_ref())
         }).collect::<Vec<_>>(),
         "boundaries": projection.boundaries.iter().take(40).map(|item| {
             json!({
@@ -98,6 +99,7 @@ fn one_cluster(
     projection: &Projection,
     id: u64,
     args: &Value,
+    declaration: Option<&Value>,
 ) -> Result<Value, String> {
     let id = usize::try_from(id).map_err(|_| "community_id is too large")?;
     let cluster = projection
@@ -127,29 +129,34 @@ fn one_cluster(
         "community_key": cluster.key,
         "kind": cluster.kind,
         "interpretation": "derived_projection",
-        "declared_components": declared(state, cluster),
+        "declared_components": declared(declaration, cluster),
         "nodes": nodes,
         "boundaries": touching,
         "page": page
     }))
 }
 
-fn summary(state: &RepositoryState, id: usize, cluster: &Cluster) -> Value {
+fn summary(id: usize, cluster: &Cluster, declaration: Option<&Value>) -> Value {
     json!({
         "community_id": id,
         "community_key": cluster.key,
         "kind": cluster.kind,
         "nodes": cluster.files.len(),
         "sample": cluster.paths.iter().take(5).collect::<Vec<_>>(),
-        "declared_components": declared(state, cluster)
+        "declared_components": declared(declaration, cluster)
     })
 }
 
-fn declared(state: &RepositoryState, cluster: &Cluster) -> Vec<String> {
+fn declared(declaration: Option<&Value>, cluster: &Cluster) -> Vec<String> {
     let mut ids = cluster
         .paths
         .iter()
-        .filter_map(|path| declared_component(state, path))
+        .flat_map(|path| {
+            declaration
+                .into_iter()
+                .flat_map(|value| contract::components_for(value, path))
+        })
+        .map(str::to_owned)
         .collect::<Vec<_>>();
     ids.sort();
     ids.dedup();

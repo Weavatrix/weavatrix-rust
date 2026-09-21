@@ -1,6 +1,7 @@
 //! Build topology from manifest evidence: workspace aggregators, members,
 //! targets and runner configurations. No build tool is executed.
 
+mod cargo_manifest;
 mod ecosystems;
 mod manifests;
 mod render;
@@ -51,8 +52,42 @@ pub(in crate::operations) fn build_graph(
         (left.ecosystem, &left.aggregator).cmp(&(right.ecosystem, &right.aggregator))
     });
     let mut report = render::report(args, workspaces, &index)?;
+    let diagnostics = manifest_diagnostics(state, &index);
+    if let Some(object) = report.as_object_mut() {
+        if !diagnostics.is_empty() {
+            object.insert("status".to_owned(), blazingly_json::json!("INCOMPLETE"));
+        }
+        object.insert(
+            "manifest_diagnostics".to_owned(),
+            blazingly_json::json!(diagnostics),
+        );
+    }
     super::ci::attach(state, &mut report);
     Ok(report)
+}
+
+fn manifest_diagnostics(state: &RepositoryState, index: &ManifestIndex) -> Vec<Value> {
+    let mut diagnostics = Vec::new();
+    for name in ["Cargo.toml", "package.json", "go.mod"] {
+        for path in locate(state, index, name) {
+            let Some(text) = read_manifest(state, &path) else {
+                diagnostics.push(
+                    blazingly_json::json!({"manifest": path, "reason": "unreadable_or_excluded"}),
+                );
+                continue;
+            };
+            if name == "package.json"
+                && blazingly_json::from_str::<Value>(&text)
+                    .ok()
+                    .is_none_or(|value| !value.is_object())
+            {
+                diagnostics.push(
+                    blazingly_json::json!({"manifest": path, "reason": "invalid_package_json"}),
+                );
+            }
+        }
+    }
+    diagnostics
 }
 
 fn index(state: &RepositoryState) -> ManifestIndex {
@@ -111,12 +146,16 @@ pub(super) fn locate(state: &RepositoryState, index: &ManifestIndex, name: &str)
 
 pub(super) fn read_manifest(state: &RepositoryState, relative: &str) -> Option<String> {
     let absolute = state.root().join(relative);
+    let canonical = absolute.canonicalize().ok()?;
+    if !canonical.starts_with(state.root()) {
+        return None;
+    }
     if fs::metadata(&absolute).ok()?.len() > MAX_MANIFEST_BYTES {
         return None;
     }
     // Editors on Windows save manifests with a UTF-8 BOM; a line parser that
     // sees `\u{feff}[package]` misses every section after it.
-    fs::read_to_string(&absolute)
+    fs::read_to_string(&canonical)
         .ok()
         .map(|text| text.trim_start_matches('\u{feff}').to_owned())
 }
@@ -134,8 +173,13 @@ pub(super) fn dir_is_member(aggregator_dir: &str, patterns: &[String], dir: &str
     };
     relative.is_some_and(|relative| {
         !relative.is_empty()
-            && patterns
-                .iter()
-                .any(|pattern| manifests::glob_matches(pattern, relative))
+            && patterns.iter().any(|pattern| {
+                !pattern.starts_with('!') && manifests::glob_matches(pattern, relative)
+            })
+            && !patterns.iter().any(|pattern| {
+                pattern
+                    .strip_prefix('!')
+                    .is_some_and(|excluded| manifests::glob_matches(excluded, relative))
+            })
     })
 }

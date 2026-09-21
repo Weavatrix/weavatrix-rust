@@ -94,124 +94,7 @@ pub(super) fn json_packages(text: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-#[derive(Default)]
-pub(super) struct CargoManifest {
-    pub(super) name: Option<String>,
-    pub(super) workspace_members: Vec<String>,
-    pub(super) workspace_excludes: Vec<String>,
-    pub(super) targets: Vec<(&'static str, Option<String>)>,
-    pub(super) path_dependencies: Vec<(String, String, &'static str)>,
-}
-
-enum CargoSection {
-    Package,
-    Workspace,
-    Dependencies(&'static str),
-    Target(usize),
-    Other,
-}
-
-pub(super) fn cargo_manifest(text: &str) -> CargoManifest {
-    let mut manifest = CargoManifest::default();
-    let mut section = CargoSection::Other;
-    let mut array: Option<(bool, Vec<String>)> = None;
-    for raw in text.lines() {
-        let line = raw.split('#').next().unwrap_or_default().trim();
-        if let Some((for_members, values)) = array.as_mut() {
-            values.extend(quoted_strings(line));
-            if line.contains(']') {
-                let values = std::mem::take(values);
-                if *for_members {
-                    manifest.workspace_members = values;
-                } else {
-                    manifest.workspace_excludes = values;
-                }
-                array = None;
-            }
-            continue;
-        }
-        if line.starts_with('[') {
-            section = cargo_section(line, &mut manifest);
-            continue;
-        }
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        let (key, value) = (key.trim(), value.trim());
-        match &section {
-            CargoSection::Package if key == "name" => {
-                manifest.name = quoted_strings(value).into_iter().next();
-            }
-            CargoSection::Workspace if key == "members" || key == "exclude" => {
-                let values = quoted_strings(value);
-                if value.contains(']') {
-                    if key == "members" {
-                        manifest.workspace_members = values;
-                    } else {
-                        manifest.workspace_excludes = values;
-                    }
-                } else {
-                    array = Some((key == "members", values));
-                }
-            }
-            CargoSection::Dependencies(scope) => {
-                if let Some(path) = inline_path_value(value) {
-                    manifest
-                        .path_dependencies
-                        .push((key.to_owned(), path, scope));
-                }
-            }
-            CargoSection::Target(index) if key == "name" => {
-                if let Some(target) = manifest.targets.get_mut(*index) {
-                    target.1 = quoted_strings(value).into_iter().next();
-                }
-            }
-            _ => {}
-        }
-    }
-    manifest
-}
-
-fn cargo_section(line: &str, manifest: &mut CargoManifest) -> CargoSection {
-    match line {
-        "[package]" => CargoSection::Package,
-        "[workspace]" => CargoSection::Workspace,
-        "[dependencies]" => CargoSection::Dependencies("dependencies"),
-        "[dev-dependencies]" => CargoSection::Dependencies("dev-dependencies"),
-        "[build-dependencies]" => CargoSection::Dependencies("build-dependencies"),
-        "[lib]" => {
-            manifest.targets.push(("lib", None));
-            CargoSection::Target(manifest.targets.len() - 1)
-        }
-        "[[bin]]" | "[[bench]]" | "[[test]]" | "[[example]]" => {
-            let kind = match line {
-                "[[bin]]" => "bin",
-                "[[bench]]" => "bench",
-                "[[test]]" => "test",
-                _ => "example",
-            };
-            manifest.targets.push((kind, None));
-            CargoSection::Target(manifest.targets.len() - 1)
-        }
-        _ => CargoSection::Other,
-    }
-}
-
-/// `{ path = "../core", version = "1" }` -> `../core`.
-fn inline_path_value(value: &str) -> Option<String> {
-    let start = value.find("path")?;
-    let rest = value[start + 4..].trim_start();
-    let rest = rest.strip_prefix('=')?;
-    quoted_strings(rest).into_iter().next()
-}
-
-fn quoted_strings(text: &str) -> Vec<String> {
-    text.split('"')
-        .enumerate()
-        .filter(|(index, _)| index % 2 == 1)
-        .map(|(_, part)| part.to_owned())
-        .collect()
-}
+pub(super) use super::cargo_manifest::{CargoManifest, cargo_manifest};
 
 /// `use ( ./a ./b )` and single-line `use ./a` from `go.work`.
 pub(super) fn go_work_uses(text: &str) -> Vec<String> {
@@ -256,7 +139,7 @@ pub(super) fn glob_matches(pattern: &str, path: &str) -> bool {
                 matches(&pattern[1..], path) || (!path.is_empty() && matches(pattern, &path[1..]))
             }
             (Some(&"*"), Some(_)) => matches(&pattern[1..], &path[1..]),
-            (Some(literal), Some(segment)) if literal.eq_ignore_ascii_case(segment) => {
+            (Some(literal), Some(segment)) if literal == segment => {
                 matches(&pattern[1..], &path[1..])
             }
             _ => false,
