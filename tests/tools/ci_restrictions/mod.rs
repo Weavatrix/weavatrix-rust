@@ -7,6 +7,10 @@ mod p2;
 #[test]
 fn local_ci_distinguishes_declarations_invocations_and_effects() {
     let fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = 'sample'\nversion = '0.1.0'\n",
+    );
     fixture.write("src/lib.rs", "pub fn answer() -> u8 { 42 }\n");
     fixture.write("tests/architecture.rs", "#[test] fn works() {}\n");
     fixture.write(

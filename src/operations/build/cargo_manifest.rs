@@ -3,6 +3,11 @@ pub(super) struct CargoTarget {
     pub(super) name: Option<String>,
     pub(super) path: Option<String>,
     pub(super) required_features: Vec<String>,
+    pub(super) test: Option<bool>,
+    pub(super) bench: Option<bool>,
+    pub(super) doctest: Option<bool>,
+    pub(super) harness: Option<bool>,
+    pub(super) proc_macro: Option<bool>,
 }
 
 #[derive(Default)]
@@ -11,6 +16,7 @@ pub(super) struct CargoManifest {
     pub(super) workspace: bool,
     pub(super) workspace_members: Vec<String>,
     pub(super) workspace_excludes: Vec<String>,
+    pub(super) workspace_default_members: Vec<String>,
     pub(super) targets: Vec<CargoTarget>,
     pub(super) path_dependencies: Vec<(String, String, &'static str)>,
     pub(super) autolib: Option<bool>,
@@ -31,18 +37,14 @@ enum CargoSection {
 pub(super) fn cargo_manifest(text: &str) -> CargoManifest {
     let mut manifest = CargoManifest::default();
     let mut section = CargoSection::Other;
-    let mut array: Option<(bool, Vec<String>)> = None;
+    let mut array: Option<(u8, Vec<String>)> = None;
     for raw in text.lines() {
         let line = uncommented(raw).trim();
-        if let Some((for_members, values)) = array.as_mut() {
+        if let Some((list, values)) = array.as_mut() {
             values.extend(quoted_strings(line));
             if line.contains(']') {
                 let values = std::mem::take(values);
-                if *for_members {
-                    manifest.workspace_members = values;
-                } else {
-                    manifest.workspace_excludes = values;
-                }
+                set_workspace_list(&mut manifest, *list, values);
                 array = None;
             }
             continue;
@@ -67,16 +69,17 @@ pub(super) fn cargo_manifest(text: &str) -> CargoManifest {
                 "autoexamples" => manifest.autoexamples = boolean(value),
                 _ => {}
             },
-            CargoSection::Workspace if key == "members" || key == "exclude" => {
+            CargoSection::Workspace if matches!(key, "members" | "exclude" | "default-members") => {
                 let values = quoted_strings(value);
+                let list = match key {
+                    "members" => 0,
+                    "exclude" => 1,
+                    _ => 2,
+                };
                 if value.contains(']') {
-                    if key == "members" {
-                        manifest.workspace_members = values;
-                    } else {
-                        manifest.workspace_excludes = values;
-                    }
+                    set_workspace_list(&mut manifest, list, values);
                 } else {
-                    array = Some((key == "members", values));
+                    array = Some((list, values));
                 }
             }
             CargoSection::Dependencies(scope) => {
@@ -92,6 +95,11 @@ pub(super) fn cargo_manifest(text: &str) -> CargoManifest {
                         "name" => target.name = quoted_strings(value).into_iter().next(),
                         "path" => target.path = quoted_strings(value).into_iter().next(),
                         "required-features" => target.required_features = quoted_strings(value),
+                        "test" => target.test = boolean(value),
+                        "bench" => target.bench = boolean(value),
+                        "doctest" => target.doctest = boolean(value),
+                        "harness" => target.harness = boolean(value),
+                        "proc-macro" => target.proc_macro = boolean(value),
                         _ => {}
                     }
                 }
@@ -100,6 +108,44 @@ pub(super) fn cargo_manifest(text: &str) -> CargoManifest {
         }
     }
     manifest
+}
+
+pub(super) fn cargo_default_target_path(
+    kind: &str,
+    name: Option<&str>,
+    package_name: &str,
+    exists: impl Fn(&str) -> bool,
+) -> Option<String> {
+    let name = name.unwrap_or(package_name);
+    let candidates = match kind {
+        "lib" => vec!["src/lib.rs".to_owned()],
+        "bin" if name == package_name => vec!["src/main.rs".to_owned()],
+        "bin" => vec![
+            format!("src/bin/{name}.rs"),
+            format!("src/bin/{name}/main.rs"),
+        ],
+        "test" | "bench" | "example" => {
+            let directory = match kind {
+                "test" => "tests",
+                "bench" => "benches",
+                _ => "examples",
+            };
+            vec![
+                format!("{directory}/{name}.rs"),
+                format!("{directory}/{name}/main.rs"),
+            ]
+        }
+        _ => Vec::new(),
+    };
+    candidates.into_iter().find(|candidate| exists(candidate))
+}
+
+fn set_workspace_list(manifest: &mut CargoManifest, list: u8, values: Vec<String>) {
+    match list {
+        0 => manifest.workspace_members = values,
+        1 => manifest.workspace_excludes = values,
+        _ => manifest.workspace_default_members = values,
+    }
 }
 
 fn cargo_section(line: &str, manifest: &mut CargoManifest) -> CargoSection {
@@ -118,6 +164,11 @@ fn cargo_section(line: &str, manifest: &mut CargoManifest) -> CargoSection {
                 name: None,
                 path: None,
                 required_features: Vec::new(),
+                test: None,
+                bench: None,
+                doctest: None,
+                harness: None,
+                proc_macro: None,
             });
             CargoSection::Target(manifest.targets.len() - 1)
         }
@@ -133,6 +184,11 @@ fn cargo_section(line: &str, manifest: &mut CargoManifest) -> CargoSection {
                 name: None,
                 path: None,
                 required_features: Vec::new(),
+                test: None,
+                bench: None,
+                doctest: None,
+                harness: None,
+                proc_macro: None,
             });
             CargoSection::Target(manifest.targets.len() - 1)
         }

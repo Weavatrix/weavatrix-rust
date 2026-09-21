@@ -2,21 +2,22 @@
 //! targets and runner configurations. No build tool is executed.
 
 mod cargo_manifest;
+mod conditions;
+mod ecosystem_details;
 mod ecosystems;
 mod manifests;
 mod model;
+mod python;
 mod render;
+mod standalone;
 
 use crate::engine::RepositoryState;
 use blazingly_json::{Value, json};
-use model::BuildDiagnostic;
 pub(crate) use model::BuildModel;
+use model::{BuildDiagnostic, InputCapture};
 use std::collections::BTreeSet;
-use std::fs;
 use std::path::Path;
 use weavatrix_graph::NodeKind;
-
-const MAX_MANIFEST_BYTES: u64 = 2_000_000;
 
 /// Graph file labels plus every directory they imply. Manifest formats the
 /// language roster does not parse (TOML, YAML) may be absent from the node
@@ -36,14 +37,14 @@ pub(in crate::operations) fn build_graph(
     Ok(report)
 }
 
-pub(crate) fn architecture_topology(state: &RepositoryState) -> Value {
-    let model = model(state);
+pub(crate) fn architecture_topology(model: &BuildModel) -> Value {
     json!({
         "schema_version": model.schema_version,
-        "status": if model.diagnostics.is_empty() {"COMPLETE"} else {"INCOMPLETE"},
+        "status": if model.diagnostics.is_empty() && model.input_capture.complete {"COMPLETE"} else {"INCOMPLETE"},
         "workspaces": &model.workspaces,
         "runners": &model.runners,
         "diagnostics": &model.diagnostics,
+        "input_capture": model.input_capture,
         "semantic_precision": "BOUNDED_STATIC"
     })
 }
@@ -59,12 +60,12 @@ fn analyze(state: &RepositoryState) -> (BuildModel, ManifestIndex) {
     ecosystems::npm_workspaces(state, &index, &mut workspaces, &mut claimed);
     ecosystems::cargo_workspaces(state, &index, &mut workspaces, &mut claimed);
     ecosystems::go_workspaces(state, &index, &mut workspaces, &mut claimed);
-    ecosystems::standalone_packages(state, &index, &mut workspaces, &claimed);
+    standalone::packages(state, &index, &mut workspaces, &claimed);
     workspaces.sort_by(|left, right| {
         (left.ecosystem, &left.aggregator).cmp(&(right.ecosystem, &right.aggregator))
     });
     let diagnostics = manifest_diagnostics(state, &index);
-    let runners = render::runner_configs(&index);
+    let runners = manifests::runner_configs(&state.snapshot().repository, &index);
     let model = BuildModel {
         schema_version: "weavatrix.build-model.v1",
         repository: state.snapshot().repository.clone(),
@@ -72,6 +73,11 @@ fn analyze(state: &RepositoryState) -> (BuildModel, ManifestIndex) {
         workspaces,
         runners,
         diagnostics,
+        input_capture: InputCapture {
+            generation: state.evidence().generation().to_owned(),
+            complete: state.evidence().receipt().complete,
+            excluded: state.evidence().receipt().excluded.to_vec(),
+        },
     };
     (model, index)
 }
@@ -103,13 +109,14 @@ fn manifest_diagnostics(state: &RepositoryState, index: &ManifestIndex) -> Vec<B
 }
 
 fn index(state: &RepositoryState) -> ManifestIndex {
-    let labels = state
+    let mut labels = state
         .graph()
         .nodes()
         .iter()
         .filter(|node| node.kind == NodeKind::File)
         .map(|node| node.label.replace('\\', "/"))
         .collect::<BTreeSet<_>>();
+    labels.extend(state.evidence().paths().map(str::to_owned));
     let mut directories = BTreeSet::from([String::new()]);
     for label in &labels {
         let mut directory = Path::new(label).parent();
@@ -136,7 +143,7 @@ impl ManifestIndex {
 
 /// Repository-relative paths of every product manifest with this file name,
 /// whether or not the graph ingested its format.
-pub(super) fn locate(state: &RepositoryState, index: &ManifestIndex, name: &str) -> Vec<String> {
+pub(super) fn locate(_state: &RepositoryState, index: &ManifestIndex, name: &str) -> Vec<String> {
     let mut found = BTreeSet::new();
     for directory in &index.directories {
         let candidate = if directory.is_empty() {
@@ -149,7 +156,7 @@ pub(super) fn locate(state: &RepositoryState, index: &ManifestIndex, name: &str)
         {
             continue;
         }
-        if index.labels.contains(&candidate) || state.root().join(&candidate).is_file() {
+        if index.labels.contains(&candidate) {
             found.insert(candidate);
         }
     }
@@ -157,18 +164,11 @@ pub(super) fn locate(state: &RepositoryState, index: &ManifestIndex, name: &str)
 }
 
 pub(super) fn read_manifest(state: &RepositoryState, relative: &str) -> Option<String> {
-    let absolute = state.root().join(relative);
-    let canonical = absolute.canonicalize().ok()?;
-    if !canonical.starts_with(state.root()) {
-        return None;
-    }
-    if fs::metadata(&absolute).ok()?.len() > MAX_MANIFEST_BYTES {
-        return None;
-    }
     // Editors on Windows save manifests with a UTF-8 BOM; a line parser that
     // sees `\u{feff}[package]` misses every section after it.
-    fs::read_to_string(&canonical)
-        .ok()
+    state
+        .evidence()
+        .text(relative)
         .map(|text| text.trim_start_matches('\u{feff}').to_owned())
 }
 

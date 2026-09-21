@@ -1,6 +1,5 @@
 use super::super::workflow::{self, Step};
 use blazingly_json::{Map, Value, json};
-use std::path::{Component, Path, PathBuf};
 use yaml_rust2::Yaml;
 
 pub(super) fn matrix_summary(matrix: Option<&Yaml>) -> Value {
@@ -122,27 +121,4 @@ pub(super) fn step_summary(step: &Step, working: Option<&str>) -> Value {
         "continue_on_error": condition_class(step.continue_on_error.as_deref()),
         "working_directory": public_uses(working)
     })
-}
-
-pub(super) fn working_directory(root: &Path, working: Option<&str>) -> Option<PathBuf> {
-    let Some(working) = working else {
-        return Some(root.to_path_buf());
-    };
-    if working.contains("${{")
-        || !Path::new(working)
-            .components()
-            .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
-    {
-        return None;
-    }
-    let directory = root.join(working);
-    if directory
-        .canonicalize()
-        .ok()?
-        .starts_with(root.canonicalize().ok()?)
-    {
-        Some(directory)
-    } else {
-        None
-    }
 }

@@ -1,5 +1,3 @@
-use std::path::Path;
-
 pub(super) struct Ignore {
     rules: Vec<Rule>,
 }
@@ -11,8 +9,7 @@ struct Rule {
 }
 
 impl Ignore {
-    pub(super) fn load(root: &Path) -> Self {
-        let text = std::fs::read_to_string(root.join(".gitignore")).unwrap_or_default();
+    pub(super) fn load(text: &str) -> Self {
         let mut rules = Vec::new();
         for line in text.lines() {
             let line = line.trim();

@@ -1,5 +1,6 @@
 use super::RepositoryState;
 use crate::analyzer::Analyzer;
+use crate::model::captured::EvidenceSnapshot;
 use crate::model::{Error, Result, Snapshot};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
@@ -16,11 +17,13 @@ impl RepositoryState {
         let root = snapshot_root
             .canonicalize()
             .map_err(|source| Error::io(&snapshot_root, source))?;
+        let evidence = EvidenceSnapshot::capture(&root, &scan);
         Ok(Self {
             root,
             snapshot: Arc::new(snapshot),
             graph: Arc::new(graph),
             scan: Arc::new(scan),
+            evidence: Arc::new(evidence),
             build_time: started.elapsed(),
             built_at: Instant::now(),
             weak_components: Arc::new(OnceLock::new()),
@@ -32,11 +35,13 @@ impl RepositoryState {
         let started = Instant::now();
         let snapshot = analyzer.analyze_report(root, &scan)?;
         let graph = Graph::try_from_sorted_parts(snapshot.nodes.clone(), snapshot.edges.clone())?;
+        let evidence = EvidenceSnapshot::capture(root, &scan);
         Ok(Self {
             root: root.to_path_buf(),
             snapshot: Arc::new(snapshot),
             graph: Arc::new(graph),
             scan: Arc::new(scan),
+            evidence: Arc::new(evidence),
             build_time: started.elapsed(),
             built_at: Instant::now(),
             weak_components: Arc::new(OnceLock::new()),
@@ -73,6 +78,10 @@ impl RepositoryState {
     #[must_use]
     pub fn scan_report(&self) -> &ScanReport {
         self.scan.as_ref()
+    }
+
+    pub(crate) fn evidence(&self) -> &EvidenceSnapshot {
+        self.evidence.as_ref()
     }
 
     pub(crate) fn census(&self) -> &super::GraphCensus {

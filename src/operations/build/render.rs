@@ -1,9 +1,8 @@
-//! JSON rendering for build topology answers.
-
 use super::ManifestIndex;
-use super::manifests::CargoManifest;
+use super::cargo_manifest::{CargoManifest, cargo_default_target_path};
 use super::model::{
-    BuildDependency, BuildModel, BuildTarget, BuildTask, Member, Runner, entity_id,
+    BuildCondition, BuildDependency, BuildModel, BuildTarget, BuildTask, Member, TargetOptions,
+    entity_id,
 };
 use crate::operations::optional_u64;
 use blazingly_json::{Value, json};
@@ -42,7 +41,10 @@ pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> 
             remaining -= take;
             json!({
                 "ecosystem": workspace.ecosystem,
+                "id": workspace.id,
                 "aggregator": workspace.aggregator,
+                "default_members": workspace.default_members,
+                "excluded_paths": workspace.excluded_paths,
                 "members_total": workspace.members.len(),
                 "members": workspace.members.iter().take(take).map(member).collect::<Vec<_>>()
             })
@@ -50,7 +52,7 @@ pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> 
         .collect::<Vec<_>>();
     Ok(json!({
         "schema_version": model.schema_version,
-        "status": if !model.diagnostics.is_empty() || members_total > max_members || targets_truncated || tasks_truncated || runners_total > MAX_RUNNERS {"INCOMPLETE"} else {"COMPLETE"},
+        "status": if !model.diagnostics.is_empty() || !model.input_capture.complete || members_total > max_members || targets_truncated || tasks_truncated || runners_total > MAX_RUNNERS {"INCOMPLETE"} else {"COMPLETE"},
         "workspaces": rendered,
         "workspaces_total": workspaces_total,
         "members_total": members_total,
@@ -61,6 +63,7 @@ pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> 
         "runners_total": runners_total,
         "runners_truncated": runners_total > MAX_RUNNERS,
         "manifest_diagnostics": model.diagnostics,
+        "input_capture": model.input_capture,
         "model": "manifest and lockfile evidence only; no build tool was executed",
         "semantic_precision": "BOUNDED_STATIC"
     }))
@@ -69,12 +72,15 @@ pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> 
 fn member(member: &Member) -> Value {
     json!({
         "id": member.id,
+        "kind": member.kind,
         "name": member.name,
         "path": member.path,
         "manifest": member.manifest,
         "targets": member.targets.iter().take(MAX_TARGETS).collect::<Vec<_>>(),
         "targets_total": member.targets.len(),
         "targets_truncated": member.targets.len() > MAX_TARGETS,
+        "modules": member.modules,
+        "modules_total": member.modules.len(),
         "tasks": member.tasks.iter().take(MAX_TASKS).collect::<Vec<_>>(),
         "tasks_total": member.tasks.len(),
         "tasks_truncated": member.tasks.len() > MAX_TASKS,
@@ -82,11 +88,15 @@ fn member(member: &Member) -> Value {
     })
 }
 
-pub(super) fn script_tasks(manifest: &str, scripts: &[(String, String)]) -> Vec<BuildTask> {
+pub(super) fn script_tasks(
+    repository: &str,
+    manifest: &str,
+    scripts: &[(String, String)],
+) -> Vec<BuildTask> {
     scripts
         .iter()
         .map(|(name, command)| BuildTask {
-            id: entity_id("task", &["npm", manifest, name]),
+            id: entity_id(repository, "task", &["npm", manifest, name]),
             kind: "script",
             name: name.clone(),
             command: command.clone(),
@@ -95,25 +105,12 @@ pub(super) fn script_tasks(manifest: &str, scripts: &[(String, String)]) -> Vec<
 }
 
 pub(super) fn cargo_targets(
+    repository: &str,
     parsed: &CargoManifest,
     index: &ManifestIndex,
     dir: &str,
     manifest: &str,
 ) -> Vec<BuildTarget> {
-    let mut targets = parsed
-        .targets
-        .iter()
-        .map(|target| {
-            build_target(
-                manifest,
-                target.kind,
-                target.name.clone(),
-                target.path.clone(),
-                false,
-                target.required_features.clone(),
-            )
-        })
-        .collect::<Vec<_>>();
     let source = |suffix: &str| {
         if dir.is_empty() {
             suffix.to_owned()
@@ -121,6 +118,35 @@ pub(super) fn cargo_targets(
             format!("{dir}/{suffix}")
         }
     };
+    let package_name = parsed.name.as_deref().unwrap_or_default();
+    let mut targets = parsed
+        .targets
+        .iter()
+        .map(|target| {
+            build_target(
+                (repository, manifest),
+                target.kind,
+                target.name.clone(),
+                target.path.clone().or_else(|| {
+                    cargo_default_target_path(
+                        target.kind,
+                        target.name.as_deref(),
+                        package_name,
+                        |candidate| index.contains_file(&source(candidate)),
+                    )
+                }),
+                false,
+                target.required_features.clone(),
+                TargetOptions {
+                    test: target.test,
+                    bench: target.bench,
+                    doctest: target.doctest,
+                    harness: target.harness,
+                    proc_macro: target.proc_macro,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
     let mut add_implicit = |kind: &'static str, name: &str, path: &str| {
         if !index.contains_file(&source(path))
             || parsed.targets.iter().any(|target| {
@@ -133,15 +159,15 @@ pub(super) fn cargo_targets(
             return;
         }
         targets.push(build_target(
-            manifest,
+            (repository, manifest),
             kind,
             Some(name.to_owned()),
             Some(path.to_owned()),
             true,
             Vec::new(),
+            TargetOptions::default(),
         ));
     };
-    let package_name = parsed.name.as_deref().unwrap_or_default();
     if parsed.autobins != Some(false) {
         add_implicit("bin", package_name, "src/main.rs");
     }
@@ -180,18 +206,26 @@ pub(super) fn cargo_targets(
 }
 
 fn build_target(
-    manifest: &str,
+    context: (&str, &str),
     kind: &'static str,
     name: Option<String>,
     path: Option<String>,
     implicit: bool,
     required_features: Vec<String>,
+    options: TargetOptions,
 ) -> BuildTarget {
+    let (repository, manifest) = context;
     let logical = name.as_deref().or(path.as_deref()).unwrap_or(kind);
+    let conditions: Vec<String> = required_features
+        .iter()
+        .map(|feature| format!("feature:{feature}"))
+        .collect();
+    let condition_ast = BuildCondition::atoms(&conditions, true);
     BuildTarget {
-        id: entity_id("target", &["cargo", manifest, kind, logical]),
+        id: entity_id(repository, "target", &["cargo", manifest, kind, logical]),
         kind,
         name,
+        source_patterns: path.iter().cloned().collect(),
         path,
         implicit,
         applicability: if required_features.is_empty() {
@@ -200,28 +234,40 @@ fn build_target(
             "CONDITIONAL_FEATURES"
         },
         required_features,
+        conditions,
+        condition_ast,
+        options,
     }
 }
 
-pub(super) fn pending_dependency(name: &str, scope: &'static str) -> BuildDependency {
+pub(super) fn pending_dependency(
+    repository: &str,
+    name: &str,
+    scope: &'static str,
+) -> BuildDependency {
     BuildDependency {
-        id: entity_id("build-dependency", &[name, scope]),
+        id: entity_id(repository, "build-dependency", &[name, scope]),
         name: name.to_owned(),
         member: None,
+        source_target: None,
+        target: None,
         scope,
         condition: "UNCONDITIONAL_DECLARATION",
+        condition_ast: BuildCondition::Always,
     }
 }
 
 pub(super) fn path_dependency(
+    repository: &str,
     name: &str,
     member_dir: &str,
     scope: &'static str,
 ) -> BuildDependency {
     BuildDependency {
-        id: entity_id("build-dependency", &[name, member_dir, scope]),
+        id: entity_id(repository, "build-dependency", &[name, member_dir, scope]),
         name: name.to_owned(),
         member: Some(entity_id(
+            repository,
             "member",
             &[
                 "cargo",
@@ -232,69 +278,10 @@ pub(super) fn path_dependency(
                 },
             ],
         )),
+        source_target: None,
+        target: None,
         scope,
         condition: "UNCONDITIONAL_DECLARATION",
-    }
-}
-
-pub(super) fn runner_configs(index: &ManifestIndex) -> Vec<Runner> {
-    index
-        .labels()
-        .iter()
-        .filter_map(|path| {
-            runner_kind(path).map(|kind| Runner {
-                id: entity_id("runner", &[kind, path]),
-                path: path.clone(),
-                kind,
-            })
-        })
-        .collect()
-}
-
-fn runner_kind(path: &str) -> Option<&'static str> {
-    let normalized = path.to_ascii_lowercase();
-    let file = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
-    let extension = std::path::Path::new(file)
-        .extension()
-        .and_then(|value| value.to_str())
-        .unwrap_or_default();
-    if normalized.contains(".github/workflows/") && matches!(extension, "yml" | "yaml") {
-        return Some("github-actions");
-    }
-    let prefixed = [
-        ("jest.config.", "jest"),
-        ("vitest.config.", "vitest"),
-        ("playwright.config.", "playwright"),
-        ("cypress.config.", "cypress"),
-        ("karma.conf", "karma"),
-        (".mocharc", "mocha"),
-        ("webpack.config.", "webpack"),
-        ("vite.config.", "vite"),
-        ("rollup.config.", "rollup"),
-        ("babel.config.", "babel"),
-        (".babelrc", "babel"),
-    ];
-    for (prefix, kind) in prefixed {
-        if file.starts_with(prefix) {
-            return Some(kind);
-        }
-    }
-    if file.starts_with("tsconfig") && extension == "json" {
-        return Some("typescript");
-    }
-    match file {
-        "turbo.json" => Some("turbo"),
-        "nx.json" => Some("nx"),
-        "lerna.json" => Some("lerna"),
-        "pnpm-workspace.yaml" => Some("pnpm-workspace"),
-        "go.work" => Some("go-work"),
-        "makefile" | "gnumakefile" => Some("make"),
-        "justfile" => Some("just"),
-        "taskfile.yml" | "taskfile.yaml" => Some("task"),
-        "pom.xml" => Some("maven"),
-        "build.gradle" | "build.gradle.kts" | "settings.gradle" | "settings.gradle.kts" => {
-            Some("gradle")
-        }
-        _ => None,
+        condition_ast: BuildCondition::Always,
     }
 }

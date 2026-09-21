@@ -23,6 +23,14 @@ fn quotient_cycle_is_not_claimed_as_symbol_recursion() {
         "QUOTIENT_UNION_CYCLE_CANDIDATE"
     );
     let cycle = &report["cycles"]["cyclic_scc"][0];
+    assert_eq!(report["cycles"]["condensation_nodes"], 1);
+    assert_eq!(
+        report["cycles"]["condensation_components"][0]["members"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
     assert!(
         !cycle["component_edge_witness"]
             .as_array()
@@ -127,4 +135,33 @@ fn pagination_exposes_late_cycles_and_rejects_stale_cursors() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn tiny_token_budget_preserves_identity_totals_and_continuation() {
+    let fixture = GitFixture::new();
+    for index in 0..20 {
+        let next = index + 1;
+        fixture.write(
+            &format!("part_{index}/a.js"),
+            &format!("import {{ value }} from '../part_{next}/a.js';\nexport {{ value }};\n"),
+        );
+    }
+    fixture.write("part_20/a.js", "export const value = 1;\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "architecture_inventory",
+        json!({"max_results": 100, "token_budget": 250}),
+    )
+    .unwrap();
+    assert_eq!(report["token_budget"]["applied"], true);
+    assert_eq!(report["status"], "INCOMPLETE");
+    assert!(report["analysis_id"].as_str().is_some());
+    assert_eq!(
+        report["edges_returned"].as_u64().unwrap(),
+        report["edges"].as_array().unwrap().len() as u64
+    );
+    assert!(report["edges_total"].as_u64().unwrap() >= report["edges_returned"].as_u64().unwrap());
+    assert!(report["next_edge_cursor"].as_str().is_some());
 }

@@ -1,18 +1,16 @@
 use crate::engine::RepositoryState;
 use blazingly_json::{Value, json};
 use std::collections::BTreeSet;
-use std::fs;
-use std::io::ErrorKind;
 
 pub(crate) fn load_optional(state: &RepositoryState) -> Result<Option<Value>, String> {
-    let path = state.root().join(".weavatrix/architecture.json");
-    let bytes = match fs::read(&path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("{}: {error}", path.display())),
+    const PATH: &str = ".weavatrix/architecture.json";
+    let Some(file) = state.evidence().file(PATH) else {
+        return state.evidence().exclusion(PATH).map_or(Ok(None), |item| {
+            Err(format!("{PATH}: input capture excluded {}", item.reason))
+        });
     };
-    let value: Value =
-        blazingly_json::from_slice(&bytes).map_err(|error| format!("invalid contract: {error}"))?;
+    let value: Value = blazingly_json::from_slice(&file.bytes)
+        .map_err(|error| format!("invalid contract: {error}"))?;
     if value.get("components").and_then(Value::as_array).is_none() {
         return Err("architecture contract has no components".to_owned());
     }

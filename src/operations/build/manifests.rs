@@ -3,6 +3,9 @@
 
 use blazingly_json::Value;
 
+use super::ManifestIndex;
+use super::model::{Runner, entity_id};
+
 pub(super) struct NpmPackage {
     pub(super) name: Option<String>,
     pub(super) scripts: Vec<(String, String)>,
@@ -94,7 +97,7 @@ pub(super) fn json_packages(text: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub(super) use super::cargo_manifest::{CargoManifest, cargo_manifest};
+pub(super) use super::cargo_manifest::cargo_manifest;
 
 /// `use ( ./a ./b )` and single-line `use ./a` from `go.work`.
 pub(super) fn go_work_uses(text: &str) -> Vec<String> {
@@ -175,4 +178,65 @@ pub(super) fn normalize_relative(base_dir: &str, relative: &str) -> Option<Strin
         }
     }
     Some(segments.join("/"))
+}
+
+pub(super) fn runner_configs(repository: &str, index: &ManifestIndex) -> Vec<Runner> {
+    index
+        .labels()
+        .iter()
+        .filter_map(|path| {
+            runner_kind(path).map(|kind| Runner {
+                id: entity_id(repository, "runner", &[kind, path]),
+                path: path.clone(),
+                kind,
+            })
+        })
+        .collect()
+}
+
+fn runner_kind(path: &str) -> Option<&'static str> {
+    let normalized = path.to_ascii_lowercase();
+    let file = normalized.rsplit('/').next().unwrap_or(normalized.as_str());
+    let extension = std::path::Path::new(file)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if normalized.contains(".github/workflows/") && matches!(extension, "yml" | "yaml") {
+        return Some("github-actions");
+    }
+    for (prefix, kind) in [
+        ("jest.config.", "jest"),
+        ("vitest.config.", "vitest"),
+        ("playwright.config.", "playwright"),
+        ("cypress.config.", "cypress"),
+        ("karma.conf", "karma"),
+        (".mocharc", "mocha"),
+        ("webpack.config.", "webpack"),
+        ("vite.config.", "vite"),
+        ("rollup.config.", "rollup"),
+        ("babel.config.", "babel"),
+        (".babelrc", "babel"),
+    ] {
+        if file.starts_with(prefix) {
+            return Some(kind);
+        }
+    }
+    if file.starts_with("tsconfig") && extension == "json" {
+        return Some("typescript");
+    }
+    match file {
+        "turbo.json" => Some("turbo"),
+        "nx.json" => Some("nx"),
+        "lerna.json" => Some("lerna"),
+        "pnpm-workspace.yaml" => Some("pnpm-workspace"),
+        "go.work" => Some("go-work"),
+        "makefile" | "gnumakefile" => Some("make"),
+        "justfile" => Some("just"),
+        "taskfile.yml" | "taskfile.yaml" => Some("task"),
+        "pom.xml" => Some("maven"),
+        "build.gradle" | "build.gradle.kts" | "settings.gradle" | "settings.gradle.kts" => {
+            Some("gradle")
+        }
+        _ => None,
+    }
 }

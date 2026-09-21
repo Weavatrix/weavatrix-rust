@@ -1,4 +1,5 @@
 use super::super::workflow::Step;
+use crate::operations::build::BuildModel;
 
 pub(super) struct Found {
     pub kind: &'static str,
@@ -9,7 +10,7 @@ pub(super) struct Found {
     pub source_text: String,
 }
 
-pub(super) fn in_step(root: Option<&std::path::Path>, step: &Step) -> Vec<Found> {
+pub(super) fn in_step(build: Option<(&BuildModel, Option<&str>)>, step: &Step) -> Vec<Found> {
     let Some(command) = step.command.as_deref() else {
         return Vec::new();
     };
@@ -26,7 +27,7 @@ pub(super) fn in_step(root: Option<&std::path::Path>, step: &Step) -> Vec<Found>
         let words = executable.split_whitespace().collect::<Vec<_>>();
         let Some(first) = words.first() else { continue };
         if *first == "cargo" {
-            cargo(root, executable, &words, &mut found);
+            cargo(build, executable, &words, &mut found);
         } else if matches!(*first, "npm" | "npm.cmd" | "pnpm" | "yarn") {
             npm(&words, &mut found);
         } else if *first == "npx" {
@@ -84,7 +85,12 @@ fn javascript(words: &[&str], found: &mut Vec<Found>) {
     });
 }
 
-fn cargo(root: Option<&std::path::Path>, line: &str, words: &[&str], found: &mut Vec<Found>) {
+fn cargo(
+    build: Option<(&BuildModel, Option<&str>)>,
+    line: &str,
+    words: &[&str],
+    found: &mut Vec<Found>,
+) {
     let subcommand = words.iter().skip(1).find(|word| !word.starts_with('-'));
     match subcommand.copied() {
         Some("fmt") if words.contains(&"--check") => found.push(Found {
@@ -113,7 +119,7 @@ fn cargo(root: Option<&std::path::Path>, line: &str, words: &[&str], found: &mut
                 .find(|pair| pair[0] == "--test")
                 .map(|pair| pair[1].trim_matches(['\'', '"']).to_owned());
             let exists = target.as_ref().and_then(|target| {
-                root.map(|root| root.join("tests").join(format!("{target}.rs")).is_file())
+                build.map(|(model, working)| model.target_exists("test", target, working))
             });
             found.push(Found {
                 kind: "cargo_test",

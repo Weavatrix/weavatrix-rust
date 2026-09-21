@@ -2,7 +2,7 @@ use super::components::Component;
 use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use weavatrix_graph::{
-    EdgeEndpoints, NodeIndex, Topology, condensation_filtered, find_cycle_filtered,
+    EdgeEndpoints, EdgeIndex, NodeIndex, Topology, condensation_filtered, find_cycle_filtered,
     strongly_connected_components_filtered, topological_generations_filtered,
 };
 
@@ -38,9 +38,43 @@ pub(super) fn analyze(components: &[Component], edges: &[Value]) -> Result<Value
     let cyclic_total = cyclic.len();
     let condensed =
         condensation_filtered(&topology, |_| true).map_err(|error| error.to_string())?;
-    let levels = topological_generations_filtered(condensed.topology(), |_| true)
-        .unwrap_or_default()
-        .len();
+    let generations =
+        topological_generations_filtered(condensed.topology(), |_| true).unwrap_or_default();
+    let condensation_components = condensed
+        .components()
+        .iter()
+        .enumerate()
+        .map(|(slot, members)| {
+            let mut members = members
+                .iter()
+                .map(|member| components[member.index()].id.clone())
+                .collect::<Vec<_>>();
+            members.sort();
+            json!({"id": format!("scc:{slot}"), "members": members})
+        })
+        .collect::<Vec<_>>();
+    let condensation_edges = (0..condensed.topology().edge_count())
+        .filter_map(|slot| {
+            let edge = EdgeIndex::new(u32::try_from(slot).ok()?);
+            let endpoints = condensed.topology().edge_endpoints(edge)?;
+            Some(json!({
+                "from": format!("scc:{}", endpoints.source().index()),
+                "to": format!("scc:{}", endpoints.target().index())
+            }))
+        })
+        .collect::<Vec<_>>();
+    let dag_generations = generations
+        .iter()
+        .map(|generation| {
+            generation
+                .iter()
+                .map(|node| format!("scc:{}", node.index()))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let condensation_truncated = condensation_components.len() > 500
+        || condensation_edges.len() > 1_000
+        || dag_generations.len() > 500;
     Ok(json!({
         "semantics": "component_quotient_dependency; not symbol recursion or a single executable configuration",
         "relation_scope": "all observed coupling relations; context applicability unknown",
@@ -51,7 +85,11 @@ pub(super) fn analyze(components: &[Component], edges: &[Value]) -> Result<Value
         "classification": "QUOTIENT_UNION_CYCLE_CANDIDATE",
         "condensation_nodes": condensed.topology().node_count(),
         "condensation_edges": condensed.topology().edge_count(),
-        "dag_levels": levels
+        "condensation_components": condensation_components.into_iter().take(500).collect::<Vec<_>>(),
+        "condensation_edge_list": condensation_edges.into_iter().take(1_000).collect::<Vec<_>>(),
+        "dag_generations": dag_generations.into_iter().take(500).collect::<Vec<_>>(),
+        "dag_levels": generations.len(),
+        "condensation_truncated": condensation_truncated
     }))
 }
 

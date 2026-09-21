@@ -1,3 +1,4 @@
+pub(crate) mod captured;
 pub(crate) mod digest;
 pub(crate) mod error;
 pub(crate) mod evidence;

@@ -1,12 +1,18 @@
 use super::super::action::{self, Action};
 use super::super::workflow::{Job, Step, Workflow};
 use crate::engine::RepositoryState;
-use crate::operations::ci::read::{self, Outcome};
+use crate::operations::ci::read;
 use blazingly_json::{Value, json};
 use std::path::{Component, Path};
 
-pub(super) struct ActionInvocation<'a> {
+pub(super) struct ProjectionContext<'a> {
     pub state: &'a RepositoryState,
+    pub scenario: &'a super::scenario::Scenario,
+    pub build: &'a crate::operations::build::BuildModel,
+}
+
+pub(super) struct ActionInvocation<'a> {
+    pub build: &'a crate::operations::build::BuildModel,
     pub actions: &'a [Action],
     pub workflow: &'a Workflow,
     pub job: &'a Job,
@@ -43,7 +49,7 @@ pub(super) fn inspect_action(invocation: &mut ActionInvocation<'_>) {
                 invocation.id
             ));
         }
-        for (ordinal, found) in super::recognize::in_step(Some(invocation.state.root()), nested)
+        for (ordinal, found) in super::recognize::in_step(Some((invocation.build, None)), nested)
             .into_iter()
             .enumerate()
         {
@@ -93,6 +99,7 @@ pub(super) fn inspect_action(invocation: &mut ActionInvocation<'_>) {
 
 pub(super) struct ScriptInvocation<'a> {
     pub state: &'a RepositoryState,
+    pub build: &'a crate::operations::build::BuildModel,
     pub workflow: &'a Workflow,
     pub job: &'a Job,
     pub step: &'a Step,
@@ -133,7 +140,7 @@ pub(super) fn inspect_script(invocation: &mut ScriptInvocation<'_>) {
             ));
             continue;
         }
-        let Outcome::Read(script) = read::open(invocation.state.root(), &relative) else {
+        let Some(script) = read::captured_path(invocation.state, &relative) else {
             invocation
                 .unresolved
                 .push(format!("{}: helper script unavailable", invocation.id));
@@ -155,9 +162,10 @@ pub(super) fn inspect_script(invocation: &mut ScriptInvocation<'_>) {
             working_directory: None,
             with: None,
         };
-        for (ordinal, found) in super::recognize::in_step(Some(invocation.state.root()), &nested)
-            .into_iter()
-            .enumerate()
+        for (ordinal, found) in
+            super::recognize::in_step(Some((invocation.build, invocation.working)), &nested)
+                .into_iter()
+                .enumerate()
         {
             let span =
                 crate::model::evidence::raw_byte_span(&script.bytes, found.source_text.as_bytes());
@@ -197,14 +205,22 @@ fn inspect_npm(invocation: &mut ScriptInvocation<'_>, command: &str) {
     }) else {
         return;
     };
-    if invocation.working.is_some() {
+    let package_path = invocation.working.map_or_else(
+        || "package.json".to_owned(),
+        |working| format!("{}/package.json", working.trim_end_matches('/')),
+    );
+    if package_path.contains("${{")
+        || !Path::new(&package_path)
+            .components()
+            .all(|part| matches!(part, Component::Normal(_) | Component::CurDir))
+    {
         invocation.unresolved.push(format!(
-            "{}: nested package script scope not resolved",
+            "{}: dynamic or escaping package script scope",
             invocation.id
         ));
         return;
     }
-    let Outcome::Read(package) = read::open(invocation.state.root(), "package.json") else {
+    let Some(package) = read::captured_path(invocation.state, &package_path) else {
         invocation
             .unresolved
             .push(format!("{}: package.json unavailable", invocation.id));
@@ -239,9 +255,10 @@ fn inspect_npm(invocation: &mut ScriptInvocation<'_>, command: &str) {
         working_directory: None,
         with: None,
     };
-    for (ordinal, found) in super::recognize::in_step(Some(invocation.state.root()), &nested)
-        .into_iter()
-        .enumerate()
+    for (ordinal, found) in
+        super::recognize::in_step(Some((invocation.build, invocation.working)), &nested)
+            .into_iter()
+            .enumerate()
     {
         invocation.restrictions.push(json!({
             "id": format!("{}/npm/{}/{}", invocation.id, found.kind, ordinal + 1),

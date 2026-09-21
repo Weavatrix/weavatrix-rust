@@ -69,10 +69,11 @@ fn a_manifest_is_a_package_and_a_source_file_is_not() {
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
     let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
     let packages = report["packages"].as_array().unwrap();
-    assert_eq!(packages[0]["package_confirmed"], false);
     assert!(
         packages.iter().any(|package| {
-            package["ecosystem"] == "npm" && package["manifest"] == "package.json"
+            package["ecosystem"] == "npm"
+                && package["manifest"] == "package.json"
+                && package["package_confirmed"] == true
         }),
         "{report}"
     );

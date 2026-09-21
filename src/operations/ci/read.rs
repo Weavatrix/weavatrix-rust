@@ -1,8 +1,12 @@
+#[cfg(test)]
 use crate::model::digest::sha3_256;
+#[cfg(test)]
 use std::fs;
+#[cfg(test)]
 use std::path::{Component, Path};
 
-pub(super) const MAX_CONFIG_BYTES: u64 = 2_000_000;
+#[cfg(test)]
+const MAX_CONFIG_BYTES: u64 = 2_000_000;
 
 pub(super) struct Loaded {
     pub path: String,
@@ -12,52 +16,72 @@ pub(super) struct Loaded {
     pub crlf: bool,
 }
 
-pub(super) enum Outcome {
+#[cfg(test)]
+enum LiveOutcome {
     Read(Loaded),
     Excluded { path: String, reason: &'static str },
 }
 
-pub(super) fn open(root: &Path, relative: &str) -> Outcome {
+pub(super) fn captured(file: &crate::model::captured::CapturedFile) -> Loaded {
+    Loaded {
+        path: file.path.clone(),
+        digest: file.content_digest.clone(),
+        bom: file.bytes.starts_with(&[0xef, 0xbb, 0xbf]),
+        crlf: file.bytes.windows(2).any(|window| window == b"\r\n"),
+        bytes: file.bytes.clone(),
+    }
+}
+
+pub(super) fn captured_path(
+    state: &crate::engine::RepositoryState,
+    relative: &str,
+) -> Option<Loaded> {
+    state.evidence().file(relative).map(captured)
+}
+
+#[cfg(test)]
+fn open_live(root: &Path, relative: &str) -> LiveOutcome {
     if !is_repo_relative(relative) {
-        return Outcome::Excluded {
+        return LiveOutcome::Excluded {
             path: relative.to_owned(),
             reason: "path_escape",
         };
     }
     let joined = root.join(relative);
     let Ok(metadata) = fs::metadata(&joined) else {
-        return Outcome::Excluded {
+        return LiveOutcome::Excluded {
             path: relative.to_owned(),
             reason: "missing",
         };
     };
     if escapes_root(root, &joined) {
-        return Outcome::Excluded {
+        return LiveOutcome::Excluded {
             path: relative.to_owned(),
             reason: "symlink_escape",
         };
     }
     if metadata.len() > MAX_CONFIG_BYTES {
-        return Outcome::Excluded {
+        return LiveOutcome::Excluded {
             path: relative.to_owned(),
             reason: "too_large",
         };
     }
     match fs::read(&joined) {
-        Ok(bytes) => Outcome::Read(Loaded {
+        Ok(bytes) => LiveOutcome::Read(Loaded {
             path: relative.replace('\\', "/"),
             digest: sha3_256(&bytes),
             bom: bytes.starts_with(&[0xef, 0xbb, 0xbf]),
             crlf: bytes.windows(2).any(|window| window == b"\r\n"),
             bytes,
         }),
-        Err(_) => Outcome::Excluded {
+        Err(_) => LiveOutcome::Excluded {
             path: relative.to_owned(),
             reason: "unreadable",
         },
     }
 }
 
+#[cfg(test)]
 fn is_repo_relative(relative: &str) -> bool {
     let path = Path::new(relative);
     if path.is_absolute() {
@@ -67,6 +91,7 @@ fn is_repo_relative(relative: &str) -> bool {
         .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
+#[cfg(test)]
 fn escapes_root(root: &Path, candidate: &Path) -> bool {
     let Ok(root) = root.canonicalize() else {
         return true;
@@ -84,9 +109,12 @@ mod tests {
 
     #[test]
     fn parent_segments_are_path_escape() {
-        match open(Path::new("."), "../secret.yml") {
-            Outcome::Excluded { reason, .. } => assert_eq!(reason, "path_escape"),
-            Outcome::Read(_) => panic!("escaped the repository"),
+        match open_live(Path::new("."), "../secret.yml") {
+            LiveOutcome::Excluded { path, reason } => {
+                assert_eq!(path, "../secret.yml");
+                assert_eq!(reason, "path_escape");
+            }
+            LiveOutcome::Read(_) => panic!("escaped the repository"),
         }
     }
 
@@ -99,13 +127,13 @@ mod tests {
             [0xef, 0xbb, 0xbf, b'n', b'a', b'm', b'e'],
         )
         .unwrap();
-        match open(&dir, "ci.yml") {
-            Outcome::Read(loaded) => {
+        match open_live(&dir, "ci.yml") {
+            LiveOutcome::Read(loaded) => {
                 assert!(loaded.bom);
                 let span = raw_byte_span(&loaded.bytes, b"name").unwrap();
                 assert_eq!(span.start, 3);
             }
-            Outcome::Excluded { reason, .. } => panic!("{reason}"),
+            LiveOutcome::Excluded { reason, .. } => panic!("{reason}"),
         }
         let _ = std::fs::remove_dir_all(&dir);
     }

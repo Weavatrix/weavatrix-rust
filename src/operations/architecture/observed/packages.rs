@@ -1,36 +1,33 @@
-use crate::engine::RepositoryState;
 use blazingly_json::{Value, json};
-use weavatrix_graph::NodeKind;
 
-const MANIFESTS: &[(&str, &str)] = &[
-    ("Cargo.toml", "cargo"),
-    ("package.json", "npm"),
-    ("go.mod", "go"),
-    ("pyproject.toml", "python"),
-];
-
-pub(super) fn collect(state: &RepositoryState) -> Vec<Value> {
+pub(super) fn collect(model: &crate::operations::build::BuildModel) -> Vec<Value> {
     let mut packages = Vec::new();
-    for node in state.graph().nodes() {
-        if node.kind != NodeKind::File {
-            continue;
+    for workspace in &model.workspaces {
+        if workspace.members.is_empty() {
+            packages.push(json!({
+                "id": workspace.id,
+                "ecosystem": workspace.ecosystem,
+                "manifest": workspace.aggregator,
+                "path": parent(&workspace.aggregator),
+                "kind": "workspace_aggregator",
+                "package_confirmed": false
+            }));
         }
-        let manifest = node.label.replace('\\', "/");
-        let name = manifest.rsplit('/').next().unwrap_or(manifest.as_str());
-        let Some((_, ecosystem)) = MANIFESTS
-            .iter()
-            .find(|(file, _)| name.eq_ignore_ascii_case(file))
-        else {
-            continue;
-        };
-        let path = manifest.rsplit_once('/').map_or("", |(dir, _)| dir);
-        packages.push(json!({
-            "ecosystem": ecosystem,
-            "manifest": manifest,
-            "path": path,
-            "kind": "manifest_candidate",
-            "package_confirmed": false
+        packages.extend(workspace.members.iter().map(|member| {
+            json!({
+                "id": member.id,
+                "ecosystem": workspace.ecosystem,
+                "manifest": member.manifest,
+                "path": member.path,
+                "kind": member.kind,
+                "name": member.name,
+                "package_confirmed": member.name.is_some() && member.kind != "go_module"
+            })
         }));
     }
     packages
+}
+
+fn parent(path: &str) -> &str {
+    path.rsplit_once('/').map_or("", |(directory, _)| directory)
 }

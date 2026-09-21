@@ -32,7 +32,44 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
         return Err("max_results must be at least 1".to_owned());
     }
     let cursor = optional_str(args, "edge_cursor")?;
-    facts(state, Some((max, cursor)))
+    let mut report = facts(state, Some((max, cursor)))?;
+    let budget = crate::operations::token_budget::requested(args)?;
+    crate::operations::token_budget::fit(
+        &mut report,
+        budget,
+        &[
+            "/edges",
+            "/internal_connectivity",
+            "/cycles/cyclic_scc",
+            "/cycles/condensation_edge_list",
+            "/cycles/condensation_components",
+            "/cycles/dag_generations",
+            "/components",
+            "/packages",
+            "/build_topology/workspaces",
+        ],
+    );
+    let offset = report["edge_offset"].as_u64().unwrap_or(0);
+    let returned = report["edges"].as_array().map_or(0, Vec::len) as u64;
+    let total = report["edges_total"].as_u64().unwrap_or(0);
+    let next = offset.saturating_add(returned);
+    report["edges_returned"] = json!(returned);
+    report["edges_truncated"] = json!(next < total);
+    report["next_edge_cursor"] = if next < total {
+        json!(format!(
+            "{}:{next}",
+            report["analysis_id"].as_str().unwrap_or_default()
+        ))
+    } else {
+        Value::Null
+    };
+    if report["token_budget"]["dropped_items"]
+        .as_u64()
+        .is_some_and(|dropped| dropped > 0)
+    {
+        report["status"] = json!("INCOMPLETE");
+    }
+    Ok(report)
 }
 
 pub(crate) fn memberships(state: &RepositoryState) -> Vec<(String, String)> {
@@ -47,6 +84,7 @@ pub(crate) fn root_component_id(state: &RepositoryState) -> String {
 }
 
 fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result<Value, String> {
+    let capture = state.evidence().receipt();
     let (declaration, diagnostic) = match super::contract::load_optional(state) {
         Ok(value) => (value, None),
         Err(error) => (None, Some(error)),
@@ -54,6 +92,7 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
     let components = components::collect(state, declaration.as_ref());
     let relations = edges::collect(state, &components);
     let cycles = cycles::analyze(&components, &relations.cross)?;
+    let build = crate::operations::build::model(state);
     let total = relations.cross.len();
     // A cursor belongs to these captured graph facts, not just a revision name.
     let identity = sha3_256(
@@ -93,17 +132,20 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
     let truncated = next < total;
     Ok(json!({
         "kind": "observed",
+        "analysis_id": identity,
         "model": "structural directory fallback and typed graph edges; not a style label or build-module claim",
         "view": "structural_directory_fallback.v1",
-        "status": if diagnostic.is_some() || truncated || cycles["cyclic_scc_truncated"] == true {"INCOMPLETE"} else {"COMPLETE"},
+        "status": if diagnostic.is_some() || !capture.complete || truncated || cycles["cyclic_scc_truncated"] == true || cycles["condensation_truncated"] == true {"INCOMPLETE"} else {"COMPLETE"},
         "analysis": {"coverage": "BOUNDED_OBSERVATION", "closed_world": false,
                      "discovered_relations_evaluated": true,
-                     "unknowns_total": usize::from(diagnostic.is_some())},
+                     "unknowns_total": usize::from(diagnostic.is_some()) + capture.excluded.len()},
+        "input_capture": capture,
         "diagnostics": diagnostic.into_iter().collect::<Vec<_>>(),
-        "packages": packages::collect(state),
-        "build_topology": crate::operations::build::architecture_topology(state),
+        "packages": packages::collect(&build),
+        "build_topology": crate::operations::build::architecture_topology(&build),
         "components": components.iter().map(component_json).collect::<Vec<_>>(),
         "edges": returned,
+        "edge_offset": start,
         "edges_total": total,
         "edges_returned": next - start,
         "edges_truncated": truncated,

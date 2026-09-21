@@ -5,6 +5,7 @@ mod session;
 
 use crate::analyzer::Analyzer;
 use crate::model::Snapshot;
+use crate::model::captured::EvidenceSnapshot;
 use blazingly_json::Value;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -28,6 +29,7 @@ pub struct RepositoryState {
     snapshot: Arc<Snapshot>,
     graph: Arc<Graph>,
     scan: Arc<ScanReport>,
+    evidence: Arc<EvidenceSnapshot>,
     build_time: Duration,
     built_at: Instant,
     weak_components: Arc<OnceLock<Vec<Vec<NodeIndex>>>>,

@@ -1,5 +1,6 @@
 use super::{RepositoryState, Weavatrix};
 use crate::analyzer::Analyzer;
+use crate::model::captured::EvidenceSnapshot;
 use crate::model::{Error, Result};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -68,10 +69,16 @@ impl Weavatrix {
         let scan = self
             .analyzer
             .scan(&self.state.root, Some(self.state.scan.as_ref()))?;
+        let evidence = EvidenceSnapshot::capture(&self.state.root, &scan);
         if scan.revision == self.state.scan.revision {
+            let changed = evidence.generation() != self.state.evidence.generation();
             self.state.scan = Arc::new(scan);
+            self.state.evidence = Arc::new(evidence);
+            if changed {
+                self.tool_cache.clear();
+            }
             self.remember_active_state();
-            return Ok(false);
+            return Ok(changed);
         }
         self.state = RepositoryState::from_scan(&self.analyzer, &self.state.root, scan)?;
         self.tool_cache.clear();

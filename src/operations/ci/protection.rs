@@ -195,7 +195,7 @@ fn declared_rule_bindings(
     let Some(rules) = contract.get("dependencyRules").and_then(Value::as_array) else {
         return (Vec::new(), 0);
     };
-    let verifier_reference = architecture_test_references_verifier(state.root());
+    let verifier_reference = architecture_test_references_verifier(state);
     let checker = checks.as_array().into_iter().flatten().find(|check| {
         check["kind"] == "cargo_test"
             && check["target"] == "architecture"
@@ -239,14 +239,21 @@ fn declared_rule_bindings(
     )
 }
 
-fn architecture_test_references_verifier(root: &std::path::Path) -> bool {
-    let directory = root.join("tests/architecture");
-    let Ok(entries) = std::fs::read_dir(directory) else {
-        return false;
-    };
-    entries.flatten().take(100).any(|entry| {
-        std::fs::read_to_string(entry.path())
-            .ok()
-            .is_some_and(|text| text.contains("verify_architecture"))
-    })
+fn architecture_test_references_verifier(state: &RepositoryState) -> bool {
+    state
+        .evidence()
+        .paths()
+        .filter(|path| {
+            path.starts_with("tests/architecture/")
+                && std::path::Path::new(path)
+                    .extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
+        })
+        .take(100)
+        .any(|path| {
+            state
+                .evidence()
+                .text(path)
+                .is_some_and(|text| text.contains("verify_architecture"))
+        })
 }

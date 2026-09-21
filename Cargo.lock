@@ -363,6 +363,7 @@ dependencies = [
  "blazingly-json",
  "proc-macro2",
  "serde",
+ "sha2",
  "sha3",
  "syn",
  "weavatrix-clone",

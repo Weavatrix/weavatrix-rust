@@ -17,6 +17,7 @@ pub(crate) fn honoured() -> &'static [&'static str] {
     match (cfg!(feature = "search"), cfg!(feature = "git")) {
         (true, true) => &[
             "context_bundle",
+            "architecture_inventory",
             "git_history",
             "git_read_blob",
             "graph_diff",
@@ -26,19 +27,26 @@ pub(crate) fn honoured() -> &'static [&'static str] {
         ],
         (true, false) => &[
             "context_bundle",
+            "architecture_inventory",
             "query_graph",
             "read_source",
             "search_code",
         ],
         (false, true) => &[
             "context_bundle",
+            "architecture_inventory",
             "git_history",
             "git_read_blob",
             "graph_diff",
             "query_graph",
             "read_source",
         ],
-        (false, false) => &["context_bundle", "query_graph", "read_source"],
+        (false, false) => &[
+            "architecture_inventory",
+            "context_bundle",
+            "query_graph",
+            "read_source",
+        ],
     }
 }
 

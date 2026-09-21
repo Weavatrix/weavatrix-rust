@@ -72,7 +72,7 @@ fn cargo_explicit_paths_features_and_autodiscovery_flags_are_visible() {
 #[test]
 fn cargo_root_package_and_virtual_workspace_remain_distinct() {
     let fixture = Fixture::new();
-    fixture.write("Cargo.toml", "[workspace]\nmembers = ['crates/*']\n\n[package]\nname = 'root-package'\nversion = '0.1.0'\n");
+    fixture.write("Cargo.toml", "[workspace]\nmembers = ['crates/*']\ndefault-members = ['crates/lib']\n\n[package]\nname = 'root-package'\nversion = '0.1.0'\n");
     fixture.write("src/lib.rs", "pub fn value() {}\n");
     fixture.write(
         "crates/lib/Cargo.toml",
@@ -90,6 +90,7 @@ fn cargo_root_package_and_virtual_workspace_remain_distinct() {
             .iter()
             .any(|member| member["name"] == "root-package")
     );
+    assert_eq!(cargo["default_members"].as_array().unwrap().len(), 1);
     fixture.write("Cargo.toml", "[workspace]\nmembers = ['crates/*']\n");
     let mut virtual_engine = Weavatrix::open(&fixture.root).unwrap();
     let virtual_report = tools::call(&mut virtual_engine, "build_graph", json!({})).unwrap();
@@ -164,4 +165,117 @@ fn npm_workspace_negation_and_case_sensitive_paths_do_not_claim_excluded_members
         .unwrap();
     assert_eq!(npm["members_total"], 1, "{report}");
     assert_eq!(npm["members"][0]["path"], "packages/api");
+}
+
+#[test]
+fn configuration_refresh_replaces_one_captured_generation() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = 'first'\nversion = '0.1.0'\n",
+    );
+    fixture.write("src/lib.rs", "pub fn value() {}\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let first = tools::call(&mut engine, "build_graph", json!({})).unwrap();
+    let generation = first["input_capture"]["generation"].clone();
+    assert_eq!(workspace(&first, "cargo")["members"][0]["name"], "first");
+
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = 'second'\nversion = '0.1.0'\n",
+    );
+    let captured = tools::call(&mut engine, "build_graph", json!({})).unwrap();
+    assert_eq!(workspace(&captured, "cargo")["members"][0]["name"], "first");
+    assert!(engine.refresh_if_stale().unwrap());
+    let refreshed = tools::call(&mut engine, "build_graph", json!({})).unwrap();
+    assert_eq!(
+        workspace(&refreshed, "cargo")["members"][0]["name"],
+        "second"
+    );
+    assert_ne!(refreshed["input_capture"]["generation"], generation);
+}
+
+#[test]
+fn typescript_projects_and_references_are_not_npm_tasks() {
+    let fixture = Fixture::new();
+    fixture.write("package.json", r#"{"name":"web"}"#);
+    fixture.write(
+        "tsconfig.json",
+        r#"{"include":["src/**/*.ts"],"exclude":["dist"],"references":[{"path":"./tsconfig.lib.json"}]}"#,
+    );
+    fixture.write(
+        "tsconfig.lib.json",
+        r#"{"files":["src/lib.ts"],"compilerOptions":{"composite":true}}"#,
+    );
+    fixture.write("src/lib.ts", "export const value = 1;\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(&mut engine, "build_graph", json!({})).unwrap();
+    let member = &workspace(&report, "npm")["members"][0];
+    assert_eq!(member["tasks"], json!([]));
+    assert_eq!(member["targets_total"], 2, "{report}");
+    assert!(
+        member["targets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|target| target["kind"] == "ts_project")
+    );
+    let reference = &member["internal_dependencies"][0];
+    assert_eq!(reference["scope"], "ts_project_reference");
+    assert!(reference["source_target"].as_str().is_some());
+    assert!(reference["target"].as_str().is_some());
+}
+
+#[test]
+fn go_module_packages_commands_and_platform_variants_are_distinct() {
+    let fixture = Fixture::new();
+    fixture.write("go.mod", "module example.test/app\n\ngo 1.25\n");
+    fixture.write("cmd/server/main.go", "package main\nfunc main() {}\n");
+    fixture.write("pkg/math/math.go", "package math\nfunc Add() {}\n");
+    fixture.write(
+        "pkg/math/math_windows.go",
+        "//go:build windows\npackage math\nfunc Platform() {}\n",
+    );
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(&mut engine, "build_graph", json!({})).unwrap();
+    let member = &workspace(&report, "go")["members"][0];
+    let modules = member["modules"].as_array().unwrap();
+    assert!(modules.iter().any(|module| module["kind"] == "go_command"));
+    let package = modules
+        .iter()
+        .find(|module| module["kind"] == "go_package")
+        .unwrap();
+    assert_eq!(package["source_files"].as_array().unwrap().len(), 2);
+    assert_eq!(package["applicability"], "ALL_WITH_CONDITIONAL_SOURCES");
+    assert_eq!(
+        package["source_conditions"]["pkg/math/math_windows.go"],
+        json!(["go_build:windows", "platform:windows"])
+    );
+}
+
+#[test]
+fn python_distribution_import_packages_and_entry_points_are_distinct() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "pyproject.toml",
+        "[project]\nname = 'acme-dist'\nversion = '1.0'\n\n[project.scripts]\nacme = 'acme.cli:main'\n",
+    );
+    fixture.write("src/acme/__init__.py", "from .cli import main\n");
+    fixture.write("src/acme/cli.py", "def main():\n    return 0\n");
+    fixture.write("src/shared/tool.py", "VALUE = 1\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(&mut engine, "build_graph", json!({})).unwrap();
+    let member = &workspace(&report, "python")["members"][0];
+    assert_eq!(member["kind"], "python_distribution");
+    assert_eq!(member["name"], "acme-dist");
+    assert_eq!(member["targets"], json!([]));
+    assert!(
+        member["modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|module| module["kind"] == "python_import_package")
+    );
+    assert_eq!(member["tasks"][0]["kind"], "entry_point");
+    assert_eq!(member["tasks"][0]["command"], "acme.cli:main");
 }

@@ -1,10 +1,15 @@
-//! Per-ecosystem workspace discovery: npm, Cargo and Go.
-
 use super::manifests::{cargo_manifest, normalize_relative, npm_package};
 use super::model::{Member, Workspace, entity_id};
-use super::{ManifestIndex, dir_is_member, locate, manifests, parent_dir, read_manifest, render};
+use super::{
+    ManifestIndex, dir_is_member, ecosystem_details, locate, manifests, parent_dir, read_manifest,
+    render,
+};
 use crate::engine::RepositoryState;
 use std::collections::{BTreeMap, BTreeSet};
+
+fn id(state: &RepositoryState, kind: &str, parts: &[&str]) -> String {
+    entity_id(&state.snapshot().repository, kind, parts)
+}
 
 pub(super) fn npm_workspaces(
     state: &RepositoryState,
@@ -41,38 +46,51 @@ pub(super) fn npm_workspaces(
                 members.push(npm_member(state, &manifest, &dir));
             }
         }
-        link_npm_members(&mut members);
+        link_npm_members(&state.snapshot().repository, &mut members);
+        let default_members = members.iter().map(|member| member.id.clone()).collect();
+        let excluded_paths = patterns
+            .iter()
+            .filter_map(|pattern| pattern.strip_prefix('!').map(str::to_owned))
+            .collect();
         workspaces.push(Workspace {
-            id: entity_id("workspace", &["npm", &aggregator]),
+            id: id(state, "workspace", &["npm", &aggregator]),
             ecosystem: "npm",
             aggregator,
+            default_members,
+            excluded_paths,
             members,
         });
     }
 }
 
-fn npm_member(state: &RepositoryState, manifest: &str, dir: &str) -> Member {
+pub(super) fn npm_member(state: &RepositoryState, manifest: &str, dir: &str) -> Member {
     let package = read_manifest(state, manifest)
         .as_deref()
         .map_or_else(|| npm_package(""), npm_package);
-    Member {
-        id: entity_id("member", &["npm", manifest]),
+    let mut member = Member {
+        id: id(state, "member", &["npm", manifest]),
+        kind: "npm_package",
         name: package.name,
         path: dir.to_owned(),
         manifest: manifest.to_owned(),
         targets: Vec::new(),
-        tasks: render::script_tasks(manifest, &package.scripts),
+        modules: Vec::new(),
+        tasks: render::script_tasks(&state.snapshot().repository, manifest, &package.scripts),
         internal_dependencies: package
             .dependencies
             .iter()
-            .map(|(name, scope)| render::pending_dependency(name, scope))
+            .map(|(name, scope)| {
+                render::pending_dependency(&state.snapshot().repository, name, scope)
+            })
             .collect(),
-    }
+    };
+    ecosystem_details::typescript_projects(state, &mut member);
+    member
 }
 
 /// Keeps only dependencies whose name is another member of the same
 /// workspace, and stamps that member's directory on the edge.
-fn link_npm_members(members: &mut [Member]) {
+fn link_npm_members(repository: &str, members: &mut [Member]) {
     let names = members
         .iter()
         .filter_map(|member| Some((member.name.clone()?, member.manifest.clone())))
@@ -80,7 +98,7 @@ fn link_npm_members(members: &mut [Member]) {
     for member in members.iter_mut() {
         member.internal_dependencies.retain_mut(|dependency| {
             names.get(&dependency.name).is_some_and(|manifest| {
-                dependency.member = Some(entity_id("member", &["npm", manifest]));
+                dependency.member = Some(entity_id(repository, "member", &["npm", manifest]));
                 true
             })
         });
@@ -129,16 +147,33 @@ pub(super) fn cargo_workspaces(
                     .is_some_and(|id| dirs.contains(id))
             });
         }
+        let default_members = if parsed.workspace_default_members.is_empty() {
+            members.iter().map(|member| member.id.clone()).collect()
+        } else {
+            members
+                .iter()
+                .filter(|member| {
+                    dir_is_member(
+                        &aggregator_dir,
+                        &parsed.workspace_default_members,
+                        &member.path,
+                    )
+                })
+                .map(|member| member.id.clone())
+                .collect()
+        };
         workspaces.push(Workspace {
-            id: entity_id("workspace", &["cargo", &aggregator]),
+            id: id(state, "workspace", &["cargo", &aggregator]),
             ecosystem: "cargo",
             aggregator,
+            default_members,
+            excluded_paths: parsed.workspace_excludes.clone(),
             members,
         });
     }
 }
 
-fn cargo_member(
+pub(super) fn cargo_member(
     state: &RepositoryState,
     index: &ManifestIndex,
     manifest: &str,
@@ -153,15 +188,22 @@ fn cargo_member(
         .iter()
         .filter_map(|(name, path, scope)| {
             let target = normalize_relative(dir, path)?;
-            Some(render::path_dependency(name, &target, scope))
+            Some(render::path_dependency(
+                &state.snapshot().repository,
+                name,
+                &target,
+                scope,
+            ))
         })
         .collect();
     Member {
-        id: entity_id("member", &["cargo", manifest]),
+        id: id(state, "member", &["cargo", manifest]),
+        kind: "cargo_package",
         name: parsed.name.clone(),
         path: dir.to_owned(),
         manifest: manifest.to_owned(),
-        targets: render::cargo_targets(&parsed, index, dir, manifest),
+        targets: render::cargo_targets(&state.snapshot().repository, &parsed, index, dir, manifest),
+        modules: Vec::new(),
         tasks: Vec::new(),
         internal_dependencies: internal,
     }
@@ -178,7 +220,7 @@ pub(super) fn go_workspaces(
             continue;
         };
         let aggregator_dir = parent_dir(&aggregator);
-        let members = manifests::go_work_uses(&text)
+        let members: Vec<Member> = manifests::go_work_uses(&text)
             .iter()
             .filter_map(|used| {
                 let dir = normalize_relative(&aggregator_dir, used)?;
@@ -187,100 +229,37 @@ pub(super) fn go_workspaces(
                 } else {
                     format!("{dir}/go.mod")
                 };
-                let exists =
-                    index.contains_file(&manifest) || state.root().join(&manifest).is_file();
+                let exists = index.contains_file(&manifest);
                 exists.then(|| {
                     claimed.insert(format!("go:{manifest}"));
-                    let name = read_manifest(state, &manifest)
-                        .as_deref()
-                        .and_then(manifests::go_mod_module);
-                    Member {
-                        id: entity_id("member", &["go", &manifest]),
-                        name,
-                        path: dir,
-                        manifest,
-                        targets: Vec::new(),
-                        tasks: Vec::new(),
-                        internal_dependencies: Vec::new(),
-                    }
+                    go_member(state, manifest, &dir)
                 })
             })
             .collect();
         workspaces.push(Workspace {
-            id: entity_id("workspace", &["go", &aggregator]),
+            id: id(state, "workspace", &["go", &aggregator]),
             ecosystem: "go",
             aggregator,
+            default_members: members.iter().map(|member| member.id.clone()).collect(),
+            excluded_paths: Vec::new(),
             members,
         });
     }
 }
 
-/// Manifests no aggregator claimed become single-member entries, so the
-/// answer still covers repositories without any workspace file.
-pub(super) fn standalone_packages(
-    state: &RepositoryState,
-    index: &ManifestIndex,
-    workspaces: &mut Vec<Workspace>,
-    claimed: &BTreeSet<String>,
-) {
-    for manifest in locate(state, index, "package.json") {
-        let key = format!("npm:{manifest}");
-        let is_aggregator = workspaces
-            .iter()
-            .any(|workspace| workspace.aggregator == manifest);
-        if claimed.contains(&key) || is_aggregator {
-            continue;
-        }
-        let dir = parent_dir(&manifest);
-        let member = npm_member(state, &manifest, &dir);
-        workspaces.push(Workspace {
-            id: entity_id("workspace", &["npm", &manifest]),
-            ecosystem: "npm",
-            aggregator: manifest,
-            members: vec![member],
-        });
-    }
-    for manifest in locate(state, index, "Cargo.toml") {
-        if claimed.contains(&format!("cargo:{manifest}")) {
-            continue;
-        }
-        let Some(text) = read_manifest(state, &manifest) else {
-            continue;
-        };
-        let parsed = cargo_manifest(&text);
-        if parsed.workspace || parsed.name.is_none() {
-            continue;
-        }
-        let dir = parent_dir(&manifest);
-        let member = cargo_member(state, index, &manifest, &dir);
-        workspaces.push(Workspace {
-            id: entity_id("workspace", &["cargo", &manifest]),
-            ecosystem: "cargo",
-            aggregator: manifest,
-            members: vec![member],
-        });
-    }
-    for manifest in locate(state, index, "go.mod") {
-        if claimed.contains(&format!("go:{manifest}")) {
-            continue;
-        }
-        let name = read_manifest(state, &manifest)
-            .as_deref()
-            .and_then(manifests::go_mod_module);
-        let dir = parent_dir(&manifest);
-        workspaces.push(Workspace {
-            id: entity_id("workspace", &["go", &manifest]),
-            ecosystem: "go",
-            aggregator: manifest.clone(),
-            members: vec![Member {
-                id: entity_id("member", &["go", &manifest]),
-                name,
-                path: dir,
-                manifest,
-                targets: Vec::new(),
-                tasks: Vec::new(),
-                internal_dependencies: Vec::new(),
-            }],
-        });
+pub(super) fn go_member(state: &RepositoryState, manifest: String, dir: &str) -> Member {
+    let name = read_manifest(state, &manifest)
+        .as_deref()
+        .and_then(manifests::go_mod_module);
+    Member {
+        id: id(state, "member", &["go", &manifest]),
+        kind: "go_module",
+        name,
+        path: dir.to_owned(),
+        manifest,
+        targets: Vec::new(),
+        modules: ecosystem_details::go_packages(state, dir),
+        tasks: Vec::new(),
+        internal_dependencies: Vec::new(),
     }
 }

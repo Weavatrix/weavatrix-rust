@@ -2,18 +2,14 @@ mod local;
 mod output;
 mod recognize;
 mod scenario;
-
 use super::action;
 use super::workflow::{self, Job, Step, Workflow};
 use crate::engine::RepositoryState;
 use crate::operations::{arg_str, optional_str, optional_u64};
 use blazingly_json::{Value, json};
-use output::{
-    condition_class, matrix_summary, permissions, public_uses, step_summary, working_directory,
-};
+use output::{condition_class, matrix_summary, permissions, public_uses, step_summary};
 use scenario::Scenario;
 use std::collections::BTreeMap;
-
 pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     crate::operations::reject_unknown_arguments(
         "ci_restrictions",
@@ -24,6 +20,7 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
     let scope = optional_str(args, "scope")?;
     let max = optional_u64(args, "max_results")?.unwrap_or(100).min(500) as usize;
     let collection = workflow::collect(state);
+    let build = crate::operations::build::model(state);
     let mut restrictions = Vec::new();
     let mut workflows = Vec::new();
     let mut unresolved = collection.unresolved;
@@ -33,11 +30,14 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
         .filter(|workflow| scope.is_none_or(|scope| workflow.path.contains(scope)))
     {
         workflows.push(project_workflow(
-            state,
             workflow,
             &collection.actions,
             &collection.workflows,
-            &scenario,
+            &local::ProjectionContext {
+                state,
+                scenario: &scenario,
+                build: &build,
+            },
             &mut restrictions,
             &mut unresolved,
         ));
@@ -71,11 +71,10 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
 }
 
 fn project_workflow(
-    state: &RepositoryState,
     workflow: &Workflow,
     actions: &[action::Action],
     all_workflows: &[Workflow],
-    scenario: &Scenario,
+    context: &local::ProjectionContext<'_>,
     restrictions: &mut Vec<Value>,
     unresolved: &mut Vec<String>,
 ) -> Value {
@@ -90,8 +89,7 @@ fn project_workflow(
                 .as_deref()
                 .or(job.working_directory.as_deref())
                 .or(workflow.working_directory.as_deref());
-            let directory = working_directory(state.root(), working);
-            let invocations = recognize::in_step(directory.as_deref(), step);
+            let invocations = recognize::in_step(Some((context.build, working)), step);
             let mut counts = BTreeMap::<&str, usize>::new();
             let mut spans = BTreeMap::new();
             for found in invocations {
@@ -115,14 +113,15 @@ fn project_workflow(
                     "source": {"path": workflow.path, "content_digest": workflow.digest,
                                "job": job.id, "step": step.index, "byte_span": span,
                                "span_method": "SEQUENTIAL_LITERAL_MATCH"},
-                    "applicability": applicability(workflow, job, step, scenario),
+                    "applicability": applicability(workflow, job, step, context.scenario),
                     "execution": "NOT_OBSERVED",
                     "failure_effect": effect,
                     "remote_enforcement": "NOT_OBSERVED"
                 }));
             }
             local::inspect_script(&mut local::ScriptInvocation {
-                state,
+                state: context.state,
+                build: context.build,
                 workflow,
                 job,
                 step,
@@ -134,13 +133,13 @@ fn project_workflow(
             if let Some(uses) = &step.uses {
                 if uses.starts_with("./") {
                     local::inspect_action(&mut local::ActionInvocation {
-                        state,
+                        build: context.build,
                         actions,
                         workflow,
                         job,
                         step,
                         id: &id,
-                        scenario,
+                        scenario: context.scenario,
                         restrictions,
                         unresolved,
                     });
