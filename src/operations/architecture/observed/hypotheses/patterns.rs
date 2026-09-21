@@ -20,16 +20,16 @@ pub(super) fn modular(ctx: &Context) -> Value {
             "multiple code-bearing boundaries",
             "explicit module markers and cross-boundary dependencies",
         ],
-        vec![
+        &[
             json!({"signal":"source_directories", "count":dirs, "paths":ctx.source_dirs.iter().take(4).collect::<Vec<_>>()}),
             json!({"signal":"module_markers", "count":markers, "paths":ctx.module_markers.iter().take(4).collect::<Vec<_>>()}),
             json!({"signal":"cross_boundary_dependencies", "count":linked, "evidence":ctx.edges.iter().take(2).map(|edge| ctx.witness(edge)).collect::<Vec<_>>()}),
         ],
-        Vec::new(),
+        &[],
         if markers < 2 {
-            vec!["directory boundaries alone do not prove language or build modules"]
+            &["directory boundaries alone do not prove language or build modules"]
         } else {
-            Vec::new()
+            &[]
         },
     )
 }
@@ -63,6 +63,11 @@ pub(super) fn onion(ctx: &Context) -> Value {
     } else {
         "INSUFFICIENT_EVIDENCE"
     };
+    let contradictions = if outward.is_empty() {
+        Vec::new()
+    } else {
+        vec![json!({"signal":"core_depends_on_outer", "evidence":outward})]
+    };
     hypothesis(
         "onion",
         "dependency_direction",
@@ -73,7 +78,7 @@ pub(super) fn onion(ctx: &Context) -> Value {
             "outer implementation depends inward on core interface",
             "no observed core-to-outer dependency",
         ],
-        vec![
+        &[
             role_signal(ctx, "domain", Role::Domain),
             role_signal(ctx, "application", Role::Application),
             role_signal(ctx, "outer_or_adapter", Role::Outer),
@@ -82,19 +87,15 @@ pub(super) fn onion(ctx: &Context) -> Value {
             json!({"signal":"core_interfaces", "count":ctx.core_interfaces.len(), "files":ctx.core_interfaces.iter().take(3).collect::<Vec<_>>()}),
             json!({"signal":"outer_implements_core", "evidence":implementations}),
         ],
-        if outward.is_empty() {
-            Vec::new()
-        } else {
-            vec![json!({"signal":"core_depends_on_outer", "evidence":outward})]
-        },
+        &contradictions,
         if structural && implementations.is_empty() {
-            vec![
+            &[
                 "interface implementation was not resolved as a typed edge",
                 "static edges do not prove runtime composition",
                 "role names are candidates; business semantics require review",
             ]
         } else {
-            vec![
+            &[
                 "static edges do not prove runtime composition",
                 "role names are candidates; business semantics require review",
             ]
@@ -132,6 +133,11 @@ pub(super) fn ports_and_adapters(ctx: &Context) -> Value {
     } else {
         "INSUFFICIENT_EVIDENCE"
     };
+    let contradictions = if outward.is_empty() {
+        Vec::new()
+    } else {
+        vec![json!({"signal":"core_depends_on_adapter", "evidence":outward})]
+    };
     hypothesis(
         "ports_and_adapters",
         "ports_and_adapters",
@@ -141,25 +147,21 @@ pub(super) fn ports_and_adapters(ctx: &Context) -> Value {
             "adapter implementation of a port",
             "adapter-to-core dependencies without reverse coupling",
         ],
-        vec![
+        &[
             role_signal(ctx, "port", Role::Port),
             role_signal(ctx, "adapter", Role::Adapter),
             json!({"signal":"adapter_to_core", "evidence":inward}),
             json!({"signal":"core_interfaces", "count":ctx.core_interfaces.len(), "files":ctx.core_interfaces.iter().take(3).collect::<Vec<_>>()}),
             json!({"signal":"adapter_implements_core", "evidence":implementations}),
         ],
-        if outward.is_empty() {
-            Vec::new()
-        } else {
-            vec![json!({"signal":"core_depends_on_adapter", "evidence":outward})]
-        },
+        &contradictions,
         if port && adapter && !inward.is_empty() && implementations.is_empty() {
-            vec![
+            &[
                 "interface implementation was not resolved as a typed edge",
                 "static graph cannot confirm an adapter is wired at runtime",
             ]
         } else {
-            vec!["static graph cannot confirm an adapter is wired at runtime"]
+            &["static graph cannot confirm an adapter is wired at runtime"]
         },
     )
 }
@@ -175,6 +177,11 @@ pub(super) fn layered(ctx: &Context) -> Value {
     } else {
         "INSUFFICIENT_EVIDENCE"
     };
+    let contradictions = if skip.is_empty() {
+        Vec::new()
+    } else {
+        vec![json!({"signal":"entry_skips_application", "evidence":skip})]
+    };
     hypothesis(
         "layered",
         "dependency_direction",
@@ -183,19 +190,15 @@ pub(super) fn layered(ctx: &Context) -> Value {
             "entry, application and infrastructure roles",
             "entry-to-application and application-to-infrastructure dependencies",
         ],
-        vec![
+        &[
             role_signal(ctx, "entry", Role::Entry),
             role_signal(ctx, "application", Role::Application),
             role_signal(ctx, "infrastructure", Role::Outer),
             json!({"signal":"entry_to_application", "evidence":entry_to_app}),
             json!({"signal":"application_to_infrastructure", "evidence":app_to_infra}),
         ],
-        if skip.is_empty() {
-            Vec::new()
-        } else {
-            vec![json!({"signal":"entry_skips_application", "evidence":skip})]
-        },
-        vec!["layer names and static imports do not establish deployment topology"],
+        &contradictions,
+        &["layer names and static imports do not establish deployment topology"],
     )
 }
 
@@ -208,9 +211,9 @@ pub(super) fn microservices(ctx: &Context) -> Value {
             "independently deployed services",
             "separate runtime boundaries and communication evidence",
         ],
-        vec![json!({"signal":"build_packages", "count":ctx.packages})],
-        Vec::new(),
-        vec![
+        &[json!({"signal":"build_packages", "count":ctx.packages})],
+        &[],
+        &[
             "multiple manifests or packages do not prove independent deployment",
             "runtime and deployment boundaries are not established by this static graph",
         ],
@@ -260,9 +263,9 @@ fn hypothesis(
     dimension: &str,
     status: &str,
     required: &[&str],
-    observed: Vec<Value>,
-    contradictions: Vec<Value>,
-    unknowns: Vec<&str>,
+    observed: &[Value],
+    contradictions: &[Value],
+    unknowns: &[&str],
 ) -> Value {
     json!({"name":name, "dimension":dimension, "rule_version":"1", "scope":{"kind":"repository", "path":""},
            "status":status, "required_signals":required, "observed_signals":observed,
