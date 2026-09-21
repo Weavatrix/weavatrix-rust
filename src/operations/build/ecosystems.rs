@@ -1,10 +1,8 @@
 //! Per-ecosystem workspace discovery: npm, Cargo and Go.
 
 use super::manifests::{cargo_manifest, normalize_relative, npm_package};
-use super::{
-    ManifestIndex, Member, Workspace, dir_is_member, locate, manifests, parent_dir, read_manifest,
-    render,
-};
+use super::model::{Member, Workspace, entity_id};
+use super::{ManifestIndex, dir_is_member, locate, manifests, parent_dir, read_manifest, render};
 use crate::engine::RepositoryState;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -45,6 +43,7 @@ pub(super) fn npm_workspaces(
         }
         link_npm_members(&mut members);
         workspaces.push(Workspace {
+            id: entity_id("workspace", &["npm", &aggregator]),
             ecosystem: "npm",
             aggregator,
             members,
@@ -57,11 +56,13 @@ fn npm_member(state: &RepositoryState, manifest: &str, dir: &str) -> Member {
         .as_deref()
         .map_or_else(|| npm_package(""), npm_package);
     Member {
+        id: entity_id("member", &["npm", manifest]),
         name: package.name,
-        dir: dir.to_owned(),
+        path: dir.to_owned(),
         manifest: manifest.to_owned(),
-        targets: render::script_targets(&package.scripts),
-        internal: package
+        targets: Vec::new(),
+        tasks: render::script_tasks(manifest, &package.scripts),
+        internal_dependencies: package
             .dependencies
             .iter()
             .map(|(name, scope)| render::pending_dependency(name, scope))
@@ -74,13 +75,12 @@ fn npm_member(state: &RepositoryState, manifest: &str, dir: &str) -> Member {
 fn link_npm_members(members: &mut [Member]) {
     let names = members
         .iter()
-        .filter_map(|member| Some((member.name.clone()?, member.dir.clone())))
+        .filter_map(|member| Some((member.name.clone()?, member.manifest.clone())))
         .collect::<BTreeMap<_, _>>();
     for member in members.iter_mut() {
-        member.internal.retain_mut(|dependency| {
-            let name = dependency["name"].as_str().unwrap_or_default();
-            names.get(name).is_some_and(|dir| {
-                render::stamp_member(dependency, dir);
+        member.internal_dependencies.retain_mut(|dependency| {
+            names.get(&dependency.name).is_some_and(|manifest| {
+                dependency.member = Some(entity_id("member", &["npm", manifest]));
                 true
             })
         });
@@ -119,16 +119,18 @@ pub(super) fn cargo_workspaces(
         }
         let dirs = members
             .iter()
-            .map(|member| member.dir.clone())
+            .map(|member| member.id.clone())
             .collect::<BTreeSet<_>>();
         for member in &mut members {
-            member.internal.retain(|dependency| {
-                dependency["member"]
-                    .as_str()
-                    .is_some_and(|dir| dirs.contains(dir))
+            member.internal_dependencies.retain(|dependency| {
+                dependency
+                    .member
+                    .as_ref()
+                    .is_some_and(|id| dirs.contains(id))
             });
         }
         workspaces.push(Workspace {
+            id: entity_id("workspace", &["cargo", &aggregator]),
             ecosystem: "cargo",
             aggregator,
             members,
@@ -155,11 +157,13 @@ fn cargo_member(
         })
         .collect();
     Member {
+        id: entity_id("member", &["cargo", manifest]),
         name: parsed.name.clone(),
-        dir: dir.to_owned(),
+        path: dir.to_owned(),
         manifest: manifest.to_owned(),
-        targets: render::cargo_targets(&parsed, index, dir),
-        internal,
+        targets: render::cargo_targets(&parsed, index, dir, manifest),
+        tasks: Vec::new(),
+        internal_dependencies: internal,
     }
 }
 
@@ -191,16 +195,19 @@ pub(super) fn go_workspaces(
                         .as_deref()
                         .and_then(manifests::go_mod_module);
                     Member {
+                        id: entity_id("member", &["go", &manifest]),
                         name,
-                        dir,
+                        path: dir,
                         manifest,
                         targets: Vec::new(),
-                        internal: Vec::new(),
+                        tasks: Vec::new(),
+                        internal_dependencies: Vec::new(),
                     }
                 })
             })
             .collect();
         workspaces.push(Workspace {
+            id: entity_id("workspace", &["go", &aggregator]),
             ecosystem: "go",
             aggregator,
             members,
@@ -227,6 +234,7 @@ pub(super) fn standalone_packages(
         let dir = parent_dir(&manifest);
         let member = npm_member(state, &manifest, &dir);
         workspaces.push(Workspace {
+            id: entity_id("workspace", &["npm", &manifest]),
             ecosystem: "npm",
             aggregator: manifest,
             members: vec![member],
@@ -246,6 +254,7 @@ pub(super) fn standalone_packages(
         let dir = parent_dir(&manifest);
         let member = cargo_member(state, index, &manifest, &dir);
         workspaces.push(Workspace {
+            id: entity_id("workspace", &["cargo", &manifest]),
             ecosystem: "cargo",
             aggregator: manifest,
             members: vec![member],
@@ -260,14 +269,17 @@ pub(super) fn standalone_packages(
             .and_then(manifests::go_mod_module);
         let dir = parent_dir(&manifest);
         workspaces.push(Workspace {
+            id: entity_id("workspace", &["go", &manifest]),
             ecosystem: "go",
             aggregator: manifest.clone(),
             members: vec![Member {
+                id: entity_id("member", &["go", &manifest]),
                 name,
-                dir,
+                path: dir,
                 manifest,
                 targets: Vec::new(),
-                internal: Vec::new(),
+                tasks: Vec::new(),
+                internal_dependencies: Vec::new(),
             }],
         });
     }

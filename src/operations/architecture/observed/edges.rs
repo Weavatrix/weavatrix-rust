@@ -7,13 +7,24 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_SAMPLE: usize = 3;
 
-pub(super) fn collect(state: &RepositoryState, components: &[Component]) -> Vec<Value> {
+pub(super) struct Collection {
+    pub cross: Vec<Value>,
+    pub internal: Vec<Value>,
+}
+
+#[derive(Default)]
+struct Aggregate {
+    base_edge_indices: Vec<usize>,
+    file_pairs: BTreeSet<(String, String)>,
+    evidence_sample: Vec<Value>,
+    evidence_histogram: BTreeMap<String, usize>,
+}
+
+pub(super) fn collect(state: &RepositoryState, components: &[Component]) -> Collection {
     let allowed = coupling_relations();
     let owner = file_owners(components);
-    let mut counts = BTreeMap::<
-        (String, String, String),
-        (Vec<usize>, BTreeSet<(String, String)>, Vec<Value>),
-    >::new();
+    let mut cross = BTreeMap::<(String, String, String), Aggregate>::new();
+    let mut internal = BTreeMap::<(String, String), Aggregate>::new();
     for (edge_index, edge) in state.graph().edges().iter().enumerate() {
         let relation = edge.kind.as_str();
         if !allowed.contains(relation) {
@@ -33,37 +44,75 @@ pub(super) fn collect(state: &RepositoryState, components: &[Component]) -> Vec<
         let Some(to) = owner.get(&to_file) else {
             continue;
         };
-        if from == to {
-            continue;
-        }
-        let entry = counts
-            .entry((from.clone(), to.clone(), relation.to_owned()))
-            .or_default();
-        entry.0.push(edge_index);
-        entry.1.insert((from_file.clone(), to_file.clone()));
-        if entry.2.len() < MAX_SAMPLE {
-            entry
-                .2
-                .push(json!({"source_file": from_file, "target_file": to_file,
-                "base_edge_index": edge_index, "source_node": edge.source,
-                "target_node": edge.target, "provenance": edge.provenance}));
-        }
+        let entry = if from == to {
+            internal
+                .entry((from.clone(), relation.to_owned()))
+                .or_default()
+        } else {
+            cross
+                .entry((from.clone(), to.clone(), relation.to_owned()))
+                .or_default()
+        };
+        record(entry, edge_index, &from_file, &to_file, edge);
     }
-    counts
-        .into_iter()
-        .map(|((from, to, relation), (base_edge_indices, file_pairs, evidence_sample))| {
-            json!({
-                "from": from,
-                "to": to,
-                "relation": relation,
-                "count": base_edge_indices.len(),
-                "file_pairs": file_pairs.len(),
-                "base_edge_indices": base_edge_indices,
-                "evidence_sample": evidence_sample,
-                "sample": file_pairs.iter().take(MAX_SAMPLE).map(|(from, to)| format!("{from} -> {to}")).collect::<Vec<_>>()
+    Collection {
+        cross: cross
+            .into_iter()
+            .map(|((from, to, relation), aggregate)| {
+                aggregate_json(&from, Some(&to), &relation, &aggregate)
             })
-        })
-        .collect()
+            .collect(),
+        internal: internal
+            .into_iter()
+            .map(|((component, relation), aggregate)| {
+                aggregate_json(&component, None, &relation, &aggregate)
+            })
+            .collect(),
+    }
+}
+
+fn record(
+    aggregate: &mut Aggregate,
+    edge_index: usize,
+    from_file: &str,
+    to_file: &str,
+    edge: &weavatrix_graph::Edge,
+) {
+    aggregate.base_edge_indices.push(edge_index);
+    aggregate
+        .file_pairs
+        .insert((from_file.to_owned(), to_file.to_owned()));
+    *aggregate
+        .evidence_histogram
+        .entry(edge.provenance.evidence.as_str().to_owned())
+        .or_default() += 1;
+    if aggregate.evidence_sample.len() < MAX_SAMPLE {
+        aggregate.evidence_sample.push(json!({
+            "source_file": from_file, "target_file": to_file,
+            "base_edge_index": edge_index, "source_node": edge.source,
+            "target_node": edge.target, "provenance": edge.provenance
+        }));
+    }
+}
+
+fn aggregate_json(from: &str, to: Option<&str>, relation: &str, aggregate: &Aggregate) -> Value {
+    json!({
+        "from": from,
+        "to": to,
+        "component": to.is_none().then_some(from),
+        "relation": relation,
+        "occurrence_count": aggregate.base_edge_indices.len(),
+        "distinct_base_edges": aggregate.base_edge_indices.len(),
+        "distinct_file_pairs": aggregate.file_pairs.len(),
+        "count": aggregate.base_edge_indices.len(),
+        "file_pairs": aggregate.file_pairs.len(),
+        "base_edge_indices": aggregate.base_edge_indices,
+        "evidence_histogram": aggregate.evidence_histogram,
+        "condition_groups": {"UNSPECIFIED": aggregate.file_pairs.len()},
+        "evidence_sample": aggregate.evidence_sample,
+        "sample": aggregate.file_pairs.iter().take(MAX_SAMPLE)
+            .map(|(source, target)| format!("{source} -> {target}")).collect::<Vec<_>>()
+    })
 }
 
 fn file_owners(components: &[Component]) -> BTreeMap<String, String> {

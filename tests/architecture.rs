@@ -17,6 +17,8 @@ mod architecture_observed;
 mod architecture_policy_boundaries;
 #[path = "architecture/architecture_policy_rules.rs"]
 mod architecture_policy_rules;
+#[path = "architecture/architecture_recovery.rs"]
+mod architecture_recovery;
 #[path = "architecture/architecture_selectors.rs"]
 mod architecture_selectors;
 #[path = "architecture/architecture_self.rs"]

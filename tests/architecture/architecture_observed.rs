@@ -11,13 +11,12 @@ fn observed_architecture_has_no_style_and_is_not_the_starter() {
     assert_eq!(report["starter"]["style"], "modular-components");
     assert!(report["observed"].get("style").is_none(), "{report}");
     assert_eq!(report["observed"]["kind"], "observed");
-    let ids = component_ids(&report["observed"]);
     assert!(
-        ids.contains(&"component:directory:737263".to_owned()),
+        component_id(&report["observed"], "src").is_some(),
         "{report}"
     );
     assert!(
-        ids.contains(&"component:directory:6c6962".to_owned()),
+        component_id(&report["observed"], "lib").is_some(),
         "{report}"
     );
 }
@@ -29,11 +28,11 @@ fn an_import_across_folders_is_a_typed_edge() {
     let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
     assert_eq!(report["status"], "COMPLETE");
     assert!(report.get("style").is_none(), "{report}");
+    let lib = component_id(&report, "lib").unwrap();
+    let src = component_id(&report, "src").unwrap();
     assert!(
         report["edges"].as_array().unwrap().iter().any(|edge| {
-            edge["from"] == "component:directory:6c6962"
-                && edge["to"] == "component:directory:737263"
-                && edge["relation"] == "imports"
+            edge["from"] == lib && edge["to"] == src && edge["relation"] == "imports"
         }),
         "{report}"
     );
@@ -136,7 +135,7 @@ fn component_keys_distinguish_underscores_dashes_and_root() {
     assert_eq!(ids.len(), 4, "{report}");
     let unique = ids.iter().collect::<std::collections::BTreeSet<_>>();
     assert_eq!(unique.len(), ids.len());
-    assert!(ids.contains(&"component:root-files".to_owned()));
+    assert!(ids.iter().any(|id| id.starts_with("component:root-files:")));
     assert_eq!(
         report["edges"]
             .as_array()
@@ -177,82 +176,6 @@ fn invalid_declaration_does_not_erase_observation() {
     assert!(!report["diagnostics"].as_array().unwrap().is_empty());
 }
 
-#[test]
-fn quotient_cycle_is_not_claimed_as_symbol_recursion() {
-    let fixture = GitFixture::new();
-    fixture.write(
-        "a/a1.js",
-        "import { b } from '../b/b1.js';\nexport const a = b;\n",
-    );
-    fixture.write("a/a2.js", "export const a2 = 1;\n");
-    fixture.write("b/b1.js", "export const b = 1;\n");
-    fixture.write(
-        "b/b2.js",
-        "import { a2 } from '../a/a2.js';\nexport const b2 = a2;\n",
-    );
-    let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let report = tools::call(&mut engine, "architecture_inventory", json!({})).unwrap();
-    assert_eq!(report["cycles"]["cyclic_scc_total"], 1, "{report}");
-    assert_eq!(
-        report["cycles"]["classification"],
-        "QUOTIENT_UNION_CYCLE_CANDIDATE"
-    );
-    assert!(
-        report["cycles"]["semantics"]
-            .as_str()
-            .unwrap()
-            .contains("not symbol recursion")
-    );
-}
-
-#[test]
-fn pagination_exposes_late_cycles_and_rejects_stale_cursors() {
-    let fixture = GitFixture::new();
-    for i in 0..205 {
-        let next = if i == 204 { 203 } else { i + 1 };
-        fixture.write(&format!("unit_{i:03}/a.js"), &format!(
-            "import {{ value as next }} from '../unit_{next:03}/a.js';\nexport const value = next;\n"));
-    }
-    let mut engine = Weavatrix::open(&fixture.root).unwrap();
-    let first = tools::call(
-        &mut engine,
-        "architecture_inventory",
-        json!({"max_results": 40}),
-    )
-    .unwrap();
-    assert_eq!(first["status"], "INCOMPLETE");
-    assert!(first["edges_total"].as_u64().unwrap() > 200, "{first}");
-    assert!(first["cycles"]["cyclic_scc_total"].as_u64().unwrap() > 0);
-    let mut seen = first["edges_returned"].as_u64().unwrap();
-    let mut cursor = first["next_edge_cursor"].as_str().unwrap().to_owned();
-    loop {
-        let page = tools::call(
-            &mut engine,
-            "architecture_inventory",
-            json!({"max_results": 40, "edge_cursor": cursor}),
-        )
-        .unwrap();
-        seen += page["edges_returned"].as_u64().unwrap();
-        if let Some(next) = page["next_edge_cursor"].as_str() {
-            cursor = next.to_owned();
-        } else {
-            assert_eq!(page["status"], "COMPLETE");
-            break;
-        }
-    }
-    assert_eq!(seen, first["edges_total"].as_u64().unwrap());
-    fixture.write("unit_204/a.js", "export const value = 1;\n");
-    let mut changed = Weavatrix::open(&fixture.root).unwrap();
-    assert!(
-        tools::call(
-            &mut changed,
-            "architecture_inventory",
-            json!({"edge_cursor": first["next_edge_cursor"]})
-        )
-        .is_err()
-    );
-}
-
 fn two_modules() -> GitFixture {
     let fixture = GitFixture::new();
     fixture.write("package.json", "{\"name\":\"demo\"}\n");
@@ -271,6 +194,14 @@ fn component_ids(observed: &Value) -> Vec<String> {
         .iter()
         .filter_map(|component| component["id"].as_str().map(str::to_owned))
         .collect()
+}
+
+fn component_id<'report>(observed: &'report Value, path: &str) -> Option<&'report str> {
+    observed["components"]
+        .as_array()?
+        .iter()
+        .find(|component| component["path"] == path)?["id"]
+        .as_str()
 }
 
 fn declared<'report>(observed: &'report Value, id: &str) -> Option<&'report str> {

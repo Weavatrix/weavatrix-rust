@@ -4,30 +4,19 @@
 mod cargo_manifest;
 mod ecosystems;
 mod manifests;
+mod model;
 mod render;
 
 use crate::engine::RepositoryState;
-use blazingly_json::Value;
+use blazingly_json::{Value, json};
+use model::BuildDiagnostic;
+pub(crate) use model::BuildModel;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 use weavatrix_graph::NodeKind;
 
 const MAX_MANIFEST_BYTES: u64 = 2_000_000;
-
-pub(super) struct Member {
-    name: Option<String>,
-    dir: String,
-    manifest: String,
-    targets: Vec<Value>,
-    internal: Vec<Value>,
-}
-
-pub(super) struct Workspace {
-    ecosystem: &'static str,
-    aggregator: String,
-    members: Vec<Member>,
-}
 
 /// Graph file labels plus every directory they imply. Manifest formats the
 /// language roster does not parse (TOML, YAML) may be absent from the node
@@ -41,6 +30,29 @@ pub(in crate::operations) fn build_graph(
     state: &RepositoryState,
     args: &Value,
 ) -> Result<Value, String> {
+    let (model, _) = analyze(state);
+    let mut report = render::report(args, &model)?;
+    super::ci::attach(state, &mut report);
+    Ok(report)
+}
+
+pub(crate) fn architecture_topology(state: &RepositoryState) -> Value {
+    let model = model(state);
+    json!({
+        "schema_version": model.schema_version,
+        "status": if model.diagnostics.is_empty() {"COMPLETE"} else {"INCOMPLETE"},
+        "workspaces": &model.workspaces,
+        "runners": &model.runners,
+        "diagnostics": &model.diagnostics,
+        "semantic_precision": "BOUNDED_STATIC"
+    })
+}
+
+pub(crate) fn model(state: &RepositoryState) -> BuildModel {
+    analyze(state).0
+}
+
+fn analyze(state: &RepositoryState) -> (BuildModel, ManifestIndex) {
     let index = index(state);
     let mut workspaces = Vec::new();
     let mut claimed = BTreeSet::new();
@@ -51,29 +63,28 @@ pub(in crate::operations) fn build_graph(
     workspaces.sort_by(|left, right| {
         (left.ecosystem, &left.aggregator).cmp(&(right.ecosystem, &right.aggregator))
     });
-    let mut report = render::report(args, workspaces, &index)?;
     let diagnostics = manifest_diagnostics(state, &index);
-    if let Some(object) = report.as_object_mut() {
-        if !diagnostics.is_empty() {
-            object.insert("status".to_owned(), blazingly_json::json!("INCOMPLETE"));
-        }
-        object.insert(
-            "manifest_diagnostics".to_owned(),
-            blazingly_json::json!(diagnostics),
-        );
-    }
-    super::ci::attach(state, &mut report);
-    Ok(report)
+    let runners = render::runner_configs(&index);
+    let model = BuildModel {
+        schema_version: "weavatrix.build-model.v1",
+        repository: state.snapshot().repository.clone(),
+        revision: state.snapshot().revision.clone(),
+        workspaces,
+        runners,
+        diagnostics,
+    };
+    (model, index)
 }
 
-fn manifest_diagnostics(state: &RepositoryState, index: &ManifestIndex) -> Vec<Value> {
+fn manifest_diagnostics(state: &RepositoryState, index: &ManifestIndex) -> Vec<BuildDiagnostic> {
     let mut diagnostics = Vec::new();
     for name in ["Cargo.toml", "package.json", "go.mod"] {
         for path in locate(state, index, name) {
             let Some(text) = read_manifest(state, &path) else {
-                diagnostics.push(
-                    blazingly_json::json!({"manifest": path, "reason": "unreadable_or_excluded"}),
-                );
+                diagnostics.push(BuildDiagnostic {
+                    manifest: path,
+                    reason: "unreadable_or_excluded",
+                });
                 continue;
             };
             if name == "package.json"
@@ -81,9 +92,10 @@ fn manifest_diagnostics(state: &RepositoryState, index: &ManifestIndex) -> Vec<V
                     .ok()
                     .is_none_or(|value| !value.is_object())
             {
-                diagnostics.push(
-                    blazingly_json::json!({"manifest": path, "reason": "invalid_package_json"}),
-                );
+                diagnostics.push(BuildDiagnostic {
+                    manifest: path,
+                    reason: "invalid_package_json",
+                });
             }
         }
     }

@@ -42,14 +42,14 @@ fn npm_workspaces_expose_members_targets_and_internal_dependencies() {
         .unwrap();
     assert_eq!(api["path"], "packages/api");
     assert!(
-        api["targets"]
+        api["tasks"]
             .as_array()
             .unwrap()
             .iter()
             .any(|target| target["kind"] == "script" && target["name"] == "build"),
         "scripts are build targets: {api:?}"
     );
-    assert_eq!(api["targets"][0]["entity_kind"], "task");
+    assert_eq!(api["tasks"][0]["kind"], "script");
     let internal = api["internal_dependencies"].as_array().unwrap();
     assert_eq!(
         internal.len(),
@@ -57,7 +57,12 @@ fn npm_workspaces_expose_members_targets_and_internal_dependencies() {
         "express is not a workspace member: {api:?}"
     );
     assert_eq!(internal[0]["name"], "@x/lib");
-    assert_eq!(internal[0]["member"], "packages/lib");
+    assert!(
+        internal[0]["member"]
+            .as_str()
+            .unwrap()
+            .starts_with("member:")
+    );
 }
 
 #[test]
@@ -92,7 +97,12 @@ fn cargo_workspaces_resolve_path_dependencies_and_implicit_targets() {
         .unwrap();
     let internal = cli["internal_dependencies"].as_array().unwrap();
     assert_eq!(internal.len(), 1, "serde is external: {cli:?}");
-    assert_eq!(internal[0]["member"], "crates/core");
+    assert!(
+        internal[0]["member"]
+            .as_str()
+            .unwrap()
+            .starts_with("member:")
+    );
     let targets = cli["targets"].as_array().unwrap();
     assert!(
         targets

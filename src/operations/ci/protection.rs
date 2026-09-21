@@ -28,11 +28,15 @@ pub(super) fn attach(state: &RepositoryState, name: &str, args: &Value, report: 
         return;
     };
     let memberships = crate::operations::architecture::structural_memberships(state);
+    let root_component = crate::operations::architecture::root_structural_id(state);
+    let build = crate::operations::build::model(state);
     let declaration = crate::operations::architecture::contract::load_optional(state);
     let selected = selected_files(
         &changed,
         &memberships,
+        &root_component,
         declaration.as_ref().ok().and_then(Option::as_ref),
+        &build,
     );
     let restrictions = super::restrictions::report(state, &json!({"max_results": 100}));
     let restrictions_error = restrictions.as_ref().err().cloned();
@@ -50,15 +54,7 @@ pub(super) fn attach(state: &RepositoryState, name: &str, args: &Value, report: 
         .as_array()
         .into_iter()
         .flatten()
-        .map(|check| {
-            json!({
-                "id": check["id"],
-                "kind": check["kind"],
-                "relation": "PROJECT_WORKFLOW_CANDIDATE",
-                "failure_effect": check["failure_effect"],
-                "recognition": check["recognition"]
-            })
-        })
+        .map(|check| check_candidate(check, &selected, &build))
         .collect::<Vec<_>>();
     let (rule_bindings, bindings_total) = declaration
         .as_ref()
@@ -101,7 +97,9 @@ pub(super) fn attach(state: &RepositoryState, name: &str, args: &Value, report: 
 fn selected_files(
     changed: &[String],
     memberships: &[(String, String)],
+    root_component: &str,
     declaration: Option<&Value>,
+    build: &crate::operations::build::BuildModel,
 ) -> Vec<Value> {
     changed
         .iter()
@@ -125,15 +123,67 @@ fn selected_files(
                     }
                 })
                 .max_by_key(|(path, _)| path.len());
+            let build_membership = build.file_membership(file);
             json!({
                 "file": file,
                 "component": component.map_or_else(|| if file.contains('/') { Value::Null }
-                        else { json!("component:root-files") }, |(_, id)| json!(id)),
+                        else { json!(root_component) }, |(_, id)| json!(id)),
                 "declared_component": unique,
-                "declared_components": declared
+                "declared_components": declared,
+                "build_membership": build_membership
             })
         })
         .collect()
+}
+
+fn check_candidate(
+    check: &Value,
+    selected: &[Value],
+    build: &crate::operations::build::BuildModel,
+) -> Value {
+    let mut members = selected
+        .iter()
+        .flat_map(|file| {
+            file["build_membership"]["member_ids"]
+                .as_array()
+                .into_iter()
+                .flatten()
+        })
+        .filter_map(Value::as_str)
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    members.sort();
+    members.dedup();
+    let kind = check["kind"].as_str().unwrap_or_default();
+    let target = check["target"].as_str();
+    let (targets, tasks) = match kind {
+        "cargo_test" => (build.target_ids("test", target, &members), Vec::new()),
+        "npm_script" => (
+            Vec::new(),
+            target.map_or_else(Vec::new, |name| build.task_ids(name, &members)),
+        ),
+        _ => (Vec::new(), Vec::new()),
+    };
+    let relation = if !targets.is_empty() {
+        "TARGET_CHECK_CANDIDATE"
+    } else if !tasks.is_empty() {
+        "TASK_CHECK_CANDIDATE"
+    } else if !members.is_empty() && target.is_none() {
+        "MEMBER_CHECK_CANDIDATE"
+    } else {
+        "PROJECT_WORKFLOW_CANDIDATE"
+    };
+    json!({
+        "id": check["id"],
+        "kind": check["kind"],
+        "relation": relation,
+        "selected_members": members,
+        "selected_targets": targets,
+        "selected_tasks": tasks,
+        "selection_basis": "STATIC_BUILD_MODEL",
+        "failure_effect": check["failure_effect"],
+        "recognition": check["recognition"]
+    })
 }
 
 fn declared_rule_bindings(

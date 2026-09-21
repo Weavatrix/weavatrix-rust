@@ -2,6 +2,7 @@
 //! and not the starter contract.
 
 mod components;
+mod cycles;
 mod edges;
 mod packages;
 
@@ -9,10 +10,6 @@ use crate::engine::RepositoryState;
 use crate::model::digest::sha3_256;
 use crate::operations::{optional_str, optional_u64, reject_unknown_arguments};
 use blazingly_json::{Value, json};
-use weavatrix_graph::{
-    EdgeEndpoints, NodeIndex, Topology, condensation_filtered,
-    strongly_connected_components_filtered, topological_generations_filtered,
-};
 
 pub(super) fn attach(state: &RepositoryState, mut report: Value) -> Value {
     if let Some(object) = report.as_object_mut() {
@@ -45,20 +42,25 @@ pub(crate) fn memberships(state: &RepositoryState) -> Vec<(String, String)> {
         .collect()
 }
 
+pub(crate) fn root_component_id(state: &RepositoryState) -> String {
+    components::root_id(state)
+}
+
 fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result<Value, String> {
     let (declaration, diagnostic) = match super::contract::load_optional(state) {
         Ok(value) => (value, None),
         Err(error) => (None, Some(error)),
     };
     let components = components::collect(state, declaration.as_ref());
-    let edges = edges::collect(state, &components);
-    let cycles = cycles(&components, &edges)?;
-    let total = edges.len();
+    let relations = edges::collect(state, &components);
+    let cycles = cycles::analyze(&components, &relations.cross)?;
+    let total = relations.cross.len();
     // A cursor belongs to these captured graph facts, not just a revision name.
     let identity = sha3_256(
         &blazingly_json::to_vec(&json!({
             "components": components.iter().map(component_json).collect::<Vec<_>>(),
-            "edges": edges
+            "edges": relations.cross,
+            "internal_connectivity": relations.internal
         }))
         .map_err(|error| error.to_string())?,
     );
@@ -80,7 +82,8 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
     } else {
         (200, 0)
     };
-    let returned = edges
+    let returned = relations
+        .cross
         .iter()
         .skip(start)
         .take(max)
@@ -98,12 +101,15 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
                      "unknowns_total": usize::from(diagnostic.is_some())},
         "diagnostics": diagnostic.into_iter().collect::<Vec<_>>(),
         "packages": packages::collect(state),
+        "build_topology": crate::operations::build::architecture_topology(state),
         "components": components.iter().map(component_json).collect::<Vec<_>>(),
         "edges": returned,
         "edges_total": total,
         "edges_returned": next - start,
         "edges_truncated": truncated,
         "next_edge_cursor": truncated.then(|| format!("{identity}:{next}")),
+        "internal_connectivity": relations.internal,
+        "internal_connectivity_total": relations.internal.len(),
         "cycles": cycles
     }))
 }
@@ -111,6 +117,9 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
 fn component_json(component: &components::Component) -> Value {
     let mut value = json!({
         "id": component.id,
+        "entity_key": {"repository_id": component.repository_id,
+                       "kind": "component_view", "canonical_relative_path": component.path,
+                       "native_logical_key": "structural_directory_fallback.v1"},
         "path": component.path,
         "files": component.files.len(),
         "declared_ids": component.declared_ids,
@@ -120,55 +129,4 @@ fn component_json(component: &components::Component) -> Value {
         object.insert("declared_id".to_owned(), json!(declared));
     }
     value
-}
-
-fn cycles(components: &[components::Component], edges: &[Value]) -> Result<Value, String> {
-    let index = components
-        .iter()
-        .enumerate()
-        .map(|(slot, component)| (component.id.as_str(), slot))
-        .collect::<std::collections::BTreeMap<_, _>>();
-    let mut links = Vec::new();
-    for edge in edges {
-        let (Some(from), Some(to)) = (edge["from"].as_str(), edge["to"].as_str()) else {
-            continue;
-        };
-        if let (Some(&from), Some(&to)) = (index.get(from), index.get(to)) {
-            links.push(EdgeEndpoints::new(
-                NodeIndex::new(u32::try_from(from).map_err(|e| e.to_string())?),
-                NodeIndex::new(u32::try_from(to).map_err(|e| e.to_string())?),
-            ));
-        }
-    }
-    let topology = Topology::try_from_edges(components.len(), links).map_err(|e| e.to_string())?;
-    let mut cyclic = strongly_connected_components_filtered(&topology, |_| true)
-        .into_iter()
-        .filter(|group| group.len() > 1)
-        .map(|group| {
-            let mut members = group
-                .into_iter()
-                .map(|node| components[node.index()].id.clone())
-                .collect::<Vec<_>>();
-            members.sort();
-            members
-        })
-        .collect::<Vec<_>>();
-    cyclic.sort();
-    let cyclic_total = cyclic.len();
-    let condensed = condensation_filtered(&topology, |_| true).map_err(|e| e.to_string())?;
-    let levels = topological_generations_filtered(condensed.topology(), |_| true)
-        .unwrap_or_default()
-        .len();
-    Ok(json!({
-        "semantics": "component_quotient_dependency; not symbol recursion or a single executable configuration",
-        "relation_scope": "all observed coupling relations; context applicability unknown",
-        "scc_total": condensed.components().len(),
-        "cyclic_scc_total": cyclic_total,
-        "cyclic_scc": cyclic.into_iter().take(50).collect::<Vec<_>>(),
-        "cyclic_scc_truncated": cyclic_total > 50,
-        "classification": "QUOTIENT_UNION_CYCLE_CANDIDATE",
-        "condensation_nodes": condensed.topology().node_count(),
-        "condensation_edges": condensed.topology().edge_count(),
-        "dag_levels": levels
-    }))
 }

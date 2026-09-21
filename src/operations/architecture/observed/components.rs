@@ -6,6 +6,7 @@ use weavatrix_graph::NodeKind;
 
 pub(super) struct Component {
     pub id: String,
+    pub repository_id: String,
     pub path: String,
     pub files: Vec<String>,
     pub declared_id: Option<String>,
@@ -16,6 +17,7 @@ pub(super) fn collect(
     state: &RepositoryState,
     declaration: Option<&blazingly_json::Value>,
 ) -> Vec<Component> {
+    let repository_id = repository_id(state);
     let mut groups = BTreeMap::<String, Vec<String>>::new();
     for node in state.graph().nodes() {
         if node.kind != NodeKind::File {
@@ -42,7 +44,8 @@ pub(super) fn collect(
                 ids
             });
             Component {
-                id: component_id(&path),
+                id: component_id(&repository_id, &path),
+                repository_id: repository_id.clone(),
                 path,
                 files,
                 declared_id: (declared_ids.len() == 1).then(|| declared_ids[0].clone()),
@@ -59,13 +62,32 @@ fn folder(path: &str) -> String {
         .map_or(String::new(), |(parent, _)| parent.to_owned())
 }
 
-pub(super) fn component_id(path: &str) -> String {
-    if path.is_empty() {
-        return "component:root-files".to_owned();
-    }
-    // Hex encoding is injective over UTF-8 paths, including case, '_' and '-'.
-    let mut id = String::from("component:directory:");
-    for byte in path.as_bytes() {
+pub(super) fn root_id(state: &RepositoryState) -> String {
+    component_id(&repository_id(state), "")
+}
+
+fn repository_id(state: &RepositoryState) -> String {
+    state
+        .graph()
+        .nodes()
+        .iter()
+        .find(|node| node.kind == NodeKind::Repository)
+        .map_or_else(|| "repository".to_owned(), |node| node.id.to_string())
+}
+
+fn component_id(repository_id: &str, path: &str) -> String {
+    let kind = if path.is_empty() {
+        "root-files"
+    } else {
+        "directory"
+    };
+    let mut id = format!("component:{kind}:");
+    for byte in repository_id
+        .as_bytes()
+        .iter()
+        .chain([0].iter())
+        .chain(path.as_bytes())
+    {
         use std::fmt::Write;
         write!(&mut id, "{byte:02x}").expect("writing into String");
     }

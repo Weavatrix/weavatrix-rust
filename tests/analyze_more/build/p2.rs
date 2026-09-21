@@ -29,9 +29,9 @@ fn build_presentation_caps_preserve_totals_and_incomplete_status() {
     let report = tools::call(&mut engine, "build_graph", json!({})).unwrap();
     assert_eq!(report["status"], "INCOMPLETE");
     let member = &workspace(&report, "npm")["members"][0];
-    assert_eq!(member["targets_total"], 51);
-    assert_eq!(member["targets"].as_array().unwrap().len(), 50);
-    assert_eq!(member["targets_truncated"], true);
+    assert_eq!(member["tasks_total"], 51);
+    assert_eq!(member["tasks"].as_array().unwrap().len(), 50);
+    assert_eq!(member["tasks_truncated"], true);
     assert_eq!(report["runners_total"], 201);
     assert_eq!(report["runners"].as_array().unwrap().len(), 200);
     assert_eq!(report["runners_truncated"], true);
