@@ -4,6 +4,7 @@
 mod action;
 mod ignore;
 mod inventory;
+mod linkage;
 mod protection;
 mod read;
 mod restrictions;

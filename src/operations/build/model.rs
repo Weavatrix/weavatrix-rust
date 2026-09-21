@@ -42,6 +42,7 @@ pub(crate) struct Member {
     pub targets: Vec<BuildTarget>,
     pub modules: Vec<SourceModule>,
     pub tasks: Vec<BuildTask>,
+    pub dependencies: Vec<BuildDependency>,
     pub internal_dependencies: Vec<BuildDependency>,
 }
 
@@ -80,18 +81,24 @@ pub(crate) struct BuildTask {
     pub kind: &'static str,
     pub name: String,
     pub command: String,
+    pub invokes: Vec<String>,
+    pub cycle: bool,
+    pub argument_forwarding: &'static str,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct BuildDependency {
     pub id: String,
     pub name: String,
+    pub native_name: String,
     pub member: Option<String>,
     pub source_target: Option<String>,
     pub target: Option<String>,
     pub scope: &'static str,
-    pub condition: &'static str,
+    pub condition: String,
     pub condition_ast: BuildCondition,
+    pub workspace_inherited: bool,
+    pub resolution: &'static str,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -124,20 +131,28 @@ impl BuildModel {
         let mut exact_target = false;
         for workspace in &self.workspaces {
             for member in &workspace.members {
-                if !contains(&member.path, file) {
+                if !super::ecosystem_details::contains(&member.path, file) {
                     continue;
                 }
                 member_ids.push(member.id.clone());
-                let relative = relative_to(&member.path, file);
+                let relative = super::ecosystem_details::relative_to(&member.path, file);
                 for target in &member.targets {
                     if target.path.as_deref().is_some_and(|path| {
-                        let absolute = join(&member.path, path);
-                        file == absolute || owns_source(target.kind, path, relative)
-                    }) {
-                        exact_target |= target
-                            .path
-                            .as_deref()
-                            .is_some_and(|path| file == join(&member.path, path));
+                        let absolute = super::ecosystem_details::join(&member.path, path);
+                        file == absolute
+                            || super::ecosystem_details::cargo_owns_source(
+                                target.kind,
+                                path,
+                                relative,
+                            )
+                    }) || super::ecosystem_details::target_owns_source(
+                        target,
+                        &member.path,
+                        file,
+                    ) {
+                        exact_target |= target.path.as_deref().is_some_and(|path| {
+                            file == super::ecosystem_details::join(&member.path, path)
+                        });
                         target_ids.push(target.id.clone());
                     }
                 }
@@ -206,7 +221,14 @@ impl BuildModel {
         ids
     }
 
-    pub fn target_exists(&self, kind: &str, name: &str, working: Option<&str>) -> bool {
+    pub fn target_exists(
+        &self,
+        kind: &str,
+        name: &str,
+        working: Option<&str>,
+        package: Option<&str>,
+        manifest: Option<&str>,
+    ) -> bool {
         let working = working
             .unwrap_or_default()
             .trim_start_matches("./")
@@ -214,9 +236,38 @@ impl BuildModel {
         self.workspaces
             .iter()
             .flat_map(|workspace| &workspace.members)
-            .filter(|member| member.path == working)
+            .filter(|member| selected(member, working, package, manifest))
             .flat_map(|member| &member.targets)
             .any(|target| target.kind == kind && target.name.as_deref() == Some(name))
+    }
+
+    pub fn target_sources(
+        &self,
+        kind: &str,
+        name: &str,
+        working: Option<&str>,
+        package: Option<&str>,
+        manifest: Option<&str>,
+    ) -> Vec<String> {
+        let working = working
+            .unwrap_or_default()
+            .trim_start_matches("./")
+            .trim_end_matches('/');
+        self.workspaces
+            .iter()
+            .flat_map(|workspace| &workspace.members)
+            .filter(|member| selected(member, working, package, manifest))
+            .flat_map(|member| {
+                member
+                    .targets
+                    .iter()
+                    .filter(move |target| {
+                        target.kind == kind && target.name.as_deref() == Some(name)
+                    })
+                    .filter_map(|target| target.path.as_deref())
+                    .map(|path| super::ecosystem_details::join(&member.path, path))
+            })
+            .collect()
     }
 }
 
@@ -234,29 +285,14 @@ pub(super) fn entity_id(repository: &str, kind: &str, parts: &[&str]) -> String 
     id
 }
 
-fn contains(root: &str, file: &str) -> bool {
-    root.is_empty() || file == root || file.starts_with(&format!("{root}/"))
-}
-
-fn join(root: &str, path: &str) -> String {
-    if root.is_empty() {
-        path.to_owned()
-    } else {
-        format!("{root}/{path}")
+fn selected(member: &Member, working: &str, package: Option<&str>, manifest: Option<&str>) -> bool {
+    if let Some(package) = package {
+        return member.name.as_deref() == Some(package);
     }
-}
-
-fn relative_to<'a>(root: &str, file: &'a str) -> &'a str {
-    if root.is_empty() {
-        file
-    } else {
-        file.strip_prefix(&format!("{root}/")).unwrap_or(file)
+    if let Some(manifest) = manifest {
+        let manifest = manifest.trim_start_matches("./");
+        return member.manifest == manifest
+            || member.manifest == super::ecosystem_details::join(working, manifest);
     }
-}
-
-fn owns_source(kind: &str, target_path: &str, file: &str) -> bool {
-    match kind {
-        "lib" | "bin" => target_path.starts_with("src/") && file.starts_with("src/"),
-        _ => false,
-    }
+    working.is_empty() || member.path == working
 }

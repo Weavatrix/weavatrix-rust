@@ -122,3 +122,34 @@ pub(super) fn step_summary(step: &Step, working: Option<&str>) -> Value {
         "working_directory": public_uses(working)
     })
 }
+
+pub(in crate::operations::ci) fn explain(
+    state: &crate::engine::RepositoryState,
+    args: &Value,
+) -> Result<Value, String> {
+    crate::operations::reject_unknown_arguments("explain_restriction", args, &["id", "scenario"])?;
+    let id = crate::operations::arg_str(args, "id")?;
+    let report = super::report(
+        state,
+        &json!({"max_results": 500, "scenario": args.get("scenario")}),
+    )?;
+    let restriction = report["restrictions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|item| item["id"] == id);
+    Ok(if let Some(item) = restriction {
+        json!({
+            "status": "FOUND", "restriction": item,
+            "analysis_identity": report["analysis_identity"],
+            "limitations": ["local workflow presence is not execution or remote merge enforcement"]
+        })
+    } else {
+        json!({
+            "status": if report["restrictions_total"].as_u64().unwrap_or(0) > 500 {
+                "INCOMPLETE"
+            } else { "NOT_FOUND" },
+            "id": id
+        })
+    })
+}

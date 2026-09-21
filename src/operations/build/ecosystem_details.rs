@@ -2,11 +2,11 @@
 
 use super::manifests::normalize_relative;
 use super::model::{
-    BuildCondition, BuildDependency, BuildTarget, Member, SourceModule, TargetOptions, entity_id,
+    BuildCondition, BuildDependency, BuildTarget, Member, TargetOptions, entity_id,
 };
 use crate::engine::RepositoryState;
 use blazingly_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 pub(super) fn typescript_projects(state: &RepositoryState, member: &mut Member) {
@@ -37,131 +37,66 @@ pub(super) fn typescript_projects(state: &RepositoryState, member: &mut Member) 
             continue;
         };
         let target_id = ids[path].clone();
+        let relative_path = relative_to(&member.path, path).to_owned();
         member.targets.push(BuildTarget {
             id: target_id.clone(),
             kind: "ts_project",
             name: Some(path.clone()),
-            path: Some(path.clone()),
+            path: Some(relative_path),
             implicit: false,
             required_features: Vec::new(),
             source_patterns: ts_source_patterns(&document),
             conditions: Vec::new(),
             condition_ast: BuildCondition::Always,
-            options: TargetOptions::default(),
+            options: TargetOptions {
+                composite: document["compilerOptions"]["composite"].as_bool(),
+                extends: document["extends"].as_str().map(str::to_owned),
+                ..TargetOptions::default()
+            },
             applicability: "DECLARED_STATIC_CONFIG",
         });
-        for reference in document["references"]
+        let references = document["references"]
             .as_array()
             .into_iter()
             .flatten()
             .filter_map(|item| item["path"].as_str())
-        {
+            .map(|path| (path, "ts_project_reference"));
+        let extends = document["extends"]
+            .as_str()
+            .into_iter()
+            .map(|path| (path, "tsconfig_extends"));
+        for (reference, scope) in references.chain(extends) {
             let Some(target_path) = referenced_tsconfig(path, reference) else {
                 continue;
             };
-            let Some(target) = ids.get(&target_path) else {
-                continue;
-            };
-            member.internal_dependencies.push(BuildDependency {
+            let target = ids.get(&target_path).cloned();
+            let dependency = BuildDependency {
                 id: entity_id(
                     &state.snapshot().repository,
                     "build-dependency",
-                    &[path, &target_path, "ts_project_reference"],
+                    &[path, &target_path, scope],
                 ),
-                name: target_path,
-                member: Some(member.id.clone()),
+                name: target_path.clone(),
+                native_name: "typescript-project-reference".to_owned(),
+                member: target.as_ref().map(|_| member.id.clone()),
                 source_target: Some(target_id.clone()),
-                target: Some(target.clone()),
-                scope: "ts_project_reference",
-                condition: "UNCONDITIONAL_DECLARATION",
+                target,
+                scope,
+                condition: "UNCONDITIONAL_DECLARATION".to_owned(),
                 condition_ast: BuildCondition::Always,
-            });
+                workspace_inherited: false,
+                resolution: if ids.contains_key(&target_path) {
+                    "LOCAL_TARGET"
+                } else if reference.starts_with('.') {
+                    "LOCAL_CONFIG_UNRESOLVED"
+                } else {
+                    "EXTERNAL_CONFIG"
+                },
+            };
+            member.dependencies.push(dependency.clone());
+            member.internal_dependencies.push(dependency);
         }
     }
-}
-
-pub(super) fn go_packages(state: &RepositoryState, root: &str) -> Vec<SourceModule> {
-    let mut groups = BTreeMap::<(String, String), Vec<(String, Vec<String>)>>::new();
-    for path in state.evidence().paths().filter(|path| {
-        contains(root, path)
-            && Path::new(path)
-                .extension()
-                .is_some_and(|extension| extension.eq_ignore_ascii_case("go"))
-    }) {
-        let Some(text) = state.evidence().text(path) else {
-            continue;
-        };
-        let Some(package) = go_package_name(text) else {
-            continue;
-        };
-        let directory = parent(path);
-        groups
-            .entry((directory, package.to_owned()))
-            .or_default()
-            .push((path.to_owned(), go_conditions(path, text)));
-    }
-    groups
-        .into_iter()
-        .map(|((path, name), sources)| {
-            let source_conditions = sources
-                .iter()
-                .filter(|(_, conditions)| !conditions.is_empty())
-                .cloned()
-                .collect::<BTreeMap<_, _>>();
-            let mut source_files = sources
-                .iter()
-                .map(|(source, _)| source.clone())
-                .collect::<Vec<_>>();
-            source_files.sort();
-            let conditions = source_conditions
-                .values()
-                .flatten()
-                .cloned()
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .collect::<Vec<_>>();
-            let unconditional = sources.iter().any(|(_, conditions)| conditions.is_empty());
-            let condition_ast = if unconditional {
-                BuildCondition::Always
-            } else {
-                BuildCondition::atoms(&conditions, false)
-            };
-            let source_condition_ast = source_conditions
-                .iter()
-                .map(|(source, conditions)| {
-                    (source.clone(), BuildCondition::atoms(conditions, true))
-                })
-                .collect();
-            SourceModule {
-                id: entity_id(
-                    &state.snapshot().repository,
-                    "module",
-                    &["go", &path, &name],
-                ),
-                kind: if name == "main" {
-                    "go_command"
-                } else if name.ends_with("_test") {
-                    "go_external_test_package"
-                } else {
-                    "go_package"
-                },
-                name,
-                path,
-                source_files,
-                applicability: if source_conditions.is_empty() {
-                    "ALL_SCENARIOS"
-                } else if unconditional {
-                    "ALL_WITH_CONDITIONAL_SOURCES"
-                } else {
-                    "CONDITIONAL_PLATFORM"
-                },
-                conditions,
-                condition_ast,
-                source_condition_ast,
-                source_conditions,
-            }
-        })
-        .collect()
 }
 
 fn ts_source_patterns(document: &Value) -> Vec<String> {
@@ -184,7 +119,81 @@ fn ts_source_patterns(document: &Value) -> Vec<String> {
             .filter_map(Value::as_str)
             .map(|pattern| format!("!{pattern}")),
     );
+    if !patterns.iter().any(|pattern| !pattern.starts_with('!')) {
+        patterns.push("**/*".to_owned());
+    }
     patterns
+}
+
+pub(super) fn target_owns_source(target: &BuildTarget, member: &str, file: &str) -> bool {
+    if target.kind != "ts_project"
+        || !Path::new(file).extension().is_some_and(|extension| {
+            matches!(extension.to_str(), Some("ts" | "tsx" | "js" | "jsx"))
+        })
+    {
+        return false;
+    }
+    let Some(config) = target.path.as_deref() else {
+        return false;
+    };
+    let config_dir = parent(config);
+    let member_relative = relative_to(member, file);
+    let relative = relative_to(&config_dir, member_relative);
+    target
+        .source_patterns
+        .iter()
+        .filter(|pattern| !pattern.starts_with('!'))
+        .any(|pattern| path_glob(pattern, relative))
+        && !target
+            .source_patterns
+            .iter()
+            .filter_map(|pattern| pattern.strip_prefix('!'))
+            .any(|pattern| path_glob(pattern, relative))
+}
+
+fn path_glob(pattern: &str, path: &str) -> bool {
+    fn matches(pattern: &[&str], path: &[&str]) -> bool {
+        match (pattern.first(), path.first()) {
+            (None, None) => true,
+            (Some(&"**"), _) => {
+                matches(&pattern[1..], path) || (!path.is_empty() && matches(pattern, &path[1..]))
+            }
+            (Some(pattern_segment), Some(path_segment))
+                if segment_glob(pattern_segment, path_segment) =>
+            {
+                matches(&pattern[1..], &path[1..])
+            }
+            _ => false,
+        }
+    }
+    matches(
+        &pattern
+            .trim_start_matches("./")
+            .split('/')
+            .collect::<Vec<_>>(),
+        &path.split('/').collect::<Vec<_>>(),
+    )
+}
+
+fn segment_glob(pattern: &str, value: &str) -> bool {
+    let parts = pattern.split('*').collect::<Vec<_>>();
+    if parts.len() == 1 {
+        return pattern == value;
+    }
+    let mut offset = 0;
+    for (index, part) in parts.iter().enumerate() {
+        if part.is_empty() {
+            continue;
+        }
+        let Some(found) = value[offset..].find(part) else {
+            return false;
+        };
+        if index == 0 && found != 0 {
+            return false;
+        }
+        offset += found + part.len();
+    }
+    pattern.ends_with('*') || offset == value.len()
 }
 
 fn referenced_tsconfig(source: &str, reference: &str) -> Option<String> {
@@ -195,32 +204,6 @@ fn referenced_tsconfig(source: &str, reference: &str) -> Option<String> {
     Some(target)
 }
 
-fn go_package_name(text: &str) -> Option<&str> {
-    text.lines()
-        .map(str::trim)
-        .find_map(|line| line.strip_prefix("package "))
-        .and_then(|name| name.split_whitespace().next())
-}
-
-fn go_conditions(path: &str, text: &str) -> Vec<String> {
-    let mut conditions = text
-        .lines()
-        .take(20)
-        .filter_map(|line| line.trim().strip_prefix("//go:build "))
-        .map(|condition| format!("go_build:{condition}"))
-        .collect::<BTreeSet<_>>();
-    let stem = Path::new(path)
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or_default();
-    for suffix in ["linux", "windows", "darwin", "freebsd", "amd64", "arm64"] {
-        if stem.ends_with(&format!("_{suffix}")) {
-            conditions.insert(format!("platform:{suffix}"));
-        }
-    }
-    conditions.into_iter().collect()
-}
-
 fn is_tsconfig(path: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
     name.starts_with("tsconfig")
@@ -229,8 +212,16 @@ fn is_tsconfig(path: &str) -> bool {
             .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
 }
 
-fn contains(root: &str, path: &str) -> bool {
+pub(super) fn contains(root: &str, path: &str) -> bool {
     root.is_empty() || path == root || path.starts_with(&format!("{root}/"))
+}
+
+pub(super) fn relative_to<'a>(root: &str, path: &'a str) -> &'a str {
+    if root.is_empty() {
+        path
+    } else {
+        path.strip_prefix(&format!("{root}/")).unwrap_or(path)
+    }
 }
 
 fn parent(path: &str) -> String {
@@ -238,10 +229,14 @@ fn parent(path: &str) -> String {
         .map_or(String::new(), |(directory, _)| directory.to_owned())
 }
 
-fn join(root: &str, path: &str) -> String {
+pub(super) fn join(root: &str, path: &str) -> String {
     if root.is_empty() {
         path.to_owned()
     } else {
         format!("{root}/{path}")
     }
+}
+
+pub(super) fn cargo_owns_source(kind: &str, target_path: &str, file: &str) -> bool {
+    matches!(kind, "lib" | "bin") && target_path.starts_with("src/") && file.starts_with("src/")
 }

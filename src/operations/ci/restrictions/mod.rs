@@ -4,19 +4,21 @@ mod recognize;
 mod scenario;
 use super::action;
 use super::workflow::{self, Job, Step, Workflow};
-use crate::engine::RepositoryState;
-use crate::operations::{arg_str, optional_str, optional_u64};
+use crate::operations::{optional_str, optional_u64};
 use blazingly_json::{Value, json};
+pub(super) use output::explain;
 use output::{condition_class, matrix_summary, permissions, public_uses, step_summary};
-use scenario::Scenario;
 use std::collections::BTreeMap;
-pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+pub(super) fn report(
+    state: &crate::engine::RepositoryState,
+    args: &Value,
+) -> Result<Value, String> {
     crate::operations::reject_unknown_arguments(
         "ci_restrictions",
         args,
         &["scope", "scenario", "max_results", "token_budget"],
     )?;
-    let scenario = Scenario::parse(args)?;
+    let scenario = scenario::Scenario::parse(args)?;
     let scope = optional_str(args, "scope")?;
     let max = optional_u64(args, "max_results")?.unwrap_or(100).min(500) as usize;
     let collection = workflow::collect(state);
@@ -109,6 +111,9 @@ fn project_workflow(
                     "detail": found.detail,
                     "target": found.target,
                     "target_resolved": found.target_exists,
+                    "package": found.package,
+                    "manifest_path": found.manifest_path,
+                    "working_directory": working,
                     "recognition": found.reliability,
                     "source": {"path": workflow.path, "content_digest": workflow.digest,
                                "job": job.id, "step": step.index, "byte_span": span,
@@ -228,35 +233,12 @@ fn resolve_reusable(
     resolved
 }
 
-pub(super) fn explain(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    crate::operations::reject_unknown_arguments("explain_restriction", args, &["id", "scenario"])?;
-    let id = arg_str(args, "id")?;
-    let report = report(
-        state,
-        &json!({"max_results": 500, "scenario": args.get("scenario")}),
-    )?;
-    let restriction = report["restrictions"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find(|item| item["id"] == id);
-    Ok(if let Some(item) = restriction {
-        json!({
-            "status": "FOUND", "restriction": item,
-            "analysis_identity": report["analysis_identity"],
-            "limitations": ["local workflow presence is not execution or remote merge enforcement"]
-        })
-    } else {
-        json!({
-            "status": if report["restrictions_total"].as_u64().unwrap_or(0) > 500 {
-                "INCOMPLETE"
-            } else { "NOT_FOUND" },
-            "id": id
-        })
-    })
-}
-
-fn applicability(workflow: &Workflow, job: &Job, step: &Step, scenario: &Scenario) -> &'static str {
+fn applicability(
+    workflow: &Workflow,
+    job: &Job,
+    step: &Step,
+    scenario: &scenario::Scenario,
+) -> &'static str {
     let trigger = scenario::trigger(workflow, scenario);
     if trigger != "TRIGGERED" {
         return trigger;

@@ -27,5 +27,13 @@ mod build_topology;
 mod build_topology_evidence;
 #[path = "analyze_more/build/p2.rs"]
 mod build_topology_p2;
+#[path = "analyze_more/build/cargo_semantics.rs"]
+mod cargo_semantics;
 #[path = "analyze_more/di_graph.rs"]
 mod di_graph;
+#[path = "analyze_more/build/go_semantics.rs"]
+mod go_semantics;
+#[path = "analyze_more/build/npm_semantics.rs"]
+mod npm_semantics;
+#[path = "analyze_more/build/python_semantics.rs"]
+mod python_semantics;

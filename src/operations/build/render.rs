@@ -6,10 +6,9 @@ use super::model::{
 };
 use crate::operations::optional_u64;
 use blazingly_json::{Value, json};
+use std::collections::BTreeMap;
 
 const MAX_TARGETS: usize = 50;
-const MAX_TASKS: usize = 50;
-const MAX_RUNNERS: usize = 200;
 
 pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> {
     let max_members = usize::try_from(optional_u64(args, "max_members")?.unwrap_or(500))
@@ -30,7 +29,7 @@ pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> 
         .workspaces
         .iter()
         .flat_map(|workspace| &workspace.members)
-        .any(|member| member.tasks.len() > MAX_TASKS);
+        .any(|member| member.tasks.len() > 50);
     let runners_total = model.runners.len();
     let mut remaining = max_members;
     let rendered = model
@@ -52,16 +51,16 @@ pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> 
         .collect::<Vec<_>>();
     Ok(json!({
         "schema_version": model.schema_version,
-        "status": if !model.diagnostics.is_empty() || !model.input_capture.complete || members_total > max_members || targets_truncated || tasks_truncated || runners_total > MAX_RUNNERS {"INCOMPLETE"} else {"COMPLETE"},
+        "status": if !model.diagnostics.is_empty() || !model.input_capture.complete || members_total > max_members || targets_truncated || tasks_truncated || runners_total > 200 {"INCOMPLETE"} else {"COMPLETE"},
         "workspaces": rendered,
         "workspaces_total": workspaces_total,
         "members_total": members_total,
         "members_truncated": members_total > max_members,
         "targets_truncated": targets_truncated,
         "tasks_truncated": tasks_truncated,
-        "runners": model.runners.iter().take(MAX_RUNNERS).collect::<Vec<_>>(),
+        "runners": model.runners.iter().take(200).collect::<Vec<_>>(),
         "runners_total": runners_total,
-        "runners_truncated": runners_total > MAX_RUNNERS,
+        "runners_truncated": runners_total > 200,
         "manifest_diagnostics": model.diagnostics,
         "input_capture": model.input_capture,
         "model": "manifest and lockfile evidence only; no build tool was executed",
@@ -81,9 +80,10 @@ fn member(member: &Member) -> Value {
         "targets_truncated": member.targets.len() > MAX_TARGETS,
         "modules": member.modules,
         "modules_total": member.modules.len(),
-        "tasks": member.tasks.iter().take(MAX_TASKS).collect::<Vec<_>>(),
+        "tasks": member.tasks.iter().take(50).collect::<Vec<_>>(),
         "tasks_total": member.tasks.len(),
-        "tasks_truncated": member.tasks.len() > MAX_TASKS,
+        "tasks_truncated": member.tasks.len() > 50,
+        "dependencies": member.dependencies,
         "internal_dependencies": member.internal_dependencies
     })
 }
@@ -93,13 +93,70 @@ pub(super) fn script_tasks(
     manifest: &str,
     scripts: &[(String, String)],
 ) -> Vec<BuildTask> {
+    let ids = scripts
+        .iter()
+        .map(|(name, _)| {
+            (
+                name.clone(),
+                entity_id(repository, "task", &["npm", manifest, name]),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let graph = scripts
+        .iter()
+        .map(|(name, command)| {
+            (
+                name.clone(),
+                super::manifests::npm_script_invocations(command, &ids),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
     scripts
         .iter()
         .map(|(name, command)| BuildTask {
-            id: entity_id(repository, "task", &["npm", manifest, name]),
+            id: ids[name].clone(),
             kind: "script",
             name: name.clone(),
             command: command.clone(),
+            invokes: graph[name]
+                .iter()
+                .filter_map(|target| ids.get(target).cloned())
+                .collect(),
+            cycle: super::manifests::npm_script_cycle(name, &graph),
+            argument_forwarding: if command.contains(" -- ") {
+                "EXPLICIT_DOUBLE_DASH"
+            } else if graph[name].is_empty() {
+                "NOT_APPLICABLE"
+            } else {
+                "SHELL_DEPENDENT"
+            },
+        })
+        .collect()
+}
+
+pub(super) fn npm_dependencies(
+    repository: &str,
+    manifest: &str,
+    dependencies: &[(String, &'static str)],
+) -> Vec<BuildDependency> {
+    dependencies
+        .iter()
+        .map(|(name, scope)| BuildDependency {
+            id: entity_id(
+                repository,
+                "build-dependency",
+                &["npm", manifest, name, scope],
+            ),
+            name: name.clone(),
+            native_name: name.clone(),
+            member: None,
+            source_target: None,
+            target: None,
+            scope,
+            condition: "UNCONDITIONAL_DECLARATION".to_owned(),
+            condition_ast: BuildCondition::Always,
+            workspace_inherited: false,
+            resolution: "EXTERNAL_OR_UNRESOLVED",
         })
         .collect()
 }
@@ -143,6 +200,8 @@ pub(super) fn cargo_targets(
                     doctest: target.doctest,
                     harness: target.harness,
                     proc_macro: target.proc_macro,
+                    composite: None,
+                    extends: None,
                 },
             )
         })
@@ -237,51 +296,5 @@ fn build_target(
         conditions,
         condition_ast,
         options,
-    }
-}
-
-pub(super) fn pending_dependency(
-    repository: &str,
-    name: &str,
-    scope: &'static str,
-) -> BuildDependency {
-    BuildDependency {
-        id: entity_id(repository, "build-dependency", &[name, scope]),
-        name: name.to_owned(),
-        member: None,
-        source_target: None,
-        target: None,
-        scope,
-        condition: "UNCONDITIONAL_DECLARATION",
-        condition_ast: BuildCondition::Always,
-    }
-}
-
-pub(super) fn path_dependency(
-    repository: &str,
-    name: &str,
-    member_dir: &str,
-    scope: &'static str,
-) -> BuildDependency {
-    BuildDependency {
-        id: entity_id(repository, "build-dependency", &[name, member_dir, scope]),
-        name: name.to_owned(),
-        member: Some(entity_id(
-            repository,
-            "member",
-            &[
-                "cargo",
-                &if member_dir.is_empty() {
-                    "Cargo.toml".to_owned()
-                } else {
-                    format!("{member_dir}/Cargo.toml")
-                },
-            ],
-        )),
-        source_target: None,
-        target: None,
-        scope,
-        condition: "UNCONDITIONAL_DECLARATION",
-        condition_ast: BuildCondition::Always,
     }
 }

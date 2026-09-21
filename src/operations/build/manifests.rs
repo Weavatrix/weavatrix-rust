@@ -2,6 +2,7 @@
 //! member names, targets and path dependencies. Text in, facts out.
 
 use blazingly_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::ManifestIndex;
 use super::model::{Runner, entity_id};
@@ -43,6 +44,49 @@ pub(super) fn npm_package(text: &str) -> NpmPackage {
         scripts,
         dependencies,
     }
+}
+
+pub(super) fn npm_script_invocations(command: &str, ids: &BTreeMap<String, String>) -> Vec<String> {
+    let words = command
+        .split(|character: char| character.is_whitespace() || ";&|".contains(character))
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>();
+    let mut found = Vec::new();
+    for index in 0..words.len() {
+        let target = match words[index..] {
+            ["npm" | "npm.cmd" | "pnpm" | "yarn", "run", target, ..] | ["yarn", target, ..] => {
+                Some(target)
+            }
+            ["npm" | "npm.cmd", "test", ..] => Some("test"),
+            _ => None,
+        };
+        if let Some(target) = target.filter(|target| ids.contains_key(*target)) {
+            found.push(target.to_owned());
+        }
+    }
+    found.sort();
+    found.dedup();
+    found
+}
+
+pub(super) fn npm_script_cycle(name: &str, graph: &BTreeMap<String, Vec<String>>) -> bool {
+    graph[name]
+        .iter()
+        .any(|target| target == name || reaches(name, target, graph, &mut BTreeSet::new()))
+}
+
+fn reaches(
+    goal: &str,
+    current: &str,
+    graph: &BTreeMap<String, Vec<String>>,
+    seen: &mut BTreeSet<String>,
+) -> bool {
+    seen.insert(current.to_owned())
+        && graph.get(current).is_some_and(|targets| {
+            targets
+                .iter()
+                .any(|target| target == goal || reaches(goal, target, graph, seen))
+        })
 }
 
 /// `workspaces` as an array or the `{"packages": [...]}` object form.

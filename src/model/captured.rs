@@ -236,7 +236,7 @@ fn should_capture_scanned(path: &str) -> bool {
     let source_extension = Path::new(name)
         .extension()
         .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| matches!(extension, "go" | "py"));
+        .is_some_and(|extension| matches!(extension, "go" | "py" | "rs"));
     PROBED_NAMES.contains(&name)
         || source_extension
         || name.starts_with("tsconfig")
@@ -290,11 +290,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn scanned_capture_policy_includes_p2_inputs_but_not_arbitrary_sources() {
+    fn scanned_capture_policy_includes_p2_inputs_and_verifier_sources() {
         assert!(should_capture_scanned("packages/a/Cargo.toml"));
         assert!(should_capture_scanned("packages/a/tsconfig.build.json"));
         assert!(should_capture_scanned(".github/workflows/ci.yml"));
-        assert!(should_capture_scanned("tests/architecture/self.rs"));
-        assert!(!should_capture_scanned("src/lib.rs"));
+        assert!(should_capture_scanned("src/lib.rs"));
+        assert!(!should_capture_scanned("src/app.js"));
     }
 }

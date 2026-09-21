@@ -53,4 +53,8 @@ pub(crate) struct TargetOptions {
     pub harness: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proc_macro: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub composite: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extends: Option<String>,
 }

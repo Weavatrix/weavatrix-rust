@@ -6,6 +6,8 @@ pub(super) struct Found {
     pub detail: String,
     pub target: Option<String>,
     pub target_exists: Option<bool>,
+    pub package: Option<String>,
+    pub manifest_path: Option<String>,
     pub reliability: &'static str,
     pub source_text: String,
 }
@@ -61,6 +63,8 @@ fn other(words: &[&str], found: &mut Vec<Found>) {
         detail: "literal check invocation".to_owned(),
         target: None,
         target_exists: None,
+        package: None,
+        manifest_path: None,
         reliability: "LITERAL_COMMAND",
         source_text: String::new(),
     });
@@ -80,6 +84,8 @@ fn javascript(words: &[&str], found: &mut Vec<Found>) {
         detail: format!("literal {tool} invocation"),
         target: None,
         target_exists: None,
+        package: None,
+        manifest_path: None,
         reliability: "LITERAL_COMMAND",
         source_text: String::new(),
     });
@@ -98,6 +104,8 @@ fn cargo(
             detail: "cargo fmt --check".to_owned(),
             target: None,
             target_exists: None,
+            package: None,
+            manifest_path: None,
             reliability: "LITERAL_COMMAND",
             source_text: String::new(),
         }),
@@ -110,32 +118,12 @@ fn cargo(
             },
             target: None,
             target_exists: None,
+            package: None,
+            manifest_path: None,
             reliability: "LITERAL_COMMAND",
             source_text: String::new(),
         }),
-        Some("test") => {
-            let target = words
-                .windows(2)
-                .find(|pair| pair[0] == "--test")
-                .map(|pair| pair[1].trim_matches(['\'', '"']).to_owned());
-            let exists = target.as_ref().and_then(|target| {
-                build.map(|(model, working)| model.target_exists("test", target, working))
-            });
-            found.push(Found {
-                kind: "cargo_test",
-                detail: if words.contains(&"--all-features") {
-                    "all features".to_owned()
-                } else if words.contains(&"--no-default-features") {
-                    "no default features".to_owned()
-                } else {
-                    "default feature selection".to_owned()
-                },
-                target,
-                target_exists: exists,
-                reliability: "LITERAL_COMMAND",
-                source_text: String::new(),
-            });
-        }
+        Some("test") => cargo_test(build, words, found),
         Some("llvm-cov") => {
             let threshold = words
                 .windows(2)
@@ -154,6 +142,8 @@ fn cargo(
                     ),
                     target: None,
                     target_exists: None,
+                    package: None,
+                    manifest_path: None,
                     reliability: "LITERAL_COMMAND",
                     source_text: String::new(),
                 });
@@ -164,6 +154,8 @@ fn cargo(
             detail: "declared cargo-tree check; anchored grep misses tree glyphs".to_owned(),
             target: None,
             target_exists: None,
+            package: None,
+            manifest_path: None,
             reliability: "KNOWN_COUNTEREXAMPLE",
             source_text: String::new(),
         }),
@@ -172,11 +164,53 @@ fn cargo(
             detail: "configured dependency audit command; result not observed".to_owned(),
             target: None,
             target_exists: None,
+            package: None,
+            manifest_path: None,
             reliability: "LITERAL_COMMAND",
             source_text: String::new(),
         }),
         _ => {}
     }
+}
+
+fn cargo_test(build: Option<(&BuildModel, Option<&str>)>, words: &[&str], found: &mut Vec<Found>) {
+    let option = |names: &[&str]| {
+        words.windows(2).find_map(|pair| {
+            names
+                .contains(&pair[0])
+                .then(|| pair[1].trim_matches(['\'', '"']).to_owned())
+        })
+    };
+    let target = option(&["--test"]);
+    let package = option(&["-p", "--package"]);
+    let manifest_path = option(&["--manifest-path"]);
+    let exists = target.as_ref().and_then(|target| {
+        build.map(|(model, working)| {
+            model.target_exists(
+                "test",
+                target,
+                working,
+                package.as_deref(),
+                manifest_path.as_deref(),
+            )
+        })
+    });
+    found.push(Found {
+        kind: "cargo_test",
+        detail: if words.contains(&"--all-features") {
+            "all features".to_owned()
+        } else if words.contains(&"--no-default-features") {
+            "no default features".to_owned()
+        } else {
+            "default feature selection".to_owned()
+        },
+        target,
+        target_exists: exists,
+        package,
+        manifest_path,
+        reliability: "LITERAL_COMMAND",
+        source_text: String::new(),
+    });
 }
 
 fn npm(words: &[&str], found: &mut Vec<Found>) {
@@ -194,6 +228,8 @@ fn npm(words: &[&str], found: &mut Vec<Found>) {
             detail: format!("npm script {script}; body unresolved unless locally inspected"),
             target: Some(script.to_owned()),
             target_exists: None,
+            package: None,
+            manifest_path: None,
             reliability: "WRAPPER_UNRESOLVED",
             source_text: String::new(),
         });

@@ -61,7 +61,7 @@ pub(super) fn attach(state: &RepositoryState, name: &str, args: &Value, report: 
         .ok()
         .and_then(Option::as_ref)
         .map_or((Vec::new(), 0), |contract| {
-            declared_rule_bindings(state, contract, &selected, &checks)
+            super::linkage::declared_rule_bindings(state, &build, contract, &selected, &checks)
         });
     let mut diagnostics = [restrictions_error, declaration.err()]
         .into_iter()
@@ -184,76 +184,4 @@ fn check_candidate(
         "failure_effect": check["failure_effect"],
         "recognition": check["recognition"]
     })
-}
-
-fn declared_rule_bindings(
-    state: &RepositoryState,
-    contract: &Value,
-    selected: &[Value],
-    checks: &Value,
-) -> (Vec<Value>, usize) {
-    let Some(rules) = contract.get("dependencyRules").and_then(Value::as_array) else {
-        return (Vec::new(), 0);
-    };
-    let verifier_reference = architecture_test_references_verifier(state);
-    let checker = checks.as_array().into_iter().flatten().find(|check| {
-        check["kind"] == "cargo_test"
-            && check["target"] == "architecture"
-            && check["target_resolved"] == true
-    });
-    let matching = rules
-        .iter()
-        .filter(|rule| {
-            rule["from"].as_array().is_some_and(|sources| {
-                sources.iter().any(|source| {
-                    selected.iter().any(|file| {
-                        file["declared_components"]
-                            .as_array()
-                            .is_some_and(|ids| ids.contains(source))
-                    })
-                })
-            })
-        })
-        .collect::<Vec<_>>();
-    let total = matching.len();
-    (
-        matching
-            .into_iter()
-            .take(50)
-            .map(|rule| {
-                json!({
-                    "rule_id": rule["id"],
-                    "declaration": ".weavatrix/architecture.json",
-                    "checker": checker.map(|check| &check["id"]),
-                    "linkage": if checker.is_some() && verifier_reference {
-                        "STATIC_REFERENCE_CANDIDATE"
-                    } else {
-                        "UNBOUND"
-                    },
-                    "execution": "NOT_OBSERVED",
-                    "merge_requirement": "NOT_OBSERVED"
-                })
-            })
-            .collect(),
-        total,
-    )
-}
-
-fn architecture_test_references_verifier(state: &RepositoryState) -> bool {
-    state
-        .evidence()
-        .paths()
-        .filter(|path| {
-            path.starts_with("tests/architecture/")
-                && std::path::Path::new(path)
-                    .extension()
-                    .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"))
-        })
-        .take(100)
-        .any(|path| {
-            state
-                .evidence()
-                .text(path)
-                .is_some_and(|text| text.contains("verify_architecture"))
-        })
 }

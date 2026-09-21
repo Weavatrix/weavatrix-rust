@@ -2,6 +2,7 @@ use crate::language_fixture::Fixture;
 use blazingly_json::{Value, json};
 use weavatrix_rust::{Weavatrix, tools};
 
+mod linkage;
 mod p2;
 
 #[test]

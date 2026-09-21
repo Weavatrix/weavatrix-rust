@@ -5,11 +5,11 @@ mod cargo_manifest;
 mod conditions;
 mod ecosystem_details;
 mod ecosystems;
+mod go;
 mod manifests;
 mod model;
 mod python;
 mod render;
-mod standalone;
 
 use crate::engine::RepositoryState;
 use blazingly_json::{Value, json};
@@ -33,20 +33,46 @@ pub(in crate::operations) fn build_graph(
 ) -> Result<Value, String> {
     let (model, _) = analyze(state);
     let mut report = render::report(args, &model)?;
+    attach_completeness(&model, &mut report);
     super::ci::attach(state, &mut report);
     Ok(report)
 }
 
 pub(crate) fn architecture_topology(model: &BuildModel) -> Value {
+    let unknowns = semantic_unknowns(model);
     json!({
         "schema_version": model.schema_version,
-        "status": if model.diagnostics.is_empty() && model.input_capture.complete {"COMPLETE"} else {"INCOMPLETE"},
+        "status": if model.diagnostics.is_empty() && model.input_capture.complete && unknowns == 0 {"COMPLETE"} else {"INCOMPLETE"},
+        "analysis": {"coverage": if unknowns == 0 {"BOUNDED_STATIC"} else {"BOUNDED_STATIC_WITH_UNRESOLVED"},
+                     "unknowns_total": unknowns, "closed_world": false},
         "workspaces": &model.workspaces,
         "runners": &model.runners,
         "diagnostics": &model.diagnostics,
         "input_capture": model.input_capture,
         "semantic_precision": "BOUNDED_STATIC"
     })
+}
+
+fn attach_completeness(model: &BuildModel, report: &mut Value) {
+    let unknowns = semantic_unknowns(model);
+    report["analysis"] = json!({
+        "coverage": if unknowns == 0 {"BOUNDED_STATIC"} else {"BOUNDED_STATIC_WITH_UNRESOLVED"},
+        "unknowns_total": unknowns,
+        "closed_world": false
+    });
+    if unknowns > 0 {
+        report["status"] = json!("INCOMPLETE");
+    }
+}
+
+fn semantic_unknowns(model: &BuildModel) -> usize {
+    model
+        .workspaces
+        .iter()
+        .flat_map(|workspace| &workspace.members)
+        .flat_map(|member| &member.dependencies)
+        .filter(|dependency| dependency.resolution.contains("UNRESOLVED"))
+        .count()
 }
 
 pub(crate) fn model(state: &RepositoryState) -> BuildModel {
@@ -60,7 +86,7 @@ fn analyze(state: &RepositoryState) -> (BuildModel, ManifestIndex) {
     ecosystems::npm_workspaces(state, &index, &mut workspaces, &mut claimed);
     ecosystems::cargo_workspaces(state, &index, &mut workspaces, &mut claimed);
     ecosystems::go_workspaces(state, &index, &mut workspaces, &mut claimed);
-    standalone::packages(state, &index, &mut workspaces, &claimed);
+    standalone_packages(state, &index, &mut workspaces, &claimed);
     workspaces.sort_by(|left, right| {
         (left.ecosystem, &left.aggregator).cmp(&(right.ecosystem, &right.aggregator))
     });
@@ -84,7 +110,7 @@ fn analyze(state: &RepositoryState) -> (BuildModel, ManifestIndex) {
 
 fn manifest_diagnostics(state: &RepositoryState, index: &ManifestIndex) -> Vec<BuildDiagnostic> {
     let mut diagnostics = Vec::new();
-    for name in ["Cargo.toml", "package.json", "go.mod"] {
+    for name in ["Cargo.toml", "package.json", "go.mod", "pyproject.toml"] {
         for path in locate(state, index, name) {
             let Some(text) = read_manifest(state, &path) else {
                 diagnostics.push(BuildDiagnostic {
@@ -101,6 +127,16 @@ fn manifest_diagnostics(state: &RepositoryState, index: &ManifestIndex) -> Vec<B
                 diagnostics.push(BuildDiagnostic {
                     manifest: path,
                     reason: "invalid_package_json",
+                });
+            } else if name == "Cargo.toml" && !manifests::cargo_manifest(&text).valid {
+                diagnostics.push(BuildDiagnostic {
+                    manifest: path,
+                    reason: "invalid_cargo_manifest",
+                });
+            } else if name == "pyproject.toml" && !python::valid_manifest(&text) {
+                diagnostics.push(BuildDiagnostic {
+                    manifest: path,
+                    reason: "invalid_pyproject_manifest",
                 });
             }
         }
@@ -194,4 +230,69 @@ pub(super) fn dir_is_member(aggregator_dir: &str, patterns: &[String], dir: &str
                     .is_some_and(|excluded| manifests::glob_matches(excluded, relative))
             })
     })
+}
+
+fn standalone_packages(
+    state: &RepositoryState,
+    index: &ManifestIndex,
+    workspaces: &mut Vec<model::Workspace>,
+    claimed: &BTreeSet<String>,
+) {
+    for manifest in locate(state, index, "package.json") {
+        let key = format!("npm:{manifest}");
+        let is_aggregator = workspaces
+            .iter()
+            .any(|workspace| workspace.aggregator == manifest);
+        if claimed.contains(&key) || is_aggregator {
+            continue;
+        }
+        let dir = parent_dir(&manifest);
+        let member = ecosystems::npm_member(state, &manifest, &dir);
+        workspaces.push(single_member_workspace(state, "npm", manifest, member));
+    }
+    for manifest in locate(state, index, "Cargo.toml") {
+        if claimed.contains(&format!("cargo:{manifest}")) {
+            continue;
+        }
+        let Some(text) = read_manifest(state, &manifest) else {
+            continue;
+        };
+        let parsed = manifests::cargo_manifest(&text);
+        if parsed.workspace || parsed.name.is_none() {
+            continue;
+        }
+        let dir = parent_dir(&manifest);
+        let member = ecosystems::cargo_member(state, index, &manifest, &dir, None);
+        workspaces.push(single_member_workspace(state, "cargo", manifest, member));
+    }
+    for manifest in locate(state, index, "go.mod") {
+        if claimed.contains(&format!("go:{manifest}")) {
+            continue;
+        }
+        let dir = parent_dir(&manifest);
+        let member = ecosystems::go_member(state, manifest.clone(), &dir);
+        workspaces.push(single_member_workspace(state, "go", manifest, member));
+    }
+    python::distributions(state, index, workspaces);
+}
+
+fn single_member_workspace(
+    state: &RepositoryState,
+    ecosystem: &'static str,
+    manifest: String,
+    member: model::Member,
+) -> model::Workspace {
+    let default_members = vec![member.id.clone()];
+    model::Workspace {
+        id: model::entity_id(
+            &state.snapshot().repository,
+            "workspace",
+            &[ecosystem, &manifest],
+        ),
+        ecosystem,
+        aggregator: manifest,
+        default_members,
+        excluded_paths: Vec::new(),
+        members: vec![member],
+    }
 }
