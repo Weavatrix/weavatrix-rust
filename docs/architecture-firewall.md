@@ -187,8 +187,10 @@ violations identify the source file and required target components.
 
 ## Operations
 
-- `architecture_inventory`: observed folders and typed edges, not a style;
-  defaults to a bounded `summary`, while `detail: "full"` exposes paged evidence;
+- `architecture_inventory`: observed folders and typed edges with
+  evidence-bounded, multi-dimensional style hypotheses, independent of the
+  declared target style; defaults to a bounded `summary`, while
+  `detail: "full"` exposes paged evidence;
 - `get_architecture_contract`: reads or previews a contract and attaches
   the same observed facts;
 - `verify_architecture`: evaluates the active contract;

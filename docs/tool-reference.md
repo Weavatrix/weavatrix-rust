@@ -114,9 +114,11 @@ is weak evidence for each of them, and profiler attribution it is not.
 - `list_endpoints`, `trace_endpoint`: HTTP inventory and route neighborhoods.
 - `trace_api_contract`: cross-repository HTTP, GraphQL, gRPC, Kafka,
   RabbitMQ/AMQP, JMS, NATS, SQS, and SNS evidence.
-- `architecture_inventory`: bounded observed architecture summary by default,
-  with complete edge and cycle-candidate totals; `detail: "full"` returns paged
-  typed evidence. Not a style label or the target contract.
+- `architecture_inventory`: bounded observed architecture summary and
+  independent style hypotheses by default, with complete edge and
+  cycle-candidate totals; `detail: "full"` returns paged typed evidence.
+  Hypotheses report observed signals, contradictions, unknowns, and status;
+  they do not reuse the target contract's declared style.
 - `get_architecture_contract`, `verify_architecture`: local target policy.
   The contract answer also carries `observed` facts.
 - `explain_architecture_violation`, `propose_architecture_exception`: bounded

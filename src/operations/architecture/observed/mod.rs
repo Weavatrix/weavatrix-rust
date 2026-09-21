@@ -4,6 +4,7 @@
 mod components;
 mod cycles;
 mod edges;
+mod hypotheses;
 mod packages;
 mod summary;
 
@@ -131,6 +132,14 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
     let relations = edges::collect(state, &components);
     let cycles = cycles::analyze(&components, &relations.cross)?;
     let build = crate::operations::build::model(state);
+    let packages = packages::collect(&build);
+    let architecture_hypotheses = hypotheses::analyze(
+        state,
+        &components,
+        &relations.cross,
+        &packages,
+        capture.complete,
+    );
     let total = relations.cross.len();
     // A cursor belongs to these captured graph facts, not just a revision name.
     let identity = sha3_256(
@@ -171,7 +180,7 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
     Ok(json!({
         "kind": "observed",
         "analysis_id": identity,
-        "model": "structural directory fallback and typed graph edges; not a style label or build-module claim",
+        "model": "structural directory fallback, typed graph edges, and evidence-bounded architecture hypotheses",
         "view": "structural_directory_fallback.v1",
         "status": if diagnostic.is_some() || !capture.complete || truncated || cycles["cyclic_scc_truncated"] == true || cycles["condensation_truncated"] == true {"INCOMPLETE"} else {"COMPLETE"},
         "analysis": {"coverage": "BOUNDED_OBSERVATION", "closed_world": false,
@@ -179,7 +188,8 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
                      "unknowns_total": usize::from(diagnostic.is_some()) + capture.excluded.len()},
         "input_capture": capture,
         "diagnostics": diagnostic.into_iter().collect::<Vec<_>>(),
-        "packages": packages::collect(&build),
+        "packages": packages,
+        "architecture_hypotheses": architecture_hypotheses,
         "build_topology": crate::operations::build::architecture_topology(&build),
         "components": components.iter().map(component_json).collect::<Vec<_>>(),
         "edges": returned,

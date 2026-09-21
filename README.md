@@ -89,7 +89,13 @@ See [Architecture Firewall](docs/architecture-firewall.md) for the contract,
 rule semantics, budgets, ratchet behavior, and operation reference.
 
 `architecture_inventory` separately reports observed packages, nested
-components, declared memberships, and typed edges without assigning a style.
+components, declared memberships, typed edges, and evidence-bounded style
+hypotheses. Its independent dimensions distinguish modular source organization,
+onion dependency direction, ports-and-adapters, layered dependencies, and
+deployment uncertainty. Each hypothesis has required and observed signals,
+counter-evidence, unknowns, and a `SUPPORTED`, `CANDIDATE`, `CONTRADICTED`, or
+`INSUFFICIENT_EVIDENCE` status. The declared contract's `style` field is never
+used as evidence of the actual architecture.
 Its default `detail: "summary"` is a bounded orientation view: complete graph
 totals, representative components, dominant coupling, and clearly labeled
 cycle candidates with readable paths. Use `detail: "full"` for the evidence

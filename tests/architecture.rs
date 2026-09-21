@@ -11,6 +11,8 @@ mod architecture_budgets;
 mod architecture_capabilities;
 #[path = "architecture/architecture_capability_scope.rs"]
 mod architecture_capability_scope;
+#[path = "architecture/architecture_hypotheses.rs"]
+mod architecture_hypotheses;
 #[path = "architecture/architecture_observed.rs"]
 mod architecture_observed;
 #[path = "architecture/architecture_policy_boundaries.rs"]

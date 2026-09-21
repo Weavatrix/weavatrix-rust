@@ -187,7 +187,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "architecture_inventory",
-        description: "Architecture orientation from observed packages, folders, typed coupling and cycle candidates. Defaults to a bounded summary; request detail=full for paged evidence. Not a style label or target contract.",
+        description: "Infer evidence-bounded architecture hypotheses (modular source, onion, ports-and-adapters, layered, microservices) from observed code and typed dependencies. Defaults to a bounded summary; detail=full returns paged graph evidence. Declared target style is not evidence.",
         required: &[],
     },
     ToolSpec {

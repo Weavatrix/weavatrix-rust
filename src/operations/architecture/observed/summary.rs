@@ -26,6 +26,7 @@ pub(super) fn from_full(full: &Value) -> Value {
             "excluded_total": full["input_capture"]["excluded"].as_array().map_or(0, Vec::len)
         },
         "diagnostics": full["diagnostics"],
+        "architecture_hypotheses": full["architecture_hypotheses"],
         "packages_total": full["packages"].as_array().map_or(0, Vec::len),
         "packages": packages,
         "packages_sample_truncated": full["packages"].as_array().map_or(0, Vec::len) > 16,
@@ -49,7 +50,7 @@ pub(super) fn from_full(full: &Value) -> Value {
             "runners": runners,
             "runners_sample_truncated": full["build_topology"]["runners"].as_array().map_or(0, Vec::len) > 8
         },
-        "interpretation": "Observed structural evidence, not an architecture style or target contract. Cycle candidates are quotient/union cycles, not proven runtime cycles.",
+        "interpretation": "Architecture styles are evidence-bounded hypotheses, not the declared target contract. Cycle candidates are quotient/union cycles, not proven runtime cycles.",
         "follow_up": "Use detail=full to inspect all components, paged edges, provenance, and cycle witnesses."
     })
 }

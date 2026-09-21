@@ -40,7 +40,7 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "enum": ["summary", "full"],
             "default": "summary",
-            "description": "summary gives bounded architectural orientation with complete graph counts, readable paths, dominant coupling and cycle candidates; full returns the detailed evidence graph with paged edges. max_results or edge_cursor without detail implies full"
+            "description": "summary gives bounded architecture hypotheses, complete graph counts, readable paths, dominant coupling and cycle candidates; full returns the detailed evidence graph with paged edges. max_results or edge_cursor without detail implies full"
         }));
     }
     if tool == "architecture_inventory" && name == "edge_cursor" {
