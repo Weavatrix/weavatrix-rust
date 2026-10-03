@@ -6,6 +6,12 @@ use crate::operations::{arg_str, arg_u64, optional_u64};
 use blazingly_json::{Value, json};
 use std::fs;
 
+#[cfg(feature = "search")]
+#[path = "source_excerpt.rs"]
+mod search_excerpt;
+#[cfg(feature = "search")]
+use search_excerpt::render_search_match;
+
 pub fn read_source(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let (relative, anchor) = if let Ok(label) = arg_str(args, "label") {
         let index = state.resolve_node(label)?;
@@ -98,18 +104,11 @@ pub fn search(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let retained_matches = report.matches.len();
     let returned_matches = retained_matches.min(max);
     let truncated = report.truncated || retained_matches > max;
+    let line_limit = budget.map(|tokens| tokens.saturating_mul(2).clamp(64, 256));
     let mut rendered = json!({
         "backend": format!("{:?}", report.backend).to_ascii_lowercase(),
-        "matches": report.matches.into_iter().take(max).map(|item| json!({
-            "path": item.path,
-            "line": item.line_number,
-            "end_line": item.end_line_number,
-            "text": item.line,
-            "encoding": item.encoding,
-            "spans": item.spans.into_iter().map(|span| json!({
-            "pattern": span.pattern_index, "start": span.start, "end": span.end
-            })).collect::<Vec<_>>()
-        })).collect::<Vec<_>>(),
+        "matches": report.matches.into_iter().take(max)
+            .map(|item| render_search_match(item, line_limit)).collect::<Vec<_>>(),
         "totals": {
             "matching_lines": total_matching_lines,
             "occurrences": total_occurrences,

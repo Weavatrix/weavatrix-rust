@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 2.17.5 - 2026-10-03
+
+- Bound each `search_code` match excerpt around its first hit before fitting
+  the whole response to `token_budget`. A long generated line can no longer
+  consume the budget and erase short matches from later files. Budgeted hits
+  now report `text_truncated`; unbudgeted search retains complete lines.
+
 ## 2.17.2 - 2026-09-21
 
 - Make `architecture_inventory` return a bounded architectural summary by

@@ -43,10 +43,12 @@ schemas are authoritative.
   suites, runner naming conventions in reverse, and suites reached through
   bounded reverse dependencies.
 - `search_code`, `read_source`: bounded search and verified excerpts; both
-  accept `token_budget`, as do `context_bundle`, `query_graph`, and
-  `ci_restrictions`. These five operations apply a budget; any other operation still
-  answers in full and reports `token_budget.applied: false` with the estimated
-  cost, so an unapplied budget is visible rather than silent.
+  accept `token_budget`, as do `context_bundle`, `query_graph`,
+  `architecture_inventory`, and the available Git read operations. A budgeted
+  `search_code` response clips long lines around the first match and marks
+  those excerpts `text_truncated: true`; use `read_source` for the full line.
+  Operations that cannot apply a requested budget report
+  `token_budget.applied: false` with the estimated cost.
 - `inspect_symbol`, `context_bundle`: exact declarations and compact task
   worksets. `context_bundle` fills caller/callee/contract/test quotas so a
   large fan-in cannot hide a single important callee. `inspect_symbol` accepts a

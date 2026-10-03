@@ -19,5 +19,7 @@ mod no_unknown_states;
 mod perf_attribution;
 #[path = "surface/report_composition.rs"]
 mod report_composition;
+#[path = "surface/search_excerpts.rs"]
+mod search_excerpts;
 #[path = "surface/token_budgets.rs"]
 mod token_budgets;
