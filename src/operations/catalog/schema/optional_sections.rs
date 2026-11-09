@@ -121,7 +121,7 @@ pub(super) fn extension_fields(tool: &str) -> Option<&'static [&'static str]> {
         ]),
         "propose_architecture_exception" => Some(&["expires"]),
         "open_repo" => Some(&["build", "mode", "precision"]),
-        "semantic_link" => Some(&["model", "min_similarity", "top_k", "selection"]),
+        "semantic_link" => Some(&["query", "vectors", "model", "min_similarity", "top_k", "selection"]),
         "vector_search" => Some(&["top_k", "exact"]),
         "n8n_inventory" | "dify_inventory" | "agent_inventory" | "diagram_inventory"
         | "web3_inventory" => Some(&["path", "max_results"]),

@@ -78,6 +78,7 @@ pub(super) fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
         ]),
         "git_history" => Some(&[
             "revision",
+            "path",
             "months",
             "max_commits",
             "min_pair_count",

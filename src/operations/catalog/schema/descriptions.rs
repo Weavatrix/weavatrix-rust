@@ -106,6 +106,31 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "description": "Repository-relative JSON file with schema weavatrix.test-evidence.v1. Mutually exclusive with test_evidence"
         })),
+        ("semantic_link", "query") => Some(json!({
+            "type": "string",
+            "description": "Phrase ranked against symbol names, paths, and the declaration line with model weavatrix-token-hash-v1. Deterministic and local. Not a neural embedding. Omit it only when vectors is a non-empty caller-supplied embedding array"
+        })),
+        ("semantic_link", "vectors") => Some(json!({
+            "type": "array",
+            "description": "Caller-supplied embedding rows. Each object requires node (string graph id) and values (array of numbers). An empty array without query is an error and builds no links",
+            "items": {
+                "type": "object",
+                "required": ["node", "values"],
+                "properties": {
+                    "node": {"type": "string"},
+                    "values": {"type": "array", "items": {"type": "number"}}
+                }
+            }
+        })),
+        ("change_impact", "max_nodes") => Some(json!({
+            "type": "integer",
+            "minimum": 0,
+            "description": "Combined cap on impacted nodes across every seed, including a file_scope file. Production callers are kept ahead of tests. The answer reports MAX_NODES when nodes were omitted. Default 40"
+        })),
+        ("git_history", "path") => Some(json!({
+            "type": "string",
+            "description": "Repository-relative file or directory. The commits are those that touch this path. Omit it for repository HEAD history. The default six-month window applies only when path is omitted or months is set"
+        })),
         ("find_dead_code", "min_confidence") => Some(json!({
             "type": "integer",
             "minimum": 0,

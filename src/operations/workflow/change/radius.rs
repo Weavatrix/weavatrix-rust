@@ -12,6 +12,7 @@ pub(super) fn reverse_hits(
     revision: &str,
     change: &str,
     coarse: bool,
+    already: &BTreeSet<String>,
 ) -> (Vec<Value>, bool) {
     let allowed = graph::coupling_relations();
     let mut visited = BTreeSet::from([seed.id.as_str().to_owned()]);
@@ -39,23 +40,27 @@ pub(super) fn reverse_hits(
             if matches!(node.kind, NodeKind::Repository | NodeKind::Package) {
                 continue;
             }
-            if hits.len() >= max {
-                capped = true;
-                break;
+            // A node already reported for an earlier seed does not spend the
+            // shared cap. The walk still continues through it.
+            if !already.contains(other) {
+                if hits.len() >= max {
+                    capped = true;
+                    break;
+                }
+                push_hit(
+                    &mut hits,
+                    &Hit {
+                        graph,
+                        node,
+                        seed,
+                        distance: distance + 1,
+                        relation: edge.kind.as_str(),
+                        revision,
+                        change,
+                        coarse,
+                    },
+                );
             }
-            push_hit(
-                &mut hits,
-                &Hit {
-                    graph,
-                    node,
-                    seed,
-                    distance: distance + 1,
-                    relation: edge.kind.as_str(),
-                    revision,
-                    change,
-                    coarse,
-                },
-            );
             queue.push_back((other.to_owned(), distance + 1));
         }
         if capped {

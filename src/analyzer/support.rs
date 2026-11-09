@@ -31,7 +31,7 @@ pub(super) fn capabilities(registry: &LanguageRegistry) -> Vec<Capability> {
                 "Kubernetes resource inventory and Dify DSL evidence after YAML parse"
             }
             _ => {
-                "complete lossless structural fact extraction and deterministic cross-file resolution for the registered language contract"
+                "declarations, imports, and calls from the language extractor, with deterministic cross-file resolution when a name is unique in scope. Locals, reflection, and dynamic dispatch stay unresolved"
             }
         };
         Capability {

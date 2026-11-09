@@ -42,7 +42,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "change_impact",
-        description: "Read-only Git change impact at symbol granularity when a baseline exists.",
+        description: "Read-only blast radius. A named file with no measured diff seeds its symbols as change file_scope (hypothetical, not a git edit).",
         required: &[],
     },
     ToolSpec {
@@ -57,7 +57,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "git_history",
-        description: "Bounded direct Git history without launching git.",
+        description: "Bounded direct Git history without launching git. Pass path for the history of one file or directory; otherwise the result is repository HEAD history.",
         required: &[],
     },
     ToolSpec {
@@ -87,7 +87,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "search_code",
-        description: "Literal or Rust-regex repository search without ripgrep.",
+        description: "Literal or Rust-regex scan of file text (backend filesystem). This is not a graph-symbol search.",
         required: &["query"],
     },
     ToolSpec {
@@ -122,7 +122,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "find_dead_code",
-        description: "Conservative unreferenced-symbol review queue.",
+        description: "Conservative unreferenced-symbol review queue. Go main.go and func main are entry points. Exported symbols stay at confidence 50 and are omitted when min_confidence is higher.",
         required: &[],
     },
     ToolSpec {
@@ -227,7 +227,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "open_repo",
-        description: "Retarget to another local repository. Graphs unused for 20 minutes unload; asking for one again rescans that folder.",
+        description: "Retarget to another local repository only when this process was started with --allow-retarget. Otherwise the launch root stays fixed. Graphs unused for 20 minutes unload.",
         required: &["path"],
     },
     ToolSpec {
@@ -237,12 +237,12 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "semantic_link",
-        description: "Build inferred semantic graph evidence from supplied vectors.",
-        required: &["vectors"],
+        description: "Rank symbols for a text query with the deterministic local token hash weavatrix-token-hash-v1 (not a neural embedding), or link a non-empty caller-supplied vectors array. An empty vectors array without a query is an error.",
+        required: &[],
     },
     ToolSpec {
         name: "vector_search",
-        description: "Exact or bounded approximate nearest-neighbor search.",
+        description: "Nearest-neighbor search over caller-supplied numeric vectors. query is an array of numbers, not a phrase. For a phrase, use semantic_link query.",
         required: &["vectors", "query"],
     },
     ToolSpec {

@@ -37,6 +37,27 @@ pub(super) fn entry_points(state: &RepositoryState) -> Vec<NodeIndex> {
     ] {
         declared.insert(conventional.to_owned());
     }
+    // Go commands live at `cmd/<name>/main.go`, and `func main` is the entry
+    // even when the file is not named by a manifest.
+    for node in state.graph().nodes() {
+        if node.kind == NodeKind::File {
+            let name = std::path::Path::new(&node.label)
+                .file_name()
+                .and_then(|value| value.to_str());
+            if name == Some("main.go") {
+                declared.insert(node.label.clone());
+            }
+            continue;
+        }
+        if node.kind == NodeKind::Function
+            && node.label == "main"
+            && crate::operations::node_path(node).is_some_and(|path| path.ends_with(".go"))
+        {
+            if let Some(path) = crate::operations::node_path(node) {
+                declared.insert(path.to_owned());
+            }
+        }
+    }
     state
         .graph()
         .nodes()

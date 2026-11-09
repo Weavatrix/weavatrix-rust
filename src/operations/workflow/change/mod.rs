@@ -69,8 +69,14 @@ pub(super) fn change_impact_unchecked(
     };
     let mut texts = texts::FileTexts::new();
     revisions::load_texts(state, &changed, base_ref, head_rev, &mut texts);
-    let (seeds, coarse_fallback) =
-        symbols::diff(baseline.as_ref(), candidate, &changed, &mut texts);
+    let file_query = args.get("files").is_some() || args.get("target").is_some();
+    let (seeds, coarse_fallback) = symbols::diff(
+        baseline.as_ref(),
+        candidate,
+        &changed,
+        &mut texts,
+        file_query,
+    );
     let (impacts, witnesses, walk_partial) = walk_seeds(
         baseline.as_ref(),
         candidate,
@@ -106,6 +112,7 @@ pub(super) fn change_impact_unchecked(
         "impacted_nodes": impacts,
         "documentation": crate::operations::diagram::affected(state, &changed, &impacts),
         "git": git,
+        "change_basis": change_basis(&seeds),
         "precision": "graph",
         "semantic_precision": "BOUNDED_STATIC",
         "coverage_evidence": {
@@ -113,6 +120,20 @@ pub(super) fn change_impact_unchecked(
             "reason": "change_impact computes static graph reachability and does not consume measured test coverage"
         }
     }))
+}
+
+fn change_basis(seeds: &[symbols::SymbolChange]) -> &'static str {
+    let scoped = seeds
+        .iter()
+        .any(|item| item.change == symbols::ChangeKind::FileScope);
+    let measured = seeds
+        .iter()
+        .any(|item| item.change != symbols::ChangeKind::FileScope);
+    match (scoped, measured) {
+        (true, false) => "explicit_file",
+        (true, true) => "mixed",
+        _ => "revision_diff",
+    }
 }
 
 fn explicit_base(args: &Value) -> bool {
@@ -164,6 +185,9 @@ fn walk_seeds(
         } else {
             head_rev
         };
+        // Each seed may contribute up to max_nodes new nodes. The combined
+        // set is trimmed once, so one file_scope symbol cannot spend the cap
+        // before the others are seen.
         let (hits, capped) = radius::reverse_hits(
             graph,
             node,
@@ -172,10 +196,12 @@ fn walk_seeds(
             revision,
             seed.change.as_str(),
             seed.coarse,
+            &seen,
         );
         walk_partial |= capped;
         absorb(&mut impacts, &mut witnesses, &mut seen, hits);
     }
+    walk_partial |= prefer_within_cap(&mut impacts, &mut witnesses, max);
     (impacts, witnesses, walk_partial)
 }
 
@@ -186,13 +212,60 @@ fn absorb(
     hits: Vec<Value>,
 ) {
     for hit in hits {
-        if let Some(id) = hit["node"]["id"].as_str()
-            && seen.insert(id.to_owned())
-        {
+        let Some(id) = hit["node"]["id"].as_str() else {
+            continue;
+        };
+        if seen.insert(id.to_owned()) {
             impacts.push(hit["node"].clone());
+            witnesses.push(hit);
         }
-        witnesses.push(hit);
     }
+}
+
+/// Keeps at most `max` impacted nodes. Production nodes come before tests,
+/// and a closer caller comes before a farther one.
+fn prefer_within_cap(impacts: &mut Vec<Value>, witnesses: &mut Vec<Value>, max: usize) -> bool {
+    if impacts.len() <= max {
+        return false;
+    }
+    let mut order = witnesses.iter().enumerate().collect::<Vec<_>>();
+    order.sort_by(|left, right| {
+        impact_is_test(&left.1["node"])
+            .cmp(&impact_is_test(&right.1["node"]))
+            .then_with(|| json_distance(left.1).cmp(&json_distance(right.1)))
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    let mut keep = BTreeSet::new();
+    for (_, hit) in order {
+        let Some(id) = hit["node"]["id"].as_str() else {
+            continue;
+        };
+        keep.insert(id.to_owned());
+        if keep.len() == max {
+            break;
+        }
+    }
+    impacts.retain(|node| node["id"].as_str().is_some_and(|id| keep.contains(id)));
+    witnesses.retain(|hit| hit["node"]["id"].as_str().is_some_and(|id| keep.contains(id)));
+    true
+}
+
+fn json_distance(hit: &Value) -> u64 {
+    hit["distance"].as_u64().unwrap_or(u64::MAX)
+}
+
+fn impact_is_test(node: &Value) -> bool {
+    let path = node
+        .get("span")
+        .and_then(|span| span.get("file"))
+        .and_then(Value::as_str)
+        .or_else(|| node.get("label").and_then(Value::as_str))
+        .unwrap_or("");
+    let path = path.replace('\\', "/");
+    path.ends_with("_test.go")
+        || path.ends_with("_test.rs")
+        || path.ends_with("_test.py")
+        || path.split('/').any(|part| part == "test" || part == "tests")
 }
 
 fn mark_missing(

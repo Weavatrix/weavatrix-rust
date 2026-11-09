@@ -59,9 +59,16 @@ pub(super) fn analyze(
         if component.files.iter().any(|file| is_source(file)) && !component.path.is_empty() {
             context.source_dirs.insert(component.path.clone());
         }
-        if component.files.iter().any(|file| is_module_marker(file)) {
+        if component.files.iter().any(|file| is_module_marker(file))
+            || directory_has_manifest(state, &component.path)
+        {
             context.module_markers.insert(component.path.clone());
         }
+    }
+    // A repository-root go.mod is not a source file, so it never appears as a
+    // graph File node. The directory that contains the manifest still counts.
+    if directory_has_manifest(state, "") {
+        context.module_markers.insert(String::new());
     }
     for node in state.graph().nodes() {
         if node.kind != NodeKind::Trait {
@@ -193,9 +200,35 @@ fn is_source(path: &str) -> bool {
     )
 }
 
+fn directory_has_manifest(state: &RepositoryState, directory: &str) -> bool {
+    const NAMES: &[&str] = &["go.mod", "Cargo.toml", "package.json", "pyproject.toml"];
+    NAMES.iter().any(|name| {
+        let relative = if directory.is_empty() {
+            (*name).to_owned()
+        } else {
+            format!("{directory}/{name}")
+        };
+        state.root().join(relative).is_file()
+    })
+}
+
 fn is_module_marker(path: &str) -> bool {
+    // `go.sum` is a checksum list, not a module boundary. One manifest in a
+    // repository counts as one marker; `modular_source` stays CANDIDATE until
+    // a second marker and the directory thresholds are both met.
     matches!(
-        path.rsplit('/').next(),
-        Some("mod.rs" | "__init__.py" | "index.ts" | "index.tsx" | "index.js" | "index.jsx")
+        path.rsplit(['/', '\\']).next(),
+        Some(
+            "mod.rs"
+                | "__init__.py"
+                | "index.ts"
+                | "index.tsx"
+                | "index.js"
+                | "index.jsx"
+                | "go.mod"
+                | "Cargo.toml"
+                | "package.json"
+                | "pyproject.toml"
+        )
     )
 }

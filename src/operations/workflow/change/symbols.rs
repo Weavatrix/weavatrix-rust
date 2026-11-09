@@ -15,6 +15,9 @@ pub(super) enum ChangeKind {
     LineShift,
     Relocated,
     FileLevel,
+    /// The caller named this file. The worktree matches the baseline, so each
+    /// declared symbol is a hypothetical seed rather than a measured edit.
+    FileScope,
 }
 
 impl ChangeKind {
@@ -29,6 +32,7 @@ impl ChangeKind {
             Self::LineShift => "line_shift",
             Self::Relocated => "relocated",
             Self::FileLevel => "file_level",
+            Self::FileScope => "file_scope",
         }
     }
 
@@ -42,6 +46,7 @@ impl ChangeKind {
                 | Self::Export
                 | Self::Relocated
                 | Self::FileLevel
+                | Self::FileScope
         )
     }
 }
@@ -61,8 +66,29 @@ pub(super) fn diff(
     candidate: &Graph,
     files: &[String],
     texts: &mut FileTexts,
+    file_query: bool,
 ) -> (Vec<SymbolChange>, bool) {
     let Some(baseline) = baseline else {
+        if file_query {
+            let nodes = in_files(candidate, files);
+            let mut seeds = Vec::new();
+            for path in files {
+                let mapped = nodes.iter().any(|node| {
+                    node.kind != NodeKind::File && node_path(node) == Some(path.as_str())
+                });
+                if !mapped {
+                    continue;
+                }
+                for node in &nodes {
+                    if scope_seed(node) && node_path(node) == Some(path.as_str()) {
+                        seeds.push(record(node, ChangeKind::FileScope, false, false));
+                    }
+                }
+            }
+            if !seeds.is_empty() {
+                return (seeds, false);
+            }
+        }
         return (file_seeds(candidate, files), true);
     };
     let before = in_files(baseline, files);
@@ -88,20 +114,34 @@ pub(super) fn diff(
         }
         changes.push(record(node, ChangeKind::Added, false, false));
     }
-    let behavioral_files = changes
+    // Any real symbol diff, including a comment-only edit, is the measured
+    // change. File-scope seeds apply only when the caller named the file and
+    // the baseline and candidate declare the same symbols.
+    let touched_files = changes
         .iter()
-        .filter(|item| item.change.walk() && item.change != ChangeKind::FileLevel)
         .filter_map(|item| item.path.clone())
         .collect::<BTreeSet<_>>();
     for path in files {
-        if behavioral_files.contains(path) {
+        if touched_files.contains(path) {
             continue;
         }
         let mapped = after
             .iter()
             .any(|node| node.kind != NodeKind::File && node_path(node) == Some(path.as_str()));
         if mapped {
-            continue;
+            if file_query {
+                let before = changes.len();
+                for node in &after {
+                    if scope_seed(node) && node_path(node) == Some(path.as_str()) {
+                        changes.push(record(node, ChangeKind::FileScope, false, false));
+                    }
+                }
+                if changes.len() > before {
+                    continue;
+                }
+            } else {
+                continue;
+            }
         }
         if let Some(file) = after
             .iter()
@@ -123,6 +163,19 @@ pub(super) fn to_json(item: &SymbolChange) -> Value {
         "revision": if item.use_baseline { "base" } else { "candidate" },
         "coarse": item.coarse
     })
+}
+
+fn scope_seed(node: &Node) -> bool {
+    matches!(
+        node.kind,
+        NodeKind::Function
+            | NodeKind::Method
+            | NodeKind::Struct
+            | NodeKind::Enum
+            | NodeKind::Trait
+            | NodeKind::TypeAlias
+            | NodeKind::Constant
+    )
 }
 
 fn file_seeds(graph: &Graph, files: &[String]) -> Vec<SymbolChange> {

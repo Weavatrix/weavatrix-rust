@@ -41,24 +41,42 @@ pub fn history(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     )?;
     let max = usize::try_from(optional_u64(args, "max_commits")?.unwrap_or(100))
         .map_err(|_| "max_commits is too large")?;
-    let months = optional_u64(args, "months")?.unwrap_or(6);
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| error.to_string())?
-        .as_secs();
-    let window = months.saturating_mul(2_629_746);
-    let since = i64::try_from(now.saturating_sub(window)).unwrap_or(i64::MIN);
-    let records = repository
-        .history(
-            start,
-            HistoryOptions {
-                max_commits: max,
-                since: Some(since),
-                first_parent: optional_bool(args, "first_parent")?.unwrap_or(false),
-                ..HistoryOptions::default()
-            },
-        )
-        .map_err(|error| error.to_string())?;
+    let months_arg = optional_u64(args, "months")?;
+    let path = optional_str(args, "path")?.map(normalize_history_path);
+    // A file history must reach the commit that last touched the file. The
+    // six-month default is for repository-wide history only.
+    let months = if path.is_some() && months_arg.is_none() {
+        None
+    } else {
+        Some(months_arg.unwrap_or(6))
+    };
+    let since = months.map(|months| {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0);
+        let window = months.saturating_mul(2_629_746);
+        i64::try_from(now.saturating_sub(window)).unwrap_or(i64::MIN)
+    });
+    let first_parent = optional_bool(args, "first_parent")?.unwrap_or(false);
+    let (records, scanned, truncated) = match path.as_deref() {
+        Some(path) => file_history(&repository, start, path, max, since, first_parent)?,
+        None => {
+            let records = repository
+                .history(
+                    start,
+                    HistoryOptions {
+                        max_commits: max,
+                        since,
+                        first_parent,
+                        ..HistoryOptions::default()
+                    },
+                )
+                .map_err(|error| error.to_string())?;
+            let scanned = records.len();
+            (records, scanned, false)
+        }
+    };
     let budget = crate::operations::token_budget::requested(args)?;
     // Hotspots and co-change cost one `diff_commits` per commit and are the
     // bulk of the answer. A caller reading recent history is not asking for
@@ -68,7 +86,11 @@ pub fn history(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             "status": "COMPLETE",
             "git_evidence": {"present": true},
             "revision": start.to_string(),
+            "history_scope": if path.is_some() { "path" } else { "repository" },
+            "path": path,
             "months": months,
+            "commits_scanned": scanned,
+            "history_truncated": truncated,
             "analytics": analytics::analyze(state, &repository, &records, args)?
         })
     } else {
@@ -76,8 +98,11 @@ pub fn history(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             "status": "COMPLETE",
             "git_evidence": {"present": true, "changed_paths": false},
             "revision": start.to_string(),
+            "history_scope": if path.is_some() { "path" } else { "repository" },
+            "path": path,
             "months": months,
-            "commits_scanned": records.len(),
+            "commits_scanned": scanned,
+            "history_truncated": truncated,
             "commits": analytics::commits(&records),
             "analytics": {
                 "present": false,
@@ -96,6 +121,85 @@ pub fn history(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         ],
     );
     Ok(report)
+}
+
+#[cfg(feature = "git")]
+fn normalize_history_path(path: &str) -> String {
+    path.trim()
+        .trim_start_matches("./")
+        .replace('\\', "/")
+}
+
+#[cfg(feature = "git")]
+fn file_history(
+    repository: &Repository,
+    start: weavatrix_git::ObjectId,
+    path: &str,
+    max: usize,
+    since: Option<i64>,
+    first_parent: bool,
+) -> Result<(Vec<weavatrix_git::HistoryRecord>, usize, bool), String> {
+    // Walk a wider window than `max`, then keep the commits that touch `path`.
+    // Filtering only the first `max` repository commits hides a file whose
+    // latest edit is older than that page.
+    let scan_cap = max.saturating_mul(40).clamp(max, 2_000);
+    let scanned_records = repository
+        .history(
+            start,
+            HistoryOptions {
+                max_commits: scan_cap,
+                since,
+                first_parent,
+                ..HistoryOptions::default()
+            },
+        )
+        .map_err(|error| error.to_string())?;
+    let scanned = scanned_records.len();
+    let truncated = scanned == scan_cap;
+    let mut matched = Vec::new();
+    for record in scanned_records {
+        if commit_touches(repository, &record, path)? {
+            matched.push(record);
+            if matched.len() == max {
+                break;
+            }
+        }
+    }
+    let short = truncated && matched.len() < max;
+    Ok((matched, scanned, short))
+}
+
+#[cfg(feature = "git")]
+fn commit_touches(
+    repository: &Repository,
+    record: &weavatrix_git::HistoryRecord,
+    wanted: &str,
+) -> Result<bool, String> {
+    let Some(parent) = record.commit.parents.first().copied() else {
+        return path_in_tree(repository, record.commit.tree, wanted);
+    };
+    let changes = repository
+        .diff_commits(parent, record.id)
+        .map_err(|error| error.to_string())?;
+    Ok(changes.into_iter().any(|change| {
+        let path = String::from_utf8_lossy(&change.path).replace('\\', "/");
+        path == wanted || path.starts_with(&format!("{wanted}/"))
+    }))
+}
+
+#[cfg(feature = "git")]
+fn path_in_tree(
+    repository: &Repository,
+    tree: weavatrix_git::ObjectId,
+    wanted: &str,
+) -> Result<bool, String> {
+    let entries = repository
+        .tree_manifest(tree)
+        .map_err(|error| error.to_string())?;
+    Ok(entries.into_iter().any(|entry| {
+        let path = String::from_utf8_lossy(&entry.path).replace('\\', "/");
+        path == wanted || path.starts_with(&format!("{wanted}/"))
+    }))
 }
 
 #[cfg(feature = "git")]

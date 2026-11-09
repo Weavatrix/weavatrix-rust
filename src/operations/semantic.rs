@@ -13,10 +13,38 @@ use weavatrix_semantic::{
 
 #[cfg(feature = "semantic")]
 pub fn semantic_link(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    let query = optional_query(args)?;
+    if let Some(value) = args.get("vectors")
+        && !value.is_array()
+    {
+        return Err("vectors must be an array".to_owned());
+    }
+    let supplied = args.get("vectors").and_then(Value::as_array);
+    let has_vectors = supplied.is_some_and(|rows| !rows.is_empty());
+    if let Some(query) = query.as_deref()
+        && !has_vectors
+    {
+        return super::semantic_query::by_phrase(state, query, args);
+    }
+    if !has_vectors {
+        return Err(
+            "semantic_link needs a text query or a non-empty vectors array. An empty vectors array does not build links. A query is ranked with the deterministic token hash weavatrix-token-hash-v1, which is not a neural embedding"
+                .to_owned(),
+        );
+    }
     let vectors = vectors(args)?;
     let config = link_config(args, SelectionMode::Union);
     let report = link(state, &vectors, config, None)?;
     Ok(report_json(&report))
+}
+
+#[cfg(feature = "semantic")]
+fn optional_query(args: &Value) -> Result<Option<String>, String> {
+    match crate::operations::optional_str(args, "query")? {
+        Some(query) if !query.trim().is_empty() => Ok(Some(query.to_owned())),
+        Some(_) => Err("query must contain at least one letter or digit".to_owned()),
+        None => Ok(None),
+    }
 }
 
 #[cfg(not(feature = "semantic"))]

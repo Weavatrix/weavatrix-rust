@@ -15,6 +15,8 @@ mod n8n;
 mod occurrence;
 mod perf;
 mod semantic;
+#[cfg(feature = "semantic")]
+mod semantic_query;
 mod source;
 mod syntax;
 mod token_budget;
@@ -76,7 +78,7 @@ fn expect_repository(weavatrix: &Weavatrix, args: &Value) -> Result<(), String> 
         return Ok(());
     }
     Err(format!(
-        "active repository is {}, not the expected {expected}; call open_repo first",
+        "active repository is {}, not the expected {expected}. This process answers about its launch root. Relaunch it on the expected repository. open_repo changes that root only when the process was started with --allow-retarget",
         active.display()
     ))
 }
