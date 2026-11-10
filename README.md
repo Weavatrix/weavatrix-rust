@@ -276,6 +276,8 @@ has shown endpoints, or the hop is on `frontier`. `change_impact`
 finishing (`status: COMPLETE`) is not the same as a complete blast radius
 (`evidence_completeness`). `context_bundle` keeps caller, callee, contract,
 and test quotas so a large fan-in cannot hide one important callee.
+`search_code` keeps a resident content index for the process: the first
+search builds it, and later searches read it. A `glob` still walks files.
 
 The complete schemas live in the [operation reference](docs/tool-reference.md).
 

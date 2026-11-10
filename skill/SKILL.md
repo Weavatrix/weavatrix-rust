@@ -16,7 +16,8 @@ then use repository-native tests or benchmarks for behavioral proof.
    names a repository, pass `expected_repository` so a stale retarget fails
    loudly instead of answering about the wrong root.
 2. Use `module_map` (optionally `depth`) for orientation or `search_code`
-   for a known literal.
+   for a known literal. `search_code` reuses a resident content index after
+   the first search in the process. A `glob` still scans files.
 3. Pin an exact symbol with `inspect_symbol` or `context_bundle`. When the
    evidence is a usage, call `go_to_definition` with `(path, line, column)`
    instead of a name; `find_references` lists the occurrences of that

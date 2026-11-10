@@ -44,9 +44,12 @@ schemas are authoritative.
   bounded reverse dependencies.
 - `search_code`, `read_source`: bounded search and verified excerpts; both
   accept `token_budget`, as do `context_bundle`, `query_graph`,
-  `architecture_inventory`, and the available Git read operations. A budgeted
-  `search_code` response clips long lines around the first match and marks
-  those excerpts `text_truncated: true`; use `read_source` for the full line.
+  `architecture_inventory`, and the available Git read operations. `search_code`
+  keeps a resident content index for the process. The first search builds it
+  and reports `backend: liveindex`; later searches read that index. A `glob`
+  still walks the filesystem. A budgeted `search_code` response clips long
+  lines around the first match and marks those excerpts `text_truncated: true`;
+  use `read_source` for the full line.
   Operations that cannot apply a requested budget report
   `token_budget.applied: false` with the estimated cost.
 - `inspect_symbol`, `context_bundle`: exact declarations and compact task

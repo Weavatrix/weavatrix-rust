@@ -1,5 +1,8 @@
+#[cfg(unix)]
 use crate::language_fixture::Fixture;
+#[cfg(unix)]
 use blazingly_json::json;
+#[cfg(unix)]
 use weavatrix_rust::{Weavatrix, tools};
 
 #[test]

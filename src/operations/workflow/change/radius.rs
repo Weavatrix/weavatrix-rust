@@ -4,16 +4,25 @@ use blazingly_json::{Value, json};
 use std::collections::{BTreeSet, VecDeque};
 use weavatrix_graph::{Graph, Node, NodeKind};
 
-pub(super) fn reverse_hits(
-    graph: &Graph,
-    seed: &Node,
-    depth: usize,
-    max: usize,
-    revision: &str,
-    change: &str,
-    coarse: bool,
-    already: &BTreeSet<String>,
-) -> (Vec<Value>, bool) {
+#[derive(Clone, Copy)]
+pub(super) struct Walk<'a> {
+    pub(super) depth: usize,
+    pub(super) max: usize,
+    pub(super) revision: &'a str,
+    pub(super) change: &'a str,
+    pub(super) coarse: bool,
+    pub(super) already: &'a BTreeSet<String>,
+}
+
+pub(super) fn reverse_hits(graph: &Graph, seed: &Node, walk: &Walk<'_>) -> (Vec<Value>, bool) {
+    let Walk {
+        depth,
+        max,
+        revision,
+        change,
+        coarse,
+        already,
+    } = *walk;
     let allowed = graph::coupling_relations();
     let mut visited = BTreeSet::from([seed.id.as_str().to_owned()]);
     let mut queue = VecDeque::from([(seed.id.as_str().to_owned(), 0_usize)]);

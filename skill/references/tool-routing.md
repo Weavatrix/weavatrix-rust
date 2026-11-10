@@ -16,7 +16,8 @@ repositories: the call fails instead of answering about the wrong root.
   source position. Use these when a name is overloaded or re-exported;
   unresolved stays unresolved.
 - `query_graph`, `shortest_path`, `get_dependents`: bounded traversal.
-- `search_code`, `read_source`: lexical and source confirmation.
+- `search_code`, `read_source`: lexical and source confirmation. `search_code`
+  reads the resident content index after the first search in the process.
 
 ## Change and history
 

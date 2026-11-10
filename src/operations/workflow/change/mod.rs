@@ -191,12 +191,14 @@ fn walk_seeds(
         let (hits, capped) = radius::reverse_hits(
             graph,
             node,
-            depth,
-            max,
-            revision,
-            seed.change.as_str(),
-            seed.coarse,
-            &seen,
+            &radius::Walk {
+                depth,
+                max,
+                revision,
+                change: seed.change.as_str(),
+                coarse: seed.coarse,
+                already: &seen,
+            },
         );
         walk_partial |= capped;
         absorb(&mut impacts, &mut witnesses, &mut seen, hits);

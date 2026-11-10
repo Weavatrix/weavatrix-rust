@@ -27,6 +27,11 @@
   inside their library crates and are not MCP tools. The full catalog is 64
   tools. `semantic_link` remains. A direct call names the crate that owns the
   method.
+- `search_code` keeps one resident content index for the process. The first
+  search builds it (`backend` is `liveindex`); later searches read it. The
+  snapshot is stored under `~/.weavatrix/search`, or `WEAVATRIX_SEARCH_HOME`.
+  A `glob` still walks the filesystem, because that override can include a
+  file the index skipped.
 
 ## 2.17.5 - 2026-10-03
 

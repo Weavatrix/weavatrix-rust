@@ -35,7 +35,7 @@ clone = ["dep:weavatrix-clone"]
 git = ["dep:weavatrix-git"]
 lang-rust = ["dep:proc-macro2", "dep:syn"]
 memory = ["dep:weavatrix-memory"]
-search = ["dep:weavatrix-search"]
+search = ["dep:weavatrix-search", "weavatrix-search/live"]
 semantic = ["dep:weavatrix-semantic"]
 vector = ["dep:weavatrix-search-vector"]
 

@@ -51,11 +51,10 @@ pub(super) fn entry_points(state: &RepositoryState) -> Vec<NodeIndex> {
         }
         if node.kind == NodeKind::Function
             && node.label == "main"
-            && crate::operations::node_path(node).is_some_and(|path| path.ends_with(".go"))
+            && let Some(path) = crate::operations::node_path(node)
+            && go_source(path)
         {
-            if let Some(path) = crate::operations::node_path(node) {
-                declared.insert(path.to_owned());
-            }
+            declared.insert(path.to_owned());
         }
     }
     state
@@ -184,4 +183,10 @@ fn collect_json_paths(value: Option<&Value>, output: &mut BTreeSet<String>) {
 
 fn normalized_entry(path: &str) -> String {
     path.trim_start_matches("./").replace('\\', "/")
+}
+
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
+fn go_source(path: &str) -> bool {
+    // A Go entry file is named `.go`. `Main.GO` is a different file.
+    path.ends_with(".go")
 }

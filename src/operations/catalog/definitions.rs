@@ -87,7 +87,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "search_code",
-        description: "Literal or Rust-regex scan of file text (backend filesystem). This is not a graph-symbol search.",
+        description: "Literal or Rust-regex search of the process-resident content index (backend liveindex). The first search in a process builds that index; later searches reuse it. A glob still walks the filesystem. This is not a graph-symbol search.",
         required: &["query"],
     },
     ToolSpec {

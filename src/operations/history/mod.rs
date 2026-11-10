@@ -5,7 +5,7 @@ use blazingly_json::Value;
 #[cfg(feature = "git")]
 use blazingly_json::json;
 #[cfg(feature = "git")]
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "git")]
 use weavatrix_git::RepositorySet;
@@ -53,29 +53,28 @@ pub fn history(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let since = months.map(|months| {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_secs())
-            .unwrap_or(0);
+            .unwrap_or(Duration::ZERO)
+            .as_secs();
         let window = months.saturating_mul(2_629_746);
         i64::try_from(now.saturating_sub(window)).unwrap_or(i64::MIN)
     });
     let first_parent = optional_bool(args, "first_parent")?.unwrap_or(false);
-    let (records, scanned, truncated) = match path.as_deref() {
-        Some(path) => file_history(&repository, start, path, max, since, first_parent)?,
-        None => {
-            let records = repository
-                .history(
-                    start,
-                    HistoryOptions {
-                        max_commits: max,
-                        since,
-                        first_parent,
-                        ..HistoryOptions::default()
-                    },
-                )
-                .map_err(|error| error.to_string())?;
-            let scanned = records.len();
-            (records, scanned, false)
-        }
+    let (records, scanned, truncated) = if let Some(path) = path.as_deref() {
+        file_history(&repository, start, path, max, since, first_parent)?
+    } else {
+        let records = repository
+            .history(
+                start,
+                HistoryOptions {
+                    max_commits: max,
+                    since,
+                    first_parent,
+                    ..HistoryOptions::default()
+                },
+            )
+            .map_err(|error| error.to_string())?;
+        let scanned = records.len();
+        (records, scanned, false)
     };
     let budget = crate::operations::token_budget::requested(args)?;
     // Hotspots and co-change cost one `diff_commits` per commit and are the

@@ -10,6 +10,9 @@ use std::fs;
 #[path = "source_excerpt.rs"]
 mod search_excerpt;
 #[cfg(feature = "search")]
+#[path = "source_index.rs"]
+mod source_index;
+#[cfg(feature = "search")]
 use search_excerpt::render_search_match;
 
 pub fn read_source(state: &RepositoryState, args: &Value) -> Result<Value, String> {
@@ -75,7 +78,7 @@ pub fn read_source(state: &RepositoryState, args: &Value) -> Result<Value, Strin
 
 #[cfg(feature = "search")]
 pub fn search(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    use weavatrix_search::{SearchOptions, SearchQuery, Searcher, recommended_scan_options};
+    use weavatrix_search::{SearchOptions, SearchQuery};
 
     let query = if arg_bool(args, "is_regex").unwrap_or(false) {
         SearchQuery::regex(arg_str(args, "query")?)
@@ -89,15 +92,9 @@ pub fn search(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             usize::try_from(arg_u64(args, "after").unwrap_or(0)).unwrap_or(0),
         )
         .with_max_results(max);
-    let mut searcher = Searcher::new(state.root(), query).options(options.clone());
-    if let Ok(glob) = arg_str(args, "glob") {
-        let roots = [state.root().to_path_buf()];
-        let mut scan = recommended_scan_options(&roots, &options);
-        scan.override_rules.push(glob.to_owned());
-        searcher = searcher.scan_options(scan);
-    }
+    let glob = arg_str(args, "glob").ok();
     let budget = super::token_budget::requested(args)?;
-    let report = searcher.search().map_err(|error| error.to_string())?;
+    let report = source_index::execute(state.root(), query, &options, glob)?;
     let total_matching_lines = report.matching_lines;
     let total_occurrences = report.occurrences;
     let total_files_with_matches = report.files_with_matches;

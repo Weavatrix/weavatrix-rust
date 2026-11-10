@@ -41,8 +41,7 @@ pub(super) fn by_phrase(
         let (line, column) = node
             .span
             .as_ref()
-            .map(|span| (span.start.line, span.start.column))
-            .unwrap_or((0, 0));
+            .map_or((0, 0), |span| (span.start.line, span.start.column));
         hits.push(Hit {
             id: node.id.as_str().to_owned(),
             label: node.label.clone(),
@@ -94,9 +93,13 @@ pub(super) fn by_phrase(
             .then_with(|| left.label.cmp(&right.label))
             .then_with(|| left.line.cmp(&right.line))
     });
+    Ok(phrase_report(query, top, hits))
+}
+
+fn phrase_report(query: &str, top: usize, mut hits: Vec<Hit>) -> Value {
     let capped = hits.len() > top;
     hits.truncate(top);
-    Ok(json!({
+    json!({
         "status": "COMPLETE",
         "mode": "deterministic-token-hash",
         "model": "weavatrix-token-hash-v1",
@@ -112,10 +115,14 @@ pub(super) fn by_phrase(
             "path": hit.path,
             "line": hit.line,
             "column": hit.column,
-            "score": hit.score as f64 / 1_000.0,
+            "score": unit_score(hit.score),
             "matched_tokens": hit.matched
         })).collect::<Vec<_>>()
-    }))
+    })
+}
+
+fn unit_score(score: usize) -> f64 {
+    f64::from(u32::try_from(score).unwrap_or(u32::MAX)) / 1_000.0
 }
 
 struct Hit {

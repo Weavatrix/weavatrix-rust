@@ -92,6 +92,16 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
 }
 
 fn tool_field(tool: &str, name: &str) -> Option<Value> {
+    if let Some(schema) = hot_path_field(name)
+        && tool == "hot_path_review"
+    {
+        return Some(schema);
+    }
+    if let Some(schema) = trace_endpoint_field(name)
+        && tool == "trace_endpoint"
+    {
+        return Some(schema);
+    }
     match (tool, name) {
         ("run_audit", "include_tests") => Some(json!({
             "type": "boolean",
@@ -137,26 +147,6 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "maximum": 100,
             "description": "Evidence tiers: 25 = whole unreferenced file, 50 = exported symbol nothing reaches, 85 = private symbol nothing references. Bounded static analysis never reaches 100"
         })),
-        ("hot_path_review", "min_score") => Some(json!({
-            "type": "integer",
-            "minimum": 0,
-            "description": "Floor on score = complexity_cost x (1 + resolved call fan-in), where complexity_cost = extent lines + 3 x cyclomatic + 10 x loop nesting"
-        })),
-        ("hot_path_review", "cyclomatic_threshold") => Some(json!({
-            "type": "integer",
-            "minimum": 0,
-            "description": "Only functions with at least this many branch decisions"
-        })),
-        ("hot_path_review", "call_threshold") => Some(json!({
-            "type": "integer",
-            "minimum": 0,
-            "description": "Only functions with at least this many resolved call sites targeting them"
-        })),
-        ("hot_path_review", "loop_depth_threshold") => Some(json!({
-            "type": "integer",
-            "minimum": 0,
-            "description": "Only functions whose deepest loop nesting reaches this depth"
-        })),
         ("context_bundle" | "inspect_symbol", "max_references") => Some(json!({
             "type": "integer",
             "minimum": 1,
@@ -184,20 +174,6 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "default": true,
             "description": "High-recall by default; false suppresses data-only catalogs but retains model, schema, and contract clones"
         })),
-        ("trace_endpoint", "match") => Some(json!({
-            "type": "string",
-            "enum": ["exact", "prefix", "suffix"],
-            "default": "exact",
-            "description": "How the path argument compares to the served route; exact is the default and refuses ends-with or starts-with shortcuts"
-        })),
-        ("trace_endpoint", "handler_file") => Some(json!({
-            "type": "string",
-            "description": "Repo-relative file (or unambiguous path suffix) that must expose the route; filters candidates and resolves same-route declarations across files"
-        })),
-        ("trace_endpoint", "method") => Some(json!({
-            "type": "string",
-            "description": "Normalized exact HTTP method such as GET or POST; partial prefixes like PO do not match POST"
-        })),
         ("change_impact" | "select_tests", "target") => Some(json!({
             "type": "string",
             "description": "Deprecated alias for a single path in files; equivalent to files:[target]. Errors when both are present and disagree"
@@ -212,6 +188,52 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "type": "string",
             "enum": ["calls", "dependency", "documentation"],
             "description": "Restrict hop relations. A mixed found path is never an execution chain"
+        })),
+        _ => None,
+    }
+}
+
+fn trace_endpoint_field(name: &str) -> Option<Value> {
+    match name {
+        "match" => Some(json!({
+            "type": "string",
+            "enum": ["exact", "prefix", "suffix"],
+            "default": "exact",
+            "description": "How the path argument compares to the served route; exact is the default and refuses ends-with or starts-with shortcuts"
+        })),
+        "handler_file" => Some(json!({
+            "type": "string",
+            "description": "Repo-relative file (or unambiguous path suffix) that must expose the route; filters candidates and resolves same-route declarations across files"
+        })),
+        "method" => Some(json!({
+            "type": "string",
+            "description": "Normalized exact HTTP method such as GET or POST; partial prefixes like PO do not match POST"
+        })),
+        _ => None,
+    }
+}
+
+fn hot_path_field(name: &str) -> Option<Value> {
+    match name {
+        "min_score" => Some(json!({
+            "type": "integer",
+            "minimum": 0,
+            "description": "Floor on score = complexity_cost x (1 + resolved call fan-in), where complexity_cost = extent lines + 3 x cyclomatic + 10 x loop nesting"
+        })),
+        "cyclomatic_threshold" => Some(json!({
+            "type": "integer",
+            "minimum": 0,
+            "description": "Only functions with at least this many branch decisions"
+        })),
+        "call_threshold" => Some(json!({
+            "type": "integer",
+            "minimum": 0,
+            "description": "Only functions with at least this many resolved call sites targeting them"
+        })),
+        "loop_depth_threshold" => Some(json!({
+            "type": "integer",
+            "minimum": 0,
+            "description": "Only functions whose deepest loop nesting reaches this depth"
         })),
         _ => None,
     }
