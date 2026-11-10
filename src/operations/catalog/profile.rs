@@ -3,12 +3,12 @@ use std::str::FromStr;
 /// Selects a bounded operation catalog independently of any transport.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ToolProfile {
-    /// Code intelligence plus semantic, SEO, and memory extensions.
+    /// Every compiled MCP tool.
     #[default]
     All,
-    /// Repository and coding-agent intelligence without SEO-specific tools.
+    /// Same catalog as All. Launches that pass `--profile code` keep this name.
     Code,
-    /// Content-graph, search, semantic, and SEO analysis.
+    /// Content graph, search, and `semantic_link`.
     Seo,
     /// Exported n8n workflows without the full repository catalog.
     N8n,
@@ -26,8 +26,7 @@ impl ToolProfile {
     #[must_use]
     pub fn allows(self, tool: &str) -> bool {
         match self {
-            Self::All => true,
-            Self::Code => tool != "seo_link_suggestions",
+            Self::All | Self::Code => true,
             Self::N8n => domain_core(tool, &["n8n_inventory", "n8n_trace", "n8n_context"]),
             Self::Dify => domain_core(tool, &["dify_inventory", "dify_trace", "dify_context"]),
             Self::Agent => domain_core(
@@ -71,9 +70,6 @@ impl ToolProfile {
                     | "open_repo"
                     | "list_known_repos"
                     | "semantic_link"
-                    | "vector_search"
-                    | "seo_link_suggestions"
-                    | "memory_context"
             ),
         }
     }

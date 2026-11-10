@@ -10,6 +10,8 @@ mod domain_walk;
 mod graph;
 mod health;
 mod history;
+// Library adapter. The MCP catalog does not dispatch it.
+#[allow(dead_code)]
 mod memory;
 mod n8n;
 mod occurrence;
@@ -21,6 +23,8 @@ mod source;
 mod syntax;
 mod token_budget;
 mod transport_contracts;
+// Library adapter. The MCP catalog does not dispatch it.
+#[allow(dead_code)]
 mod vector;
 mod visibility;
 mod web3;
@@ -102,6 +106,21 @@ fn attach_repository_context(weavatrix: &Weavatrix, report: &mut Value) {
     );
 }
 
+fn closed_library_tool(name: &str) -> String {
+    let (crate_name, inputs) = match name {
+        "vector_search" => (
+            "weavatrix-search-vector",
+            "the numeric query and the vectors to search",
+        ),
+        "seo_link_suggestions" => ("weavatrix-semantic", "page profiles and their vectors"),
+        "memory_context" => ("weavatrix-memory", "an event journal and a context request"),
+        _ => ("its library crate", "caller-supplied inputs"),
+    };
+    format!(
+        "{name} is not an MCP tool. It uses only {inputs}. Call it from the {crate_name} crate in a product that already has those inputs. semantic_link remains the repository tool for a phrase or for caller-supplied embeddings over the code graph."
+    )
+}
+
 fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<Value, String> {
     if name == "trace_api_contract" {
         return workflow::trace_api_cached(weavatrix, arguments);
@@ -150,9 +169,9 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "explain_architecture_violation" => architecture::explain(state, arguments),
         "propose_architecture_exception" => architecture::propose_exception(state, arguments),
         "semantic_link" => semantic::semantic_link(state, arguments),
-        "vector_search" => vector::search(arguments),
-        "seo_link_suggestions" => semantic::seo_links(state, arguments),
-        "memory_context" => memory::context(state, arguments),
+        "vector_search" | "seo_link_suggestions" | "memory_context" => {
+            Err(closed_library_tool(name))
+        }
         "n8n_inventory" => n8n::inventory(state, arguments),
         "n8n_trace" => n8n::trace(state, arguments),
         "n8n_context" => n8n::context(state, arguments),

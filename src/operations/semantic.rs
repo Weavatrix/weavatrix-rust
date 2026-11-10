@@ -52,6 +52,7 @@ pub fn semantic_link(_state: &RepositoryState, _args: &Value) -> Result<Value, S
     Err("semantic capability is not compiled".to_owned())
 }
 
+#[allow(dead_code)]
 #[cfg(feature = "semantic")]
 pub fn seo_links(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let vectors = vectors(args)?;
@@ -76,6 +77,7 @@ pub fn seo_links(state: &RepositoryState, args: &Value) -> Result<Value, String>
     }))
 }
 
+#[allow(dead_code)]
 #[cfg(not(feature = "semantic"))]
 pub fn seo_links(_state: &RepositoryState, _args: &Value) -> Result<Value, String> {
     Err("semantic capability is not compiled".to_owned())
@@ -169,6 +171,7 @@ fn apply_policy(
     }
 }
 
+#[allow(dead_code)]
 #[cfg(feature = "semantic")]
 fn page(value: &Value) -> Result<SeoPage, String> {
     let node = value

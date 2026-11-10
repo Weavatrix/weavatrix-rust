@@ -1,6 +1,32 @@
 # Changelog
 
-## Unreleased
+## 2.17.6 - 2026-11-09
+
+- Depend on `weavatrix-parse` 0.3.4. Go methods own the calls in their bodies,
+  and a column inside an identifier resolves to that reference.
+- `change_impact` on an explicit file with no measured symbol diff reports
+  `file_scope` (`change_basis: "explicit_file"`). `max_nodes` caps the combined
+  impact of every seed. Production callers stay ahead of tests. The answer
+  reports `MAX_NODES` when nodes were omitted.
+- `find_dead_code` treats every `main.go` and every Go `func main` as an entry.
+  Exported symbols stay at confidence 50, so they stay out of a min-confidence
+  85 review.
+- `git_history` accepts `path`. `commits_scanned` is the window that was read.
+  A path query does not apply the default six-month window unless `months` is
+  set.
+- `semantic_link` ranks a text query with the deterministic token hash
+  `weavatrix-token-hash-v1` when `vectors` is empty. That hash is not a neural
+  embedding. Empty `vectors` without a query is an error. Supplied vectors
+  still build pair links.
+- `go.mod`, `Cargo.toml`, `package.json`, and `pyproject.toml` count as module
+  markers on disk. One marker stays `CANDIDATE`. `go.sum` is not a marker.
+- A mismatched `expected_repository` names the active root and says to relaunch.
+  `open_repo` changes that root only when the process was started with
+  `--allow-retarget`.
+- `vector_search`, `seo_link_suggestions`, and `memory_context` stay callable
+  inside their library crates and are not MCP tools. The full catalog is 64
+  tools. `semantic_link` remains. A direct call names the crate that owns the
+  method.
 
 ## 2.17.5 - 2026-10-03
 

@@ -246,7 +246,11 @@ fn prefer_within_cap(impacts: &mut Vec<Value>, witnesses: &mut Vec<Value>, max: 
         }
     }
     impacts.retain(|node| node["id"].as_str().is_some_and(|id| keep.contains(id)));
-    witnesses.retain(|hit| hit["node"]["id"].as_str().is_some_and(|id| keep.contains(id)));
+    witnesses.retain(|hit| {
+        hit["node"]["id"]
+            .as_str()
+            .is_some_and(|id| keep.contains(id))
+    });
     true
 }
 
@@ -265,7 +269,9 @@ fn impact_is_test(node: &Value) -> bool {
     path.ends_with("_test.go")
         || path.ends_with("_test.rs")
         || path.ends_with("_test.py")
-        || path.split('/').any(|part| part == "test" || part == "tests")
+        || path
+            .split('/')
+            .any(|part| part == "test" || part == "tests")
 }
 
 fn mark_missing(

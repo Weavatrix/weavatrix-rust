@@ -42,7 +42,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "change_impact",
-        description: "Read-only blast radius. A named file with no measured diff seeds its symbols as change file_scope (hypothetical, not a git edit).",
+        description: "Read-only blast radius. A named file with no measured diff seeds its symbols as change file_scope (hypothetical, not a git edit). status stays COMPLETE when the tool ran. Read evidence_completeness and stop_reason. MAX_NODES means the cap omitted nodes.",
         required: &[],
     },
     ToolSpec {
@@ -239,20 +239,5 @@ pub(super) const SPECS: &[ToolSpec] = &[
         name: "semantic_link",
         description: "Rank symbols for a text query with the deterministic local token hash weavatrix-token-hash-v1 (not a neural embedding), or link a non-empty caller-supplied vectors array. An empty vectors array without a query is an error.",
         required: &[],
-    },
-    ToolSpec {
-        name: "vector_search",
-        description: "Nearest-neighbor search over caller-supplied numeric vectors. query is an array of numbers, not a phrase. For a phrase, use semantic_link query.",
-        required: &["vectors", "query"],
-    },
-    ToolSpec {
-        name: "seo_link_suggestions",
-        description: "Directional SEO internal-link evidence from supplied page profiles.",
-        required: &["vectors", "pages"],
-    },
-    ToolSpec {
-        name: "memory_context",
-        description: "Compile bounded temporal memory context from supplied events.",
-        required: &["events", "request"],
     },
 ];

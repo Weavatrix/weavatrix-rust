@@ -54,12 +54,8 @@ fn capability_is_compiled(tool: &str) -> bool {
         cfg!(feature = "git")
     } else if tool == "search_code" {
         cfg!(feature = "search")
-    } else if matches!(tool, "semantic_link" | "seo_link_suggestions") {
+    } else if tool == "semantic_link" {
         cfg!(feature = "semantic")
-    } else if tool == "vector_search" {
-        cfg!(feature = "vector")
-    } else if tool == "memory_context" {
-        cfg!(feature = "memory")
     } else {
         true
     }

@@ -1,10 +1,14 @@
 use crate::support::GitFixture;
 use blazingly_json::json;
-use weavatrix_memory::{
-    AgentId, ContextRequest, EntityId, EventId, EventStore, ExpectedVersion, InMemoryStore,
-    MemoryEvent, MemoryNode, NewEvent, SessionId, StreamId, Timestamp,
-};
 use weavatrix_rust::{Weavatrix, tools};
+
+fn assert_closed_library_tool(engine: &mut Weavatrix, name: &str) {
+    let error = tools::call(engine, name, json!({})).expect_err(name);
+    assert!(
+        error.contains("is not an MCP tool"),
+        "{name} stays in its library crate: {error}"
+    );
+}
 
 pub(crate) fn git_calls(engine: &mut Weavatrix, backend: &GitFixture, client: &GitFixture) {
     let http = tools::call(
@@ -95,58 +99,12 @@ pub(crate) fn semantic_calls(engine: &mut Weavatrix, ids: &[String]) {
         )
         .is_ok()
     );
-    assert!(
-        tools::call(
-            engine,
-            "vector_search",
-            json!({"vectors": vectors, "query": [1.0, 0.0, 0.0], "top_k": 2, "exact": true})
-        )
-        .is_ok()
-    );
-    let pages = json!([
-        {"node": ids[0], "site": "docs", "canonical": "/alpha", "language": "en"},
-        {"node": ids[1], "site": "docs", "canonical": "/beta", "language": "en",
-            "cornerstone": true, "target_priority": 10}
-    ]);
-    assert!(
-        tools::call(
-            engine,
-            "seo_link_suggestions",
-            json!({"vectors": vectors, "pages": pages, "min_similarity": 0.5})
-        )
-        .is_ok()
-    );
+    assert_closed_library_tool(engine, "vector_search");
+    assert_closed_library_tool(engine, "seo_link_suggestions");
 }
 
 pub(crate) fn memory_call(engine: &mut Weavatrix) {
-    let at = |value| Timestamp::from_unix_micros(value);
-    let agent = AgentId::new("agent:test").unwrap();
-    let session = SessionId::new("session:test").unwrap();
-    let entity = EntityId::new("task:test").unwrap();
-    let payload = MemoryEvent::NodeUpserted {
-        node: MemoryNode::new(entity.clone(), "task", "Test task").unwrap(),
-    };
-    let event = NewEvent::new(
-        EventId::new("event:test").unwrap(),
-        payload.event_type(),
-        at(1),
-        at(1),
-        agent,
-        session,
-        payload,
-    )
-    .unwrap();
-    let mut store = InMemoryStore::default();
-    store
-        .append(
-            &StreamId::new("stream:test").unwrap(),
-            ExpectedVersion::NoStream,
-            &[event],
-        )
-        .unwrap();
-    let request = ContextRequest::new(vec![entity], at(2), at(2), 1_000).unwrap();
-    let value = json!({"events": store.load_all(None, 100), "request": request});
-    assert!(tools::call(engine, "memory_context", value).is_ok());
+    assert_closed_library_tool(engine, "memory_context");
 }
 
 pub(crate) fn coverage_formats(engine: &mut Weavatrix, fixture: &GitFixture) {

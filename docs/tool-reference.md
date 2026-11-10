@@ -1,6 +1,6 @@
 # Operation reference
 
-The default full build of `weavatrix-rust` exposes 60 bounded read-only
+The default full build of `weavatrix-rust` exposes 64 bounded read-only
 analysis operations. Rust consumers use `operations::catalog` and
 `operations::call`; the standalone CLI exposes `list-tools` and `tool`.
 `tools` remains a backward-compatible Rust re-export.
@@ -152,13 +152,11 @@ bindings. Execution and provider enforcement are reported as `NOT_OBSERVED`.
 
 ## Native Rust extensions
 
-- `vector_search`: exact or bounded approximate nearest-neighbor search.
-- `semantic_link`: inferred links with model and score provenance.
-- `seo_link_suggestions`: directional internal-link evidence.
-- `memory_context`: bounded temporal context from supplied events.
+- `semantic_link`: rank a text query with `weavatrix-token-hash-v1`, or link a non-empty caller-supplied vectors array. That hash is not a neural embedding.
 
-Vectors and events are supplied by the caller; Weavatrix does not call a model
-or embedding service.
+Nearest-neighbor search, SEO page links, and the event journal stay in
+`weavatrix-search-vector`, `weavatrix-semantic`, and `weavatrix-memory`.
+They are not MCP tools. The engine does not call an embedding service.
 
 ## n8n workflows
 

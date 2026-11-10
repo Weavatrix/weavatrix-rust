@@ -72,7 +72,8 @@ pub(super) fn by_phrase(
             continue;
         }
         for token in &tokens {
-            if line_tokens.iter().any(|item| item == token) && !hit.matched.iter().any(|item| item == token)
+            if line_tokens.iter().any(|item| item == token)
+                && !hit.matched.iter().any(|item| item == token)
             {
                 hit.matched.push(token.clone());
             }
@@ -170,7 +171,9 @@ fn overlap(query: &[String], field: &[String]) -> usize {
 fn matched_tokens(query: &[String], name: &[String], path: &[String]) -> Vec<String> {
     query
         .iter()
-        .filter(|token| name.iter().any(|item| item == *token) || path.iter().any(|item| item == *token))
+        .filter(|token| {
+            name.iter().any(|item| item == *token) || path.iter().any(|item| item == *token)
+        })
         .cloned()
         .collect()
 }
@@ -184,9 +187,9 @@ fn declaration_line(
     if path.is_empty() || line == 0 {
         return String::new();
     }
-    let text = files.entry(path.to_owned()).or_insert_with(|| {
-        std::fs::read_to_string(state.root().join(path)).unwrap_or_default()
-    });
+    let text = files
+        .entry(path.to_owned())
+        .or_insert_with(|| std::fs::read_to_string(state.root().join(path)).unwrap_or_default());
     text.lines()
         .nth(usize::try_from(line.saturating_sub(1)).unwrap_or(0))
         .unwrap_or("")

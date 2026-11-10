@@ -8,12 +8,7 @@ use weavatrix_rust::Weavatrix;
 use weavatrix_rust::tools;
 
 #[test]
-#[cfg(all(
-    feature = "lang-rust",
-    feature = "search",
-    feature = "semantic",
-    feature = "vector"
-))]
+#[cfg(all(feature = "lang-rust", feature = "search", feature = "semantic"))]
 fn graph_search_source_and_semantic_tools_work_together() {
     let fixture = Fixture::new();
     fixture.write(
@@ -64,21 +59,11 @@ fn graph_search_source_and_semantic_tools_work_together() {
             .is_some_and(|edges| !edges.is_empty())
     );
 
-    let vector = tools::call(
-        &mut engine,
-        "vector_search",
-        json!({
-            "vectors": [
-                {"node": "alpha", "values": [1.0, 0.0]},
-                {"node": "beta", "values": [0.0, 1.0]}
-            ],
-            "query": [0.9, 0.1],
-            "top_k": 1,
-            "exact": true
-        }),
-    )
-    .unwrap();
-    assert_eq!(vector["hits"][0]["node"], "alpha");
+    let closed = tools::call(&mut engine, "vector_search", json!({})).unwrap_err();
+    assert!(
+        closed.contains("is not an MCP tool"),
+        "vector_search stays in weavatrix-search-vector: {closed}"
+    );
 }
 
 #[test]

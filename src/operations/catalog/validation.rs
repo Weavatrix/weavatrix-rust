@@ -85,7 +85,7 @@ pub(super) fn enum_schema(tool: &str, name: &str) -> Option<Value> {
         ("shortest_path", "path_kind") => &["calls", "dependency", "documentation"],
         ("list_communities" | "get_community", "view") => &["subsystems", "connectivity"],
         ("find_duplicates", "mode") => &["strict", "exact", "renamed", "near_miss"],
-        ("semantic_link" | "seo_link_suggestions", "selection") => &["union", "mutual", "directed"],
+        ("semantic_link", "selection") => &["union", "mutual", "directed"],
         ("cross_repo_git", "action") => &["histories", "shared_commits", "diff"],
         ("get_architecture_contract", "action") => &["preview"],
         ("run_audit", "debt") => &["new", "existing", "all"],

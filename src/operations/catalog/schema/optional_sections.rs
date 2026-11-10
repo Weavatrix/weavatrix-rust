@@ -121,8 +121,14 @@ pub(super) fn extension_fields(tool: &str) -> Option<&'static [&'static str]> {
         ]),
         "propose_architecture_exception" => Some(&["expires"]),
         "open_repo" => Some(&["build", "mode", "precision"]),
-        "semantic_link" => Some(&["query", "vectors", "model", "min_similarity", "top_k", "selection"]),
-        "vector_search" => Some(&["top_k", "exact"]),
+        "semantic_link" => Some(&[
+            "query",
+            "vectors",
+            "model",
+            "min_similarity",
+            "top_k",
+            "selection",
+        ]),
         "n8n_inventory" | "dify_inventory" | "agent_inventory" | "diagram_inventory"
         | "web3_inventory" => Some(&["path", "max_results"]),
         "n8n_trace" | "dify_trace" | "diagram_trace" | "web3_trace" => {
@@ -141,13 +147,6 @@ pub(super) fn extension_fields(tool: &str) -> Option<&'static [&'static str]> {
         ]),
         "agent_trace" => Some(&["max_related"]),
         "agent_change_impact" => Some(&["max_results"]),
-        "seo_link_suggestions" => Some(&[
-            "model",
-            "min_similarity",
-            "top_k",
-            "selection",
-            "allow_cross_language",
-        ]),
         _ => None,
     }
 }

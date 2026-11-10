@@ -125,9 +125,7 @@ pub fn history(state: &RepositoryState, args: &Value) -> Result<Value, String> {
 
 #[cfg(feature = "git")]
 fn normalize_history_path(path: &str) -> String {
-    path.trim()
-        .trim_start_matches("./")
-        .replace('\\', "/")
+    path.trim().trim_start_matches("./").replace('\\', "/")
 }
 
 #[cfg(feature = "git")]

@@ -62,9 +62,6 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "open_repo",
         "list_known_repos",
         "semantic_link",
-        "vector_search",
-        "seo_link_suggestions",
-        "memory_context",
         "n8n_inventory",
         "n8n_trace",
         "n8n_context",
@@ -85,6 +82,13 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
     ] {
         assert!(actual.contains(expected), "missing tool {expected}");
     }
+    for closed in ["vector_search", "seo_link_suggestions", "memory_context"] {
+        assert!(
+            !actual.contains(closed),
+            "{closed} is a library method, not an MCP tool"
+        );
+    }
+    assert_eq!(actual.len(), 64, "the full catalog is 64 MCP tools");
 }
 
 #[test]
@@ -138,33 +142,25 @@ fn catalog_exposes_real_argument_contracts_and_profiles() {
             "duplicate review must advertise its high-recall default"
         );
     }
-    let memory = catalog
+    let semantic = catalog
         .iter()
-        .find(|tool| tool.name == "memory_context")
+        .find(|tool| tool.name == "semantic_link")
         .unwrap();
-    assert_eq!(
-        memory.input_schema["required"],
-        json!(["events", "request"])
+    let vectors = &semantic.input_schema["properties"]["vectors"];
+    assert_eq!(vectors["items"]["required"], json!(["node", "values"]));
+    assert!(
+        vectors["description"]
+            .as_str()
+            .unwrap()
+            .contains("An empty array without query is an error"),
+        "{vectors}"
     );
+    for closed in ["vector_search", "seo_link_suggestions", "memory_context"] {
+        assert!(catalog.iter().all(|tool| tool.name != closed));
+    }
 
     assert_domain_profiles();
 
-    #[cfg(feature = "vector")]
-    {
-        let vector_search = catalog
-            .iter()
-            .find(|tool| tool.name == "vector_search")
-            .unwrap();
-        let vectors = &vector_search.input_schema["properties"]["vectors"];
-        assert_eq!(vectors["items"]["required"], json!(["node", "values"]));
-        assert!(
-            vectors["description"]
-                .as_str()
-                .unwrap()
-                .contains("Do not send id/vector"),
-            "{vectors}"
-        );
-    }
     #[cfg(feature = "git")]
     {
         let change_impact = catalog
@@ -218,9 +214,17 @@ fn graph_diff_catalog_documents_its_compact_default_and_raw_edge_opt_in() {
 fn assert_domain_profiles() {
     use weavatrix_rust::tools::{self, ToolProfile};
     let code = tools::catalog_for_profile(ToolProfile::Code);
-    assert!(code.iter().all(|tool| tool.name != "seo_link_suggestions"));
+    assert_eq!(code.len(), tools::catalog().len());
+    for closed in ["vector_search", "seo_link_suggestions", "memory_context"] {
+        assert!(code.iter().all(|tool| tool.name != closed));
+    }
     let seo = tools::catalog_for_profile(ToolProfile::Seo);
-    assert!(seo.iter().any(|tool| tool.name == "seo_link_suggestions"));
+    assert!(seo.iter().any(|tool| tool.name == "semantic_link"));
+    assert!(seo.iter().all(|tool| {
+        tool.name != "seo_link_suggestions"
+            && tool.name != "vector_search"
+            && tool.name != "memory_context"
+    }));
     assert!(seo.iter().all(|tool| tool.name != "verified_change"));
     let n8n = tools::catalog_for_profile(ToolProfile::N8n);
     assert!(n8n.iter().any(|tool| tool.name == "n8n_inventory"));
