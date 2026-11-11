@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.17.7 - 2026-11-11
+
+- `ci_restrictions` keeps the `token_budget` receipt it computed. A following
+  annotation no longer replaces a real trim with `applied: false` and
+  `dropped_items: 0`.
+
 ## 2.17.6 - 2026-11-09
 
 - Depend on `weavatrix-parse` 0.3.4. Go methods own the calls in their bodies,

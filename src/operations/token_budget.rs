@@ -18,6 +18,7 @@ pub(crate) fn honoured() -> &'static [&'static str] {
         (true, true) => &[
             "context_bundle",
             "architecture_inventory",
+            "ci_restrictions",
             "git_history",
             "git_read_blob",
             "graph_diff",
@@ -28,6 +29,7 @@ pub(crate) fn honoured() -> &'static [&'static str] {
         (true, false) => &[
             "context_bundle",
             "architecture_inventory",
+            "ci_restrictions",
             "query_graph",
             "read_source",
             "search_code",
@@ -35,6 +37,7 @@ pub(crate) fn honoured() -> &'static [&'static str] {
         (false, true) => &[
             "context_bundle",
             "architecture_inventory",
+            "ci_restrictions",
             "git_history",
             "git_read_blob",
             "graph_diff",
@@ -43,6 +46,7 @@ pub(crate) fn honoured() -> &'static [&'static str] {
         ],
         (false, false) => &[
             "architecture_inventory",
+            "ci_restrictions",
             "context_bundle",
             "query_graph",
             "read_source",
@@ -70,6 +74,15 @@ pub(crate) fn annotate_unapplied(
         return Ok(());
     };
     if honoured().contains(&tool) {
+        return Ok(());
+    }
+    // `fit` already wrote the trim. Replacing it would report applied:false
+    // and dropped_items:0 for a budget that was applied.
+    if report
+        .pointer("/token_budget/applied")
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
         return Ok(());
     }
     let estimated = estimate(report);
@@ -173,5 +186,29 @@ mod tests {
         let mut unbudgeted = json!({"node": "value"});
         annotate_unapplied("inspect_symbol", &json!({}), &mut unbudgeted).unwrap();
         assert!(unbudgeted.get("token_budget").is_none());
+    }
+
+    #[test]
+    fn a_real_trim_receipt_is_kept() {
+        let mut report = json!({
+            "restrictions": ["gate", "review", "deploy", "release", "notify"]
+        });
+        super::fit(&mut report, Some(4), &["/restrictions"]);
+        assert_eq!(report["token_budget"]["applied"], true);
+        let dropped = report["token_budget"]["dropped_items"].clone();
+        assert_ne!(dropped, json!(0));
+        annotate_unapplied("ci_restrictions", &json!({"token_budget": 4}), &mut report).unwrap();
+        assert_eq!(report["token_budget"]["applied"], true);
+        assert_eq!(report["token_budget"]["dropped_items"], dropped);
+
+        let mut unlisted = report.clone();
+        annotate_unapplied(
+            "not_a_budgeted_tool",
+            &json!({"token_budget": 4}),
+            &mut unlisted,
+        )
+        .unwrap();
+        assert_eq!(unlisted["token_budget"]["applied"], true);
+        assert_eq!(unlisted["token_budget"]["dropped_items"], dropped);
     }
 }
