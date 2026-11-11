@@ -21,7 +21,7 @@ fn prepared(source: &str) -> blazingly_json::Value {
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
     tools::call(
         &mut engine,
-        "prepare_change",
+        "ci_protection",
         json!({"files": ["src/lib.rs"]}),
     )
     .unwrap()
@@ -30,9 +30,9 @@ fn prepared(source: &str) -> blazingly_json::Value {
 #[test]
 fn checker_linkage_uses_resolved_target_source_not_a_hardcoded_target_name() {
     let report = prepared("#[test]\nfn policy() { assert!(verify_architecture().is_ok()); }\n");
-    let binding = &report["ci_protection"]["declared_rule_bindings"][0];
+    let binding = &report["declared_rule_bindings"][0];
     assert_eq!(binding["linkage"], "STATIC_FAILURE_PATH_CANDIDATE");
-    let check = &report["ci_protection"]["candidate_checks"][0];
+    let check = &report["candidate_checks"][0];
     assert_eq!(check["selected_targets"].as_array().unwrap().len(), 1);
     assert_eq!(binding["checker"], check["id"], "{report}");
 }
@@ -45,7 +45,7 @@ fn comments_and_ignored_results_do_not_bind_architecture_rules() {
     ] {
         let report = prepared(source);
         assert_eq!(
-            report["ci_protection"]["declared_rule_bindings"][0]["linkage"], "UNBOUND",
+            report["declared_rule_bindings"][0]["linkage"], "UNBOUND",
             "{report}"
         );
     }

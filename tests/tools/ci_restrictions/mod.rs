@@ -70,17 +70,14 @@ fn local_ci_distinguishes_declarations_invocations_and_effects() {
     assert_eq!(explained["status"], "FOUND");
     let prepared = tools::call(
         &mut engine,
-        "prepare_change",
+        "ci_protection",
         json!({"files": ["src/lib.rs"]}),
     )
     .unwrap();
-    assert_eq!(prepared["ci_protection"]["status"], "INCOMPLETE");
-    assert_eq!(
-        prepared["ci_protection"]["restrictions_status"],
-        "INCOMPLETE"
-    );
+    assert_eq!(prepared["status"], "INCOMPLETE");
+    assert_eq!(prepared["restrictions_status"], "INCOMPLETE");
     assert!(
-        !prepared["ci_protection"]["restrictions_unresolved"]
+        !prepared["restrictions_unresolved"]
             .as_array()
             .unwrap()
             .is_empty()

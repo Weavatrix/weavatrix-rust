@@ -44,7 +44,6 @@ pub(in crate::operations) fn verified_change(
         "phase": phase,
         "verdict": assessment.verdict,
         "blockers": assessment.blockers,
-        "impact": impact,
         "changeImpact": impact,
         "retrieval": context.retrieval,
         "editContexts": context.edit_contexts,

@@ -112,10 +112,6 @@ pub fn search(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             "files_with_matches": total_files_with_matches,
             "returned_matches": returned_matches
         },
-        "matching_lines": total_matching_lines,
-        "occurrences": total_occurrences,
-        "files_with_matches": total_files_with_matches,
-        "returned_matches": returned_matches,
         "files_searched": report.files_searched,
         "bytes_searched": report.bytes_searched,
         "truncated": truncated,
@@ -129,10 +125,8 @@ pub fn search(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     if budget.is_some() {
         let kept = rendered["matches"].as_array().map_or(0, Vec::len);
         if kept < returned_matches {
-            for pointer in ["/returned_matches", "/totals/returned_matches"] {
-                if let Some(value) = rendered.pointer_mut(pointer) {
-                    *value = json!(kept);
-                }
+            if let Some(value) = rendered.pointer_mut("/totals/returned_matches") {
+                *value = json!(kept);
             }
             if let Some(value) = rendered.pointer_mut("/truncated") {
                 *value = json!(true);

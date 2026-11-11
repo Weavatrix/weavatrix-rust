@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.17.8 - 2026-11-11
+
+- `ci_protection` is its own operation. Pass `files`. `change_impact`,
+  `graph_diff`, `verified_change`, and `prepare_change` no longer embed that
+  block.
+- `search_code` reports match counts once, under `totals`.
+- `graph_stats` omits `capabilities` unless `include_capabilities` is set.
+- `coverage_map` without a report is `UNMEASURED`. The test-suite count stays
+  in `static_reachability` and is not measured coverage.
+- `change_impact` no longer carries a constant `coverage_evidence` object.
+  Diagram bindings stay in `documentation`.
+- `verified_change` keeps the blast radius once, as `changeImpact`.
+- `run_audit` omits the static cycle prose, the duplicated `evidence` copies,
+  and a null `capability_matrix`. Pass `include_capabilities` for the matrix.
+- `query_graph` and `god_nodes` return id, label, kind, language, and span.
+  Node attributes stay on `get_node`.
+- `rebuild_graph` returns node and edge counts before and after.
+
 ## 2.17.7 - 2026-11-11
 
 - `ci_restrictions` keeps the `token_budget` receipt it computed. A following

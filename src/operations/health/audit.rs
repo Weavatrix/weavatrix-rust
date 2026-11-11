@@ -54,41 +54,28 @@ pub(in crate::operations) fn audit(state: &RepositoryState, args: &Value) -> Res
         || !findings.is_empty()
         || test_report["status"] == "FAIL";
     let debt = debt::debt(state, args, max, &runtime_report)?;
-    // A static property of the build: identical for every repository and every call, and it was
-    // the single largest block of this payload. Callers that actually need it opt in.
-    let capability_matrix = if optional_bool(args, "include_capabilities")?.unwrap_or(false) {
-        json!(state.snapshot().capabilities)
-    } else {
-        Value::Null
-    };
-    Ok(json!({
+    let mut report = json!({
         "status": if reviewing {"REVIEW"} else {"PASS"},
         "execution": {"status": "COMPLETE"},
         "findings": findings,
         "cycles": cycles,
-        "cycle_model": {
-            "scope": "production file-level runtime dependencies",
-            "relations": ["runtime imports", "cyclic cross-file call chains", "mounts", "transport producer-to-consumer"],
-            "excluded": ["containment", "symbol ownership", "references", "inheritance", "implements", "re-exports", "type-only and compile-time imports", "test and classified files by default"],
-        },
         "languages": language_counts,
-        "capability_matrix": capability_matrix,
         "dependency_report": dependency_report,
         "runtime_report": runtime_report,
         "coverage_report": coverage_report,
-        "evidence": {
-            "structure": {
-                "present": true,
-                "scope": "registered lossless and structural language adapters with typed graph provenance"
-            },
-            "dependencies": dependency_report["manifest_evidence"].clone(),
-            "runtime": runtime_report["runtime_evidence"].clone(),
-            "coverage": coverage_report["measured_coverage"].clone(),
-            "tests": test_report["execution"].clone()
-        },
         "test_report": test_report,
         "debt": debt
-    }))
+    });
+    // The matrix is a static property of the build. Callers that need it opt in.
+    if optional_bool(args, "include_capabilities")?.unwrap_or(false)
+        && let Some(object) = report.as_object_mut()
+    {
+        object.insert(
+            "capability_matrix".to_owned(),
+            json!(state.snapshot().capabilities),
+        );
+    }
+    Ok(report)
 }
 
 fn validate_options(args: &Value) -> Result<(Option<&str>, u8), String> {

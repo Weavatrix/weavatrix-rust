@@ -114,11 +114,7 @@ pub(super) fn change_impact_unchecked(
         "git": git,
         "change_basis": change_basis(&seeds),
         "precision": "graph",
-        "semantic_precision": "BOUNDED_STATIC",
-        "coverage_evidence": {
-            "present": false,
-            "reason": "change_impact computes static graph reachability and does not consume measured test coverage"
-        }
+        "semantic_precision": "BOUNDED_STATIC"
     }))
 }
 

@@ -112,6 +112,7 @@ fn static_coverage_counts_test_suites_without_counting_jest_support_files() {
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
     let coverage = tools::call(&mut engine, "coverage_map", json!({})).unwrap();
 
+    assert_eq!(coverage["status"], "UNMEASURED");
     assert_eq!(coverage["measured_coverage"]["present"], false);
     assert_eq!(
         coverage["static_reachability"]["test_files"], 3,

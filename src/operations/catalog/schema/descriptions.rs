@@ -35,6 +35,13 @@ fn measurement_field(name: &str) -> Option<Value> {
 
 /// The documented schema for one field, when its behaviour needs stating.
 pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
+    if tool == "ci_protection" && name == "files" {
+        return Some(json!({
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Repository paths to bind to local checks and declared architecture rules. This does not read the git diff; pass the paths you care about."
+        }));
+    }
     if tool == "architecture_inventory" && name == "detail" {
         return Some(json!({
             "type": "string",

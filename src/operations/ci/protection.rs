@@ -1,32 +1,24 @@
 use crate::engine::RepositoryState;
 use blazingly_json::{Value, json};
 
-pub(super) fn attach(state: &RepositoryState, name: &str, args: &Value, report: &mut Value) {
-    if !matches!(
-        name,
-        "prepare_change" | "change_impact" | "verified_change" | "graph_diff"
-    ) {
-        return;
-    }
-    let files = if name == "prepare_change" {
-        args.get("files")
-    } else if name == "verified_change" {
-        report.pointer("/impact/changed_files")
-    } else {
-        report.get("changed_files")
-    };
-    let changed_total = files.and_then(Value::as_array).map_or(0, Vec::len);
-    let changed = files
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .take(100)
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    let Some(object) = report.as_object_mut() else {
-        return;
-    };
+pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    crate::operations::reject_unknown_arguments("ci_protection", args, &["files"])?;
+    let files = args
+        .get("files")
+        .ok_or_else(|| "files is required".to_owned())?;
+    let files = files
+        .as_array()
+        .ok_or_else(|| "files must be an array of strings".to_owned())?;
+    let changed_all = files
+        .iter()
+        .map(|item| {
+            item.as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "files must contain only strings".to_owned())
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let changed_total = changed_all.len();
+    let changed = changed_all.into_iter().take(100).collect::<Vec<_>>();
     let memberships = crate::operations::architecture::structural_memberships(state);
     let root_component = crate::operations::architecture::root_structural_id(state);
     let build = crate::operations::build::model(state);
@@ -75,23 +67,20 @@ pub(super) fn attach(state: &RepositoryState, name: &str, args: &Value, report: 
     let truncated = changed_total > changed.len()
         || checks_total.is_some_and(|total| total > candidates.len() as u64)
         || bindings_total > rule_bindings.len();
-    object.insert(
-        "ci_protection".to_owned(),
-        json!({
-            "status": if diagnostics.is_empty() && !truncated {"STATIC_CANDIDATES"} else {"INCOMPLETE"},
-            "diagnostics": diagnostics,
-            "truncated": truncated,
-            "changed_total": changed_total,
-            "candidate_checks_total": checks_total,
-            "restrictions_status": restrictions.as_ref().ok().map(|child| &child["status"]),
-            "restrictions_unresolved": restrictions.as_ref().ok().map(|child| &child["unresolved"]),
-            "declared_rule_bindings_total": bindings_total,
-            "changed": selected,
-            "candidate_checks": candidates,
-            "declared_rule_bindings": rule_bindings,
-            "reason": "local workflow checks are candidates; event, path filters, execution and remote enforcement are not proven"
-        }),
-    );
+    Ok(json!({
+        "status": if diagnostics.is_empty() && !truncated {"STATIC_CANDIDATES"} else {"INCOMPLETE"},
+        "diagnostics": diagnostics,
+        "truncated": truncated,
+        "changed_total": changed_total,
+        "candidate_checks_total": checks_total,
+        "restrictions_status": restrictions.as_ref().ok().map(|child| &child["status"]),
+        "restrictions_unresolved": restrictions.as_ref().ok().map(|child| &child["unresolved"]),
+        "declared_rule_bindings_total": bindings_total,
+        "changed": selected,
+        "candidate_checks": candidates,
+        "declared_rule_bindings": rule_bindings,
+        "reason": "local workflow checks are candidates; event, path filters, execution and remote enforcement are not proven"
+    }))
 }
 
 fn selected_files(

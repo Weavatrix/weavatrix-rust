@@ -53,6 +53,7 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "get_architecture_contract",
         "architecture_inventory",
         "ci_restrictions",
+        "ci_protection",
         "explain_restriction",
         "prepare_change",
         "verify_architecture",
@@ -88,7 +89,7 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
             "{closed} is a library method, not an MCP tool"
         );
     }
-    assert_eq!(actual.len(), 64, "the full catalog is 64 MCP tools");
+    assert_eq!(actual.len(), 65, "the full catalog is 65 MCP tools");
 }
 
 #[test]

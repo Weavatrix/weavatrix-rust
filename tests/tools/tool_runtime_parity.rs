@@ -29,7 +29,7 @@ fn graph_search_source_and_semantic_tools_work_together() {
         json!({"query": "beta", "max_results": 10}),
     )
     .unwrap();
-    assert!(search["occurrences"].as_u64().unwrap() >= 2);
+    assert!(search["totals"]["occurrences"].as_u64().unwrap() >= 2);
     let endpoints = tools::call(&mut engine, "list_endpoints", json!({})).unwrap();
     assert_eq!(endpoints["endpoints"][0]["label"], "GET /items");
 
@@ -81,12 +81,10 @@ fn search_code_bounds_returned_matches_without_losing_totals() {
     .unwrap();
 
     assert_eq!(search["matches"].as_array().map(Vec::len), Some(2));
-    assert_eq!(search["returned_matches"], 2);
     assert_eq!(search["totals"]["returned_matches"], 2);
-    assert_eq!(search["matching_lines"], 5);
     assert_eq!(search["totals"]["matching_lines"], 5);
-    assert_eq!(search["occurrences"], 5);
     assert_eq!(search["totals"]["occurrences"], 5);
+    assert!(search.get("occurrences").is_none());
     assert_eq!(search["truncated"], true);
 }
 

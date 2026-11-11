@@ -22,8 +22,8 @@ pub(super) fn explain(state: &RepositoryState, args: &Value) -> Result<Value, St
     restrictions::explain(state, args)
 }
 
-pub(super) fn protect(state: &RepositoryState, name: &str, args: &Value, report: &mut Value) {
-    protection::attach(state, name, args, report);
+pub(super) fn protection(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    protection::report(state, args)
 }
 
 pub(super) fn attach(state: &RepositoryState, report: &mut Value) {

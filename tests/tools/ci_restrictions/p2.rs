@@ -58,8 +58,8 @@ fn root_file_membership_and_composite_caps_are_visible() {
     let files = std::iter::once("Cargo.toml".to_owned())
         .chain((0..100).map(|index| format!("unknown_{index}.rs")))
         .collect::<Vec<_>>();
-    let prepared = tools::call(&mut engine, "prepare_change", json!({"files": files})).unwrap();
-    let protection = &prepared["ci_protection"];
+    let prepared = tools::call(&mut engine, "ci_protection", json!({"files": files})).unwrap();
+    let protection = &prepared;
     assert_eq!(protection["status"], "INCOMPLETE");
     assert_eq!(protection["changed_total"], 101);
     assert_eq!(protection["declared_rule_bindings_total"], 51);
@@ -99,11 +99,11 @@ fn ci_binding_uses_changed_files_membership_not_whole_directory() {
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
     let prepared = tools::call(
         &mut engine,
-        "prepare_change",
+        "ci_protection",
         json!({"files": ["src/domain/a.js"]}),
     )
     .unwrap();
-    let protection = &prepared["ci_protection"];
+    let protection = &prepared;
     assert!(
         protection["changed"][0]["component"]
             .as_str()
@@ -131,13 +131,11 @@ fn ci_candidates_select_build_targets_and_tasks() {
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
     let prepared = tools::call(
         &mut engine,
-        "prepare_change",
+        "ci_protection",
         json!({"files": ["src/lib.rs"]}),
     )
     .unwrap();
-    let candidates = prepared["ci_protection"]["candidate_checks"]
-        .as_array()
-        .unwrap();
+    let candidates = prepared["candidate_checks"].as_array().unwrap();
     let cargo = candidates
         .iter()
         .find(|item| item["kind"] == "cargo_test")
@@ -151,7 +149,7 @@ fn ci_candidates_select_build_targets_and_tasks() {
     assert_eq!(npm["relation"], "TASK_CHECK_CANDIDATE", "{prepared}");
     assert!(!npm["selected_tasks"].as_array().unwrap().is_empty());
     assert_eq!(
-        prepared["ci_protection"]["changed"][0]["build_membership"]["resolution"],
+        prepared["changed"][0]["build_membership"]["resolution"],
         "EXACT_TARGET_PATH"
     );
 }

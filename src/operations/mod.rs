@@ -53,7 +53,6 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
     require_valid_output_format(&arguments)?;
     expect_repository(weavatrix, &arguments)?;
     let mut report = dispatch(weavatrix, name, &arguments)?;
-    ci::protect(weavatrix.state(), name, &arguments, &mut report);
     // A budget an operation cannot apply is reported, not refused: the answer
     // itself is never withheld.
     token_budget::annotate_unapplied(name, &arguments, &mut report)?;
@@ -162,6 +161,7 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "get_architecture_contract" => architecture::contract(state, arguments),
         "architecture_inventory" => architecture::inventory(state, arguments),
         "ci_restrictions" => ci::restrictions(state, arguments),
+        "ci_protection" => ci::protection(state, arguments),
         "explain_restriction" => ci::explain(state, arguments),
         "prepare_change" => architecture::prepare(state, arguments),
         "verify_architecture" => architecture::verify(state),
@@ -190,9 +190,9 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "web3_impact" => web3::impact(state, arguments),
         "web3_context" => web3::context(state, arguments),
         "rebuild_graph" => {
-            let before = graph::stats(state, arguments)?;
+            let before = graph::counts(state);
             weavatrix.rebuild().map_err(|error| error.to_string())?;
-            Ok(json!({"before": before, "after": graph::stats(weavatrix.state(), arguments)?}))
+            Ok(json!({"before": before, "after": graph::counts(weavatrix.state())}))
         }
         "open_repo" => {
             let path = arg_str(arguments, "path")?.to_owned();

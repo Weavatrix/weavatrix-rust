@@ -54,15 +54,14 @@ pub(in crate::operations) fn coverage(
         }));
     }
     Ok(json!({
-        "status": "COMPLETE",
+        "status": "UNMEASURED",
         "measured_coverage": {
             "present": false,
             "reason": "no supported measured coverage report exists in the analyzed repository",
             "searched": candidates
         },
         "files": [],
-        "static_reachability": static_test_reachability(state),
-        "warning": "static test reachability is not measured coverage"
+        "static_reachability": static_test_reachability(state)
     }))
 }
 

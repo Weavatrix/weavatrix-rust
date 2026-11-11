@@ -91,11 +91,11 @@ fn typescript_extends_options_and_shared_source_membership_are_preserved() {
 
     let prepared = tools::call(
         &mut engine,
-        "prepare_change",
+        "ci_protection",
         json!({"files": ["src/shared.ts"]}),
     )
     .unwrap();
-    let membership = &prepared["ci_protection"]["changed"][0]["build_membership"];
+    let membership = &prepared["changed"][0]["build_membership"];
     assert_eq!(membership["resolution"], "TARGET_SOURCE_FALLBACK");
     assert_eq!(membership["target_ids"].as_array().unwrap().len(), 2);
 }

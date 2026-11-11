@@ -42,7 +42,7 @@ fn resident_index_answers_again_and_sees_a_later_edit() {
     let mut engine = Weavatrix::open(&fixture.root).unwrap();
     let first = tools::call(&mut engine, "search_code", json!({"query": "needle"})).unwrap();
     assert_eq!(first["backend"], "liveindex", "{first}");
-    assert_eq!(first["matching_lines"], 1, "{first}");
+    assert_eq!(first["totals"]["matching_lines"], 1, "{first}");
     assert!(
         first["warnings"].as_array().is_some_and(Vec::is_empty),
         "{first}"
@@ -50,20 +50,20 @@ fn resident_index_answers_again_and_sees_a_later_edit() {
 
     let second = tools::call(&mut engine, "search_code", json!({"query": "needle"})).unwrap();
     assert_eq!(second["backend"], "liveindex", "{second}");
-    assert_eq!(second["matching_lines"], 1, "{second}");
+    assert_eq!(second["totals"]["matching_lines"], 1, "{second}");
 
     fixture.write("src/b.rs", "beta needle\n");
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
     let mut latest = second;
     while std::time::Instant::now() < deadline {
         latest = tools::call(&mut engine, "search_code", json!({"query": "needle"})).unwrap();
-        if latest["matching_lines"].as_u64() == Some(2) {
+        if latest["totals"]["matching_lines"].as_u64() == Some(2) {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
     assert_eq!(latest["backend"], "liveindex", "{latest}");
-    assert_eq!(latest["matching_lines"], 2, "{latest}");
+    assert_eq!(latest["totals"]["matching_lines"], 2, "{latest}");
 
     let narrowed = tools::call(
         &mut engine,
@@ -73,7 +73,7 @@ fn resident_index_answers_again_and_sees_a_later_edit() {
     .unwrap();
     assert_eq!(narrowed["backend"], "filesystem", "{narrowed}");
     assert!(
-        narrowed["matching_lines"].as_u64().unwrap_or(0) >= 1,
+        narrowed["totals"]["matching_lines"].as_u64().unwrap_or(0) >= 1,
         "{narrowed}"
     );
 }

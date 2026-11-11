@@ -75,7 +75,6 @@ fn search_code_reports_budget_truncation_honestly() {
     .unwrap();
     let kept = budgeted["matches"].as_array().unwrap().len();
     assert!(kept < 100, "the budget must trim the match list: {kept}");
-    assert_eq!(budgeted["returned_matches"], kept as u64);
     assert_eq!(budgeted["totals"]["returned_matches"], kept as u64);
     assert_eq!(budgeted["truncated"], true);
     assert_eq!(budgeted["token_budget"]["fit"], true);

@@ -33,7 +33,7 @@ pub fn query(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         .filter_map(|(index, distance)| {
             let node = state.graph().node_at(*index)?;
             crate::operations::node_is_visible(state, index.index(), args)
-                .then(|| json!({"node": node, "distance": distance}))
+                .then(|| json!({"node": super::compact_node(node), "distance": distance}))
         })
         .collect::<Vec<_>>();
     let edges = walk

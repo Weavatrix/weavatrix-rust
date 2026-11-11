@@ -23,15 +23,35 @@ pub(super) use trace::endpoint as trace_endpoint;
 pub use views::{communities, endpoints, module_map};
 pub(super) use walk::traverse;
 
+pub(super) fn counts(state: &RepositoryState) -> Value {
+    json!({
+        "nodes": state.graph().node_count(),
+        "edges": state.graph().edge_count(),
+        "build_ms": state.build_time().as_secs_f64() * 1000.0
+    })
+}
+
+pub(super) fn compact_node(node: &weavatrix_graph::Node) -> Value {
+    let mut value = json!({
+        "id": node.id,
+        "label": node.label,
+        "kind": node.kind
+    });
+    if let Some(object) = value.as_object_mut() {
+        if let Some(language) = &node.language {
+            object.insert("language".to_owned(), json!(language));
+        }
+        if let Some(span) = &node.span {
+            object.insert("span".to_owned(), json!(span));
+        }
+    }
+    value
+}
+
 pub fn stats(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let census = state.census();
     // Static per build, not per repository or per call: opt in rather than pay for it every time.
-    let capabilities = if optional_bool(args, "include_capabilities")?.unwrap_or(false) {
-        json!(state.snapshot().capabilities)
-    } else {
-        Value::Null
-    };
-    Ok(json!({
+    let mut report = json!({
         "repository": state.snapshot().repository,
         "revision": state.snapshot().revision,
         "nodes": state.graph().node_count(),
@@ -40,14 +60,22 @@ pub fn stats(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         "node_kinds": census.kinds,
         "relations": census.relations,
         "evidence": census.evidence,
-        "capabilities": capabilities,
         "freshness": {
             "state": "CURRENT",
             "source_revision": state.snapshot().revision,
             "incremental_hashes_reused": state.scan_report().cache.reused_hashes,
             "content_reads": state.scan_report().cache.content_reads
         }
-    }))
+    });
+    if optional_bool(args, "include_capabilities")?.unwrap_or(false)
+        && let Some(object) = report.as_object_mut()
+    {
+        object.insert(
+            "capabilities".to_owned(),
+            json!(state.snapshot().capabilities),
+        );
+    }
+    Ok(report)
 }
 
 pub fn get_node(state: &RepositoryState, args: &Value) -> Result<Value, String> {
@@ -152,7 +180,7 @@ pub fn hubs(state: &RepositoryState, args: &Value) -> Value {
     });
     json!({
         "hubs": nodes.into_iter().take(top).map(|(degree, incoming, outgoing, node)| {
-            json!({"node": node, "degree": degree, "incoming": incoming, "outgoing": outgoing})
+            json!({"node": compact_node(node), "degree": degree, "incoming": incoming, "outgoing": outgoing})
         }).collect::<Vec<_>>()
     })
 }

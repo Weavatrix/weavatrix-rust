@@ -22,12 +22,12 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "query_graph",
-        description: "Bounded BFS or DFS from exact seeds or a ranked question.",
+        description: "Bounded BFS or DFS from exact seeds or a ranked question. Each node is id, label, kind, language, and span. Call get_node for attributes.",
         required: &[],
     },
     ToolSpec {
         name: "god_nodes",
-        description: "Rank high-connectivity production nodes.",
+        description: "Rank high-connectivity production nodes. Each node is id, label, kind, language, and span.",
         required: &[],
     },
     ToolSpec {
@@ -42,7 +42,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "change_impact",
-        description: "Read-only blast radius. A named file with no measured diff seeds its symbols as change file_scope (hypothetical, not a git edit). status stays COMPLETE when the tool ran. Read evidence_completeness and stop_reason. MAX_NODES means the cap omitted nodes.",
+        description: "Read-only blast radius. A named file with no measured diff seeds its symbols as change file_scope (hypothetical, not a git edit). status stays COMPLETE when the tool ran. Read evidence_completeness and stop_reason. MAX_NODES means the cap omitted nodes. Does not read measured coverage.",
         required: &[],
     },
     ToolSpec {
@@ -72,7 +72,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "verified_change",
-        description: "Composite pre-commit evidence and conservative verdict.",
+        description: "Composite pre-commit evidence and conservative verdict. The blast radius is changeImpact.",
         required: &["task"],
     },
     ToolSpec {
@@ -127,7 +127,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "run_audit",
-        description: "Repository structure and evidence completeness audit.",
+        description: "Repository structure and evidence completeness audit. Cycles are production file-level runtime dependencies, not containment or type-only imports. Pass include_capabilities for the build capability matrix.",
         required: &[],
     },
     ToolSpec {
@@ -172,7 +172,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "rebuild_graph",
-        description: "Rebuild the derived in-memory graph without source writes.",
+        description: "Rebuild the derived in-memory graph without source writes. Returns node and edge counts before and after. Call graph_stats for the census.",
         required: &[],
     },
     ToolSpec {
@@ -194,6 +194,11 @@ pub(super) const SPECS: &[ToolSpec] = &[
         name: "ci_restrictions",
         description: "Local GitHub Actions jobs, literal check invocations, configured restrictions and unobserved enforcement.",
         required: &[],
+    },
+    ToolSpec {
+        name: "ci_protection",
+        description: "Candidate local checks and declared architecture-rule bindings for an explicit file list. Does not run workflows and does not read the worktree diff. change_impact, graph_diff, verified_change, and prepare_change do not include this block.",
+        required: &["files"],
     },
     ToolSpec {
         name: "explain_restriction",

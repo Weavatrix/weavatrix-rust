@@ -1,6 +1,6 @@
 # Operation reference
 
-The default full build of `weavatrix-rust` exposes 64 bounded read-only
+The default full build of `weavatrix-rust` exposes 65 bounded read-only
 analysis operations. Rust consumers use `operations::catalog` and
 `operations::call`; the standalone CLI exposes `list-tools` and `tool`.
 `tools` remains a backward-compatible Rust re-export.
@@ -143,9 +143,10 @@ is weak evidence for each of them, and profiler attribution it is not.
   A configured coverage threshold is not measured coverage. A local workflow
   is not a required status check.
 
-`prepare_change`, `change_impact`, `verified_change`, and `graph_diff` include a
-compact `ci_protection` section with candidate checks and declared rule
-bindings. Execution and provider enforcement are reported as `NOT_OBSERVED`.
+- `ci_protection`: candidate checks and declared rule bindings for an
+  explicit `files` list. It does not read the worktree diff and is not
+  attached to `prepare_change`, `change_impact`, `verified_change`, or
+  `graph_diff`. Execution and provider enforcement stay unproven.
 
 ## Git and repositories
 
