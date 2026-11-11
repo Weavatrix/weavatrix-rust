@@ -22,18 +22,22 @@ pub(in crate::operations) fn audit(state: &RepositoryState, args: &Value) -> Res
             *language_counts.entry(language.clone()).or_default() += 1;
         }
     }
-    let dependency_report = dependencies::report(
-        state,
-        max,
-        (category_matches(category, "dependencies"), min_severity),
-    );
-    let runtime_report = runtime::runtime(
-        state,
-        max,
-        category_matches(category, "runtime"),
-        min_severity,
-    );
-    let coverage_report = coverage::coverage(state, &json!({}))?;
+    let focused = category.is_some_and(|value| value != "all");
+    let dependency_report = if category_matches(category, "dependencies") {
+        dependencies::report(state, max, (true, min_severity))
+    } else {
+        skipped_section()
+    };
+    let runtime_report = if category_matches(category, "runtime") {
+        runtime::runtime(state, max, true, min_severity)
+    } else {
+        skipped_section()
+    };
+    let coverage_report = if focused {
+        skipped_section()
+    } else {
+        coverage::coverage(state, &json!({}))?
+    };
     let tests_enabled = optional_bool(args, "include_tests")?.unwrap_or(true)
         && category_matches(category, "tests");
     let test_report = test_evidence::report(state, args, tests_enabled, max)?;
@@ -47,16 +51,19 @@ pub(in crate::operations) fn audit(state: &RepositoryState, args: &Value) -> Res
     } else {
         Vec::new()
     };
+    let (resolution, thin) = edge_resolution(state);
     let reviewing = [&runtime_report, &dependency_report]
         .iter()
         .any(|report| report["status"] == "REVIEW")
         || has_cycles
         || !findings.is_empty()
-        || test_report["status"] == "FAIL";
+        || test_report["status"] == "FAIL"
+        || thin;
     let debt = debt::debt(state, args, max, &runtime_report)?;
     let mut report = json!({
         "status": if reviewing {"REVIEW"} else {"PASS"},
         "execution": {"status": "COMPLETE"},
+        "resolution": resolution,
         "findings": findings,
         "cycles": cycles,
         "languages": language_counts,
@@ -118,6 +125,32 @@ fn validate_options(args: &Value) -> Result<(Option<&str>, u8), String> {
 
 fn category_matches(selected: Option<&str>, candidate: &str) -> bool {
     selected.is_none_or(|value| value == "all" || value == candidate)
+}
+
+fn skipped_section() -> Value {
+    json!({
+        "status": "SKIPPED",
+        "collected": false,
+        "findings_total": 0,
+        "findings": [],
+        "execution": {"status": "COMPLETE"},
+        "reason": "this section was not requested"
+    })
+}
+
+fn edge_resolution(state: &RepositoryState) -> (Value, bool) {
+    let evidence = &state.census().evidence;
+    let parsed = evidence.get("parsed").copied().unwrap_or(0);
+    let resolved = evidence.get("resolved").copied().unwrap_or(0);
+    let thin = parsed >= 200 && resolved.saturating_mul(5) < parsed;
+    (
+        json!({
+            "parsed_edges": parsed,
+            "resolved_edges": resolved,
+            "thin": thin
+        }),
+        thin,
+    )
 }
 
 pub(super) fn severity_at_least(severity: &str, minimum: u8) -> bool {

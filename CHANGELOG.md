@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.17.9 - 2026-11-11
+
+- `graph_stats` counts edges in `evidence`, adds `evidence_share`, and sets
+  freshness to `CURRENT` only for a complete loaded snapshot.
+- `god_nodes` skips files, constants, and stylesheets and ranks by incoming
+  files from other files. The scan skips `.worktrees` and `.claude/worktrees`.
+- `search_code` applies a glob to the resident index.
+- `change_impact` nodes are id, label, kind, language, and span. Status stays
+  `COMPLETE`; a cap is `evidence_completeness` and `stop_reason`.
+- `get_neighbors` returns a compact seed unless `response_detail` is `full`.
+  Hidden neighbors are not counted in the page.
+- An unresolved definition omits `definition`. `find_references` hides test
+  and classified rows unless opted in.
+- `.gen.` and `.generated.` paths stay out of duplicate families unless
+  `include_boilerplate` is set. A type-only import does not keep a dead-code
+  target live.
+- `run_audit` with a named category collects that section. A thin
+  parsed/resolved edge ratio is `REVIEW`.
+- Mermaid drops unread bookkeeping nodes. Remaining diagram meta is
+  `mermaid.meta`.
+- `list_endpoints` returns compact nodes. `max_results` pages them and reports
+  `endpoints_total`.
+- `ci_protection` membership and component ids are path labels.
+  `restrictions_unresolved` returns at most 20 strings.
+- Phrase `semantic_link` scores a short doc comment, the declaration line, and
+  a short body. Test paths rank lower.
+
 ## 2.17.8 - 2026-11-11
 
 - `ci_protection` is its own operation. Pass `files`. `change_impact`,

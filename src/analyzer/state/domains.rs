@@ -127,5 +127,5 @@ fn owner_scoped_domain(kind: &NodeKind) -> bool {
     matches!(
         kind,
         NodeKind::ConfigKey | NodeKind::Binding | NodeKind::Column | NodeKind::Unknown
-    )
+    ) || kind.as_str() == "mermaid.meta"
 }

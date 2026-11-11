@@ -62,10 +62,6 @@ fn folder(path: &str) -> String {
         .map_or(String::new(), |(parent, _)| parent.to_owned())
 }
 
-pub(super) fn root_id(state: &RepositoryState) -> String {
-    component_id(&repository_id(state), "")
-}
-
 fn repository_id(state: &RepositoryState) -> String {
     state
         .graph()

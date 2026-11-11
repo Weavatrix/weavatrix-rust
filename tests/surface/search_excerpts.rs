@@ -71,7 +71,7 @@ fn resident_index_answers_again_and_sees_a_later_edit() {
         json!({"query": "needle", "glob": "*.rs"}),
     )
     .unwrap();
-    assert_eq!(narrowed["backend"], "filesystem", "{narrowed}");
+    assert_eq!(narrowed["backend"], "liveindex", "{narrowed}");
     assert!(
         narrowed["totals"]["matching_lines"].as_u64().unwrap_or(0) >= 1,
         "{narrowed}"

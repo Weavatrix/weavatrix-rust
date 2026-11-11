@@ -29,6 +29,7 @@ pub(super) fn find_references(state: &RepositoryState, args: &Value) -> Result<V
     }
     rows.sort_by_key(value_span_key);
     rows.dedup_by(|left, right| value_span_key(left) == value_span_key(right));
+    rows.retain(|row| reference_row_visible(row, args));
     let total = rows.len();
     let page = rows.into_iter().skip(offset).take(max).collect::<Vec<_>>();
     let returned = page.len();
@@ -49,7 +50,6 @@ pub(super) fn unresolved(query: &Query, loaded: Option<&scip::Loaded>, reason: &
         "state": "UNRESOLVED",
         "query": query_json(query),
         "occurrence": Value::Null,
-        "definition": Value::Null,
         "precision": "parser_plus_graph",
         "semantic_precision": "BOUNDED_STATIC",
         "sources": sources(loaded),
@@ -151,6 +151,20 @@ fn merge_scip_references(rows: &mut Vec<Value>, index: &scip::Loaded, symbol: &s
     }
 }
 
+fn reference_row_visible(row: &Value, args: &Value) -> bool {
+    if row.get("role").and_then(Value::as_str) == Some("definition") {
+        return true;
+    }
+    let Some(file) = row
+        .get("span")
+        .and_then(|span| span.get("file"))
+        .and_then(Value::as_str)
+    else {
+        return true;
+    };
+    file.is_empty() || crate::operations::health::path_is_visible(file, args)
+}
+
 fn value_span_key(row: &Value) -> (String, u32, u32) {
     row.get("span")
         .and_then(span_from_value)
@@ -188,6 +202,7 @@ fn scip_only_or_unresolved(
         let mut rows = Vec::new();
         merge_scip_references(&mut rows, index, &hit.symbol);
         rows.sort_by_key(value_span_key);
+        rows.retain(|row| reference_row_visible(row, args));
         let total = rows.len();
         let page = rows.into_iter().skip(offset).take(max).collect::<Vec<_>>();
         let returned = page.len();
@@ -205,7 +220,6 @@ fn scip_only_or_unresolved(
     Ok(json!({
         "state": "UNRESOLVED",
         "query": query.as_ref().map(query_json),
-        "definition": Value::Null,
         "references": [],
         "page": page_json(0, 0, 0),
         "precision": "parser_plus_graph",

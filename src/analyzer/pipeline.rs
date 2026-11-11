@@ -214,6 +214,20 @@ impl Analyzer {
             .max(crate::language::DIFY_DEFAULT_FILE_BYTES);
         options.content_discovery = ContentDiscoveryMode::BufferedParallel;
         options.evidence = EvidenceMode::SelectedFiles;
+        // Negations flip to Ignore in weavatrix-scan and do not set has_includes,
+        // so the rest of the tree stays. Copies under agent worktrees are not a second product.
+        options.override_rules.extend(
+            [
+                "!.worktrees",
+                "!.worktrees/**",
+                "!**/.worktrees/**",
+                "!.claude/worktrees",
+                "!.claude/worktrees/**",
+                "!**/.claude/worktrees/**",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        );
         options
     }
 }

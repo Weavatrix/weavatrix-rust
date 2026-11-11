@@ -155,6 +155,22 @@ fn later_explicit_label_replaces_display_text() {
         labels.iter().any(|label| label == "label:last"),
         "later explicit text becomes the display label: {labels:?}"
     );
+    let meta = engine
+        .state()
+        .graph()
+        .nodes()
+        .iter()
+        .find(|node| node.label == "label:last")
+        .expect("label");
+    assert_eq!(meta.kind.as_str(), "mermaid.meta");
+    assert!(
+        !labels.iter().any(|label| {
+            label.starts_with("native_id:")
+                || label.starts_with("occurrence:")
+                || label.starts_with("coverage:elements:")
+        }),
+        "unread diagram bookkeeping stays out of the graph: {labels:?}"
+    );
     assert!(
         !labels.iter().any(|label| label == "label:first"),
         "the first explicit text is replaced: {labels:?}"

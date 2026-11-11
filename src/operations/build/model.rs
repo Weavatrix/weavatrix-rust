@@ -189,6 +189,72 @@ impl BuildModel {
         }
     }
 
+    /// Path label for an answer. The stored id hex-encodes the repository root.
+    pub(crate) fn member_label(&self, id: &str) -> String {
+        self.workspaces
+            .iter()
+            .flat_map(|workspace| &workspace.members)
+            .find(|member| member.id == id)
+            .map(|member| member.manifest.clone())
+            .unwrap_or_else(|| id.to_owned())
+    }
+
+    pub(crate) fn target_label(&self, id: &str) -> String {
+        for member in self
+            .workspaces
+            .iter()
+            .flat_map(|workspace| &workspace.members)
+        {
+            if let Some(target) = member.targets.iter().find(|target| target.id == id) {
+                let name = target
+                    .name
+                    .as_deref()
+                    .or(target.path.as_deref())
+                    .unwrap_or(target.kind);
+                return if member.path.is_empty() {
+                    format!("{}:{name}", target.kind)
+                } else {
+                    format!("{}:{name}@{}", target.kind, member.path)
+                };
+            }
+        }
+        id.to_owned()
+    }
+
+    pub(crate) fn module_label(&self, id: &str) -> String {
+        for member in self
+            .workspaces
+            .iter()
+            .flat_map(|workspace| &workspace.members)
+        {
+            if let Some(module) = member.modules.iter().find(|module| module.id == id) {
+                return if module.path.is_empty() {
+                    module.name.clone()
+                } else {
+                    format!("{}:{}", module.path, module.name)
+                };
+            }
+        }
+        id.to_owned()
+    }
+
+    pub(crate) fn task_label(&self, id: &str) -> String {
+        for member in self
+            .workspaces
+            .iter()
+            .flat_map(|workspace| &workspace.members)
+        {
+            if let Some(task) = member.tasks.iter().find(|task| task.id == id) {
+                return if member.manifest.is_empty() {
+                    task.name.clone()
+                } else {
+                    format!("{}@{}", task.name, member.manifest)
+                };
+            }
+        }
+        id.to_owned()
+    }
+
     pub fn task_ids(&self, name: &str, member_ids: &[String]) -> Vec<String> {
         let mut ids = self
             .workspaces

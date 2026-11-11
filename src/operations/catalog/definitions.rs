@@ -7,7 +7,7 @@ pub(super) struct ToolSpec {
 pub(super) const SPECS: &[ToolSpec] = &[
     ToolSpec {
         name: "graph_stats",
-        description: "Graph size, evidence and build freshness.",
+        description: "Graph size, evidence and build freshness. evidence counts edges, not a percentage; evidence_share is that split. freshness.state CURRENT means the loaded snapshot, not a new disk walk.",
         required: &[],
     },
     ToolSpec {
@@ -17,7 +17,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "get_neighbors",
-        description: "Direct typed incoming and outgoing relationships.",
+        description: "Direct typed incoming and outgoing relationships. The seed is id, label, kind, language, and span unless response_detail is full. Test and classified neighbors stay out unless include_tests or include_classified is set.",
         required: &["label"],
     },
     ToolSpec {
@@ -27,7 +27,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "god_nodes",
-        description: "Rank high-connectivity production nodes. Each node is id, label, kind, language, and span.",
+        description: "Rank high-connectivity production nodes. Skips files, modules, constants, stylesheets, and ubiquitous type names. Each node is id, label, kind, language, and span. Rank prefers callers in other files.",
         required: &[],
     },
     ToolSpec {
@@ -42,7 +42,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "change_impact",
-        description: "Read-only blast radius. A named file with no measured diff seeds its symbols as change file_scope (hypothetical, not a git edit). status stays COMPLETE when the tool ran. Read evidence_completeness and stop_reason. MAX_NODES means the cap omitted nodes. Does not read measured coverage.",
+        description: "Read-only blast radius. A named file with no measured diff seeds its symbols as change file_scope (hypothetical, not a git edit). status stays COMPLETE when the tool ran. Read evidence_completeness and stop_reason. MAX_NODES means the cap omitted nodes. Impacted nodes are id, label, kind, language, and span. Does not read measured coverage.",
         required: &[],
     },
     ToolSpec {
@@ -87,7 +87,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "search_code",
-        description: "Literal or Rust-regex search of the process-resident content index (backend liveindex). The first search in a process builds that index; later searches reuse it. A glob still walks the filesystem. This is not a graph-symbol search.",
+        description: "Literal or Rust-regex search of the process-resident content index (backend liveindex). The first search in a process builds that index; later searches reuse it. A glob filters that index. The filesystem is scanned only when the widened index search is truncated and the filter kept fewer hits than requested. A glob does not force-include paths the snapshot skipped. This is not a graph-symbol search.",
         required: &["query"],
     },
     ToolSpec {
@@ -102,12 +102,12 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "go_to_definition",
-        description: "Resolve the symbol at a source position to its definition without guessing by name.",
+        description: "Resolve the symbol at a source position to its definition without guessing by name. An unresolved position omits definition.",
         required: &["path", "line", "column"],
     },
     ToolSpec {
         name: "find_references",
-        description: "Occurrences of the symbol at a position or label, from the graph and an on-disk SCIP index if present.",
+        description: "Occurrences of the symbol at a position or label, from the graph and an on-disk SCIP index if present. Test and classified rows stay out unless include_tests or include_classified is set. The definition row stays.",
         required: &[],
     },
     ToolSpec {
@@ -117,17 +117,17 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "find_duplicates",
-        description: "Deterministic Type-1/2/3 clone families.",
+        description: "Deterministic Type-1/2/3 clone families. Files named .gen. or .generated. are boilerplate unless include_boilerplate is set.",
         required: &[],
     },
     ToolSpec {
         name: "find_dead_code",
-        description: "Conservative unreferenced-symbol review queue. Go main.go and func main are entry points. Exported symbols stay at confidence 50 and are omitted when min_confidence is higher.",
+        description: "Conservative unreferenced-symbol review queue. Go main.go and func main are entry points. Exported symbols stay at confidence 50 and are omitted when min_confidence is higher. Each candidate is id, label, kind, language, and span. A type-only import does not keep its target live.",
         required: &[],
     },
     ToolSpec {
         name: "run_audit",
-        description: "Repository structure and evidence completeness audit. Cycles are production file-level runtime dependencies, not containment or type-only imports. Pass include_capabilities for the build capability matrix.",
+        description: "Repository structure and evidence completeness audit. Cycles are production file-level runtime dependencies, not containment or type-only imports. A named category collects only that section. At least 200 parsed edges with resolved edges under one fifth of that is REVIEW. Pass include_capabilities for the build capability matrix.",
         required: &[],
     },
     ToolSpec {
@@ -162,7 +162,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "list_endpoints",
-        description: "Inventory statically extracted HTTP endpoints, including hand-rolled req.method/pathname conditions.",
+        description: "Inventory statically extracted HTTP endpoints as compact nodes (id, label, kind, language, span). max_results pages the list and reports endpoints_total; omit it to return every visible endpoint. Includes hand-rolled req.method/pathname conditions.",
         required: &[],
     },
     ToolSpec {
@@ -197,7 +197,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "ci_protection",
-        description: "Candidate local checks and declared architecture-rule bindings for an explicit file list. Does not run workflows and does not read the worktree diff. change_impact, graph_diff, verified_change, and prepare_change do not include this block.",
+        description: "Candidate local checks and declared architecture-rule bindings for an explicit file list. Membership and component ids in the answer are path labels. Does not run workflows and does not read the worktree diff. change_impact, graph_diff, verified_change, and prepare_change do not include this block.",
         required: &["files"],
     },
     ToolSpec {
@@ -242,7 +242,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "semantic_link",
-        description: "Rank symbols for a text query with the deterministic local token hash weavatrix-token-hash-v1 (not a neural embedding), or link a non-empty caller-supplied vectors array. An empty vectors array without a query is an error.",
+        description: "Rank symbols for a text query with the deterministic local token hash weavatrix-token-hash-v1 (name, path, nearby doc comment, declaration line, and a short body; test paths rank lower; not a neural embedding), or link a non-empty caller-supplied vectors array. An empty vectors array without a query is an error.",
         required: &[],
     },
 ];

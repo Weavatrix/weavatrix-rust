@@ -67,6 +67,48 @@ fn graph_search_source_and_semantic_tools_work_together() {
 }
 
 #[test]
+#[cfg(all(feature = "lang-rust", feature = "search", feature = "semantic"))]
+fn phrase_rank_reads_the_doc_comment_and_demotes_the_test_copy() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "src/identity.rs",
+        "/// Enforces strict manufacturer identity before an order is accepted.\npub fn guard() {}\n\npub fn manufacturer() {}\n",
+    );
+    fixture.write(
+        "tests/identity.rs",
+        "pub fn guard() {}\n\npub fn manufacturer() {}\n",
+    );
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+
+    let phrase = tools::call(
+        &mut engine,
+        "semantic_link",
+        json!({"query": "strict manufacturer identity"}),
+    )
+    .unwrap();
+    assert_eq!(phrase["model"], "weavatrix-token-hash-v1");
+    assert_eq!(phrase["neural_embedding"], false);
+    let hit = &phrase["hits"][0];
+    assert_eq!(hit["path"], "src/identity.rs", "{phrase}");
+    assert_eq!(hit["label"], "guard", "{phrase}");
+    let matched = hit["matched_tokens"].as_array().unwrap();
+    assert!(matched.iter().any(|token| token == "strict"), "{phrase}");
+    assert!(
+        matched.iter().any(|token| token == "manufacturer"),
+        "{phrase}"
+    );
+
+    let named = tools::call(
+        &mut engine,
+        "semantic_link",
+        json!({"query": "manufacturer"}),
+    )
+    .unwrap();
+    assert_eq!(named["hits"][0]["path"], "src/identity.rs", "{named}");
+    assert_eq!(named["hits"][0]["label"], "manufacturer", "{named}");
+}
+
+#[test]
 #[cfg(feature = "search")]
 fn search_code_bounds_returned_matches_without_losing_totals() {
     let fixture = Fixture::new();

@@ -30,7 +30,6 @@ pub(super) struct Element {
     pub label: String,
     pub span: SourceSpan,
     pub group: Option<String>,
-    pub occurrences: Vec<SourceSpan>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +77,11 @@ pub(super) fn element_kind() -> NodeKind {
 #[must_use]
 pub(super) fn group_kind() -> NodeKind {
     NodeKind::custom("mermaid.group").unwrap_or(NodeKind::Module)
+}
+
+#[must_use]
+pub(super) fn meta_kind() -> NodeKind {
+    NodeKind::custom("mermaid.meta").unwrap_or(NodeKind::ConfigKey)
 }
 
 #[must_use]

@@ -13,7 +13,7 @@ schemas are authoritative.
 - `graph_stats`: root, revision, freshness, and graph counts. The build's
   capability matrix is static, so it is returned only with
   `include_capabilities`; `run_audit` takes the same argument.
-- `get_node`, `get_neighbors`: exact nodes and typed direct relationships.
+- `get_node`, `get_neighbors`: exact nodes and typed direct relationships. The neighbor seed is id, label, kind, language, and span unless `response_detail` is `full`. Test and classified neighbors stay out unless opted in.
 - `query_graph`: exact seeds stay exact; a `question` is ranked against
   names, paths, and kinds. The walk is a witness subgraph: every returned
   edge has shown endpoints, or the hop is listed on `frontier`.
@@ -36,6 +36,7 @@ schemas are authoritative.
   finished; `evidence_completeness` is `INCOMPLETE` when a seed is missing,
   the walk was capped, or the requested baseline is unavailable. A missing
   file node is not proof of no dependents. File-level fallback is `coarse`.
+  Impacted nodes are id, label, kind, language, and span.
 - `verified_change`: impact, architecture, duplicate, API, and optional test
   evidence for plan/verify phases.
 - `prepare_change`, `graph_diff`: relevant rules and structural change.
@@ -62,9 +63,9 @@ schemas are authoritative.
   index (`index.scip` or `.scip/index.scip`) when one is already present. It
   never spawns `scip-*`, never takes github/stack-graphs as a live
   dependency, and never guesses a unique repository name. Unresolved stays
-  `UNRESOLVED`.
+  `UNRESOLVED` and omits `definition`.
 - `find_references`: occurrences of that same subject, from the graph and
-  from the SCIP file when it is already on disk.
+  from the SCIP file when it is already on disk. Test and classified rows stay out unless `include_tests` or `include_classified` is set. The definition row stays.
 - `map_stacktrace`: V8/Node, JVM, CPython and Rust panic frames from supplied
   text mapped onto repository files and the nearest graph symbol; runtime and
   dependency frames are classified from their own text.
@@ -78,9 +79,10 @@ schemas are authoritative.
   differ between two sites. `include_strings` adds a second pass over
   multi-line string payloads - inline SQL, templates, embedded scripts - which
   the code pass sees as one token and therefore never compares.
+  Files named `.gen.` or `.generated.` stay out unless `include_boilerplate` is set.
 - `find_dead_code`: review candidates with entry-point, test, configuration,
-  dynamic, and external-use classification.
-- `run_audit`: dependency, runtime, graph, and capability health.
+  dynamic, and external-use classification. Each candidate is id, label, kind, language, and span. A type-only import does not keep its target live.
+- `run_audit`: dependency, runtime, graph, and capability health. A named category collects only that section. At least 200 parsed edges with resolved edges under one fifth of that is REVIEW.
 - `coverage_map`: ingest LCOV, Istanbul, Tarpaulin JSON, or LLVM coverage
   onto graph nodes. The engine does not run tests. Weavatrix Quality writes
   `.weavatrix/coverage/lcov.info` onto the search path. Absence is
@@ -116,7 +118,7 @@ is weak evidence for each of them, and profiler attribution it is not.
 
 ## APIs and architecture
 
-- `list_endpoints`, `trace_endpoint`: HTTP inventory and route neighborhoods.
+- `list_endpoints`, `trace_endpoint`: compact HTTP inventory (`max_results` pages `list_endpoints` and reports `endpoints_total`) and route neighborhoods.
 - `trace_api_contract`: cross-repository HTTP, GraphQL, gRPC, Kafka,
   RabbitMQ/AMQP, JMS, NATS, SQS, and SNS evidence.
 - `architecture_inventory`: bounded observed architecture summary and
@@ -144,9 +146,11 @@ is weak evidence for each of them, and profiler attribution it is not.
   is not a required status check.
 
 - `ci_protection`: candidate checks and declared rule bindings for an
-  explicit `files` list. It does not read the worktree diff and is not
-  attached to `prepare_change`, `change_impact`, `verified_change`, or
-  `graph_diff`. Execution and provider enforcement stay unproven.
+  explicit `files` list. Component and membership ids in the answer are path
+  labels, and `restrictions_unresolved` is capped at 20. It does not read the
+  worktree diff and is not attached to `prepare_change`, `change_impact`,
+  `verified_change`, or `graph_diff`. Execution and provider enforcement stay
+  unproven.
 
 ## Git and repositories
 
@@ -156,7 +160,7 @@ is weak evidence for each of them, and profiler attribution it is not.
 
 ## Native Rust extensions
 
-- `semantic_link`: rank a text query with `weavatrix-token-hash-v1`, or link a non-empty caller-supplied vectors array. That hash is not a neural embedding.
+- `semantic_link`: rank a text query with `weavatrix-token-hash-v1` (name, path, nearby doc comment, declaration line, and a short body; test paths rank lower), or link a non-empty caller-supplied vectors array. That hash is not a neural embedding.
 
 Nearest-neighbor search, SEO page links, and the event journal stay in
 `weavatrix-search-vector`, `weavatrix-semantic`, and `weavatrix-memory`.

@@ -70,12 +70,9 @@ fn root_file_membership_and_composite_caps_are_visible() {
             .len(),
         50
     );
-    assert!(
-        protection["changed"][0]["component"]
-            .as_str()
-            .unwrap()
-            .starts_with("component:root-files:")
-    );
+    let component = protection["changed"][0]["component"].as_str().unwrap();
+    assert!(component.starts_with("component:root-files:"), "{component}");
+    assert!(component.len() < 40, "{component}");
     assert_eq!(
         protection["changed"][0]["declared_components"],
         json!(["root"])
@@ -104,12 +101,9 @@ fn ci_binding_uses_changed_files_membership_not_whole_directory() {
     )
     .unwrap();
     let protection = &prepared;
-    assert!(
-        protection["changed"][0]["component"]
-            .as_str()
-            .unwrap()
-            .starts_with("component:directory:")
-    );
+    let component = protection["changed"][0]["component"].as_str().unwrap();
+    assert!(component.starts_with("component:directory:"), "{component}");
+    assert!(component.len() < 80, "{component}");
     assert_eq!(
         protection["changed"][0]["declared_components"],
         json!(["a"])
@@ -141,7 +135,9 @@ fn ci_candidates_select_build_targets_and_tasks() {
         .find(|item| item["kind"] == "cargo_test")
         .unwrap();
     assert_eq!(cargo["relation"], "TARGET_CHECK_CANDIDATE", "{prepared}");
-    assert!(!cargo["selected_targets"].as_array().unwrap().is_empty());
+    let target = cargo["selected_targets"][0].as_str().unwrap();
+    assert!(target.starts_with("test:"), "{target}");
+    assert!(target.len() < 80, "{target}");
     let npm = candidates
         .iter()
         .find(|item| item["kind"] == "npm_script")
@@ -152,4 +148,7 @@ fn ci_candidates_select_build_targets_and_tasks() {
         prepared["changed"][0]["build_membership"]["resolution"],
         "EXACT_TARGET_PATH"
     );
+    assert!(prepared["changed"][0]["build_membership"].get("file").is_none());
+    let membership = blazingly_json::to_string(&prepared["changed"][0]["build_membership"]).unwrap();
+    assert!(membership.len() < 500, "{membership}");
 }

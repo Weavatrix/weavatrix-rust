@@ -91,29 +91,26 @@ struct Hit<'a> {
 }
 
 fn push_hit(hits: &mut Vec<Value>, hit: &Hit<'_>) {
-    hits.push(json!({
-        "seed": hit.seed.id,
-        "change": hit.change,
-        "relation": hit.relation,
-        "distance": hit.distance,
-        "revision": hit.revision,
-        "coarse": hit.coarse,
-        "node": hit.node
-    }));
+    // Attributes stay on get_node. Impact rows are the identity an agent can follow.
+    hits.push(witness(hit, hit.relation, graph::compact_node(hit.node)));
     if hit.node.kind != NodeKind::File
         && let Some(path) = node_path(hit.node)
         && let Some(file) = file_node(hit.graph, path)
     {
-        hits.push(json!({
-            "seed": hit.seed.id,
-            "change": hit.change,
-            "relation": "contains",
-            "distance": hit.distance,
-            "revision": hit.revision,
-            "coarse": hit.coarse,
-            "node": file
-        }));
+        hits.push(witness(hit, "contains", graph::compact_node(file)));
     }
+}
+
+fn witness(hit: &Hit<'_>, relation: &str, node: Value) -> Value {
+    json!({
+        "seed": hit.seed.id,
+        "change": hit.change,
+        "relation": relation,
+        "distance": hit.distance,
+        "revision": hit.revision,
+        "coarse": hit.coarse,
+        "node": node
+    })
 }
 
 pub(super) fn file_node<'a>(graph: &'a Graph, path: &str) -> Option<&'a Node> {

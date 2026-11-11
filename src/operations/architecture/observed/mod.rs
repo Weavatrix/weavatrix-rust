@@ -118,10 +118,6 @@ pub(crate) fn memberships(state: &RepositoryState) -> Vec<(String, String)> {
         .collect()
 }
 
-pub(crate) fn root_component_id(state: &RepositoryState) -> String {
-    components::root_id(state)
-}
-
 fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result<Value, String> {
     let capture = state.evidence().receipt();
     let (declaration, diagnostic) = match super::contract::load_optional(state) {

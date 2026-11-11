@@ -59,14 +59,14 @@ pub(in crate::operations) fn dead_code(
             let references = state
                 .graph()
                 .incoming_at(index)
-                .filter(|edge| edge.kind != EdgeKind::Contains)
+                .filter(|edge| edge.kind != EdgeKind::Contains && !type_only_import(edge))
                 .count();
             let (confidence, confidence_score) = confidence(node);
             if references != 0 || confidence_score < min_confidence {
                 return None;
             }
             Some(json!({
-                "node": node,
+                "node": crate::operations::graph::compact_node(node),
                 "confidence": confidence,
                 "confidence_score": confidence_score,
                 "reason": "unreachable from any declared entry point and no incoming call/import/reference evidence",
@@ -146,17 +146,14 @@ fn reachable_from(state: &RepositoryState, entries: &[NodeIndex]) -> BTreeSet<No
     let mut seen = entries.iter().copied().collect::<BTreeSet<_>>();
     let mut queue = entries.iter().copied().collect::<VecDeque<_>>();
     while let Some(index) = queue.pop_front() {
-        for edge in state.graph().outgoing_edges(index) {
-            let Some(kind) = state.graph().edge_at(edge).map(|edge| edge.kind.clone()) else {
+        for edge_index in state.graph().outgoing_edges(index) {
+            let Some(edge) = state.graph().edge_at(edge_index) else {
                 continue;
             };
-            if !matches!(
-                kind,
-                EdgeKind::Contains | EdgeKind::Imports | EdgeKind::ReExports | EdgeKind::Calls
-            ) {
+            if !keeps_target_live(edge) {
                 continue;
             }
-            let Some(endpoints) = state.graph().edge_endpoints(edge) else {
+            let Some(endpoints) = state.graph().edge_endpoints(edge_index) else {
                 continue;
             };
             if seen.insert(endpoints.target()) {
@@ -165,4 +162,52 @@ fn reachable_from(state: &RepositoryState, entries: &[NodeIndex]) -> BTreeSet<No
         }
     }
     seen
+}
+
+/// A type-only import is a name binding, not a runtime use.
+fn type_only_import(edge: &weavatrix_graph::Edge) -> bool {
+    edge.kind == EdgeKind::Imports
+        && matches!(
+            edge.attributes.get("coupling"),
+            Some(weavatrix_graph::AttributeValue::String(value)) if value == "type-only"
+        )
+}
+
+fn keeps_target_live(edge: &weavatrix_graph::Edge) -> bool {
+    if type_only_import(edge) {
+        return false;
+    }
+    matches!(
+        edge.kind,
+        EdgeKind::Contains | EdgeKind::Imports | EdgeKind::ReExports | EdgeKind::Calls
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{keeps_target_live, type_only_import};
+    use weavatrix_graph::{Confidence, Edge, EdgeKind, EvidenceKind, NodeId, Provenance};
+
+    #[test]
+    fn a_type_only_import_does_not_count_as_a_use() {
+        let provenance = Provenance::new("test", EvidenceKind::Parsed, Confidence::High).unwrap();
+        let typed = Edge::new(
+            NodeId::new("file:a.ts").unwrap(),
+            NodeId::new("file:b.ts").unwrap(),
+            EdgeKind::Imports,
+            provenance.clone(),
+        )
+        .with_attribute("coupling", "type-only");
+        let runtime = Edge::new(
+            NodeId::new("file:a.ts").unwrap(),
+            NodeId::new("file:b.ts").unwrap(),
+            EdgeKind::Imports,
+            provenance,
+        )
+        .with_attribute("coupling", "runtime");
+        assert!(type_only_import(&typed));
+        assert!(!type_only_import(&runtime));
+        assert!(!keeps_target_live(&typed));
+        assert!(keeps_target_live(&runtime));
+    }
 }

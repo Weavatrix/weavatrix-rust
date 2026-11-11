@@ -1,6 +1,6 @@
-use super::super::neighbors;
+use super::super::{compact_node, neighbors};
 use crate::engine::RepositoryState;
-use crate::operations::{arg_bool, arg_str};
+use crate::operations::{arg_bool, arg_str, optional_u64};
 use blazingly_json::{Value, json};
 use weavatrix_graph::NodeKind;
 
@@ -27,5 +27,27 @@ pub fn endpoints(state: &RepositoryState, args: &Value) -> Result<Value, String>
             .ok_or_else(|| format!("endpoint not found: {path}"))?;
         return neighbors(state, &json!({"label": endpoint.id.as_str()}));
     }
-    Ok(json!({"endpoints": endpoints}))
+    let total = endpoints.len();
+    let truncated = if let Some(max) = optional_u64(args, "max_results")? {
+        if max == 0 || max > 500 {
+            return Err("max_results must be between 1 and 500".to_owned());
+        }
+        let max = usize::try_from(max).unwrap_or(500);
+        let truncated = total > max;
+        endpoints.truncate(max);
+        truncated
+    } else {
+        false
+    };
+    let returned = endpoints.len();
+    let endpoints = endpoints
+        .into_iter()
+        .map(compact_node)
+        .collect::<Vec<_>>();
+    Ok(json!({
+        "endpoints": endpoints,
+        "endpoints_total": total,
+        "returned": returned,
+        "truncated": truncated
+    }))
 }

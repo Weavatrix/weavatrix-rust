@@ -191,8 +191,15 @@ fn production_first_filters_are_applied_by_the_tools_that_advertise_them() {
         );
     }
 
-    let production = tools::call(&mut engine, "list_endpoints", json!({})).unwrap();
-    let production = labels(&production, "/endpoints");
+    let production_report = tools::call(&mut engine, "list_endpoints", json!({})).unwrap();
+    let production = labels(&production_report, "/endpoints");
+    assert!(production_report["endpoints"][0].get("attributes").is_none());
+    assert!(production_report["endpoints"][0]["id"].as_str().is_some());
+    assert_eq!(
+        production_report["endpoints_total"].as_u64().unwrap() as usize,
+        production.len()
+    );
+    assert_eq!(production_report["truncated"], json!(false));
     assert!(
         production.iter().any(|label| label.contains("/live")),
         "a production route stays listed, got {production:?}"
@@ -215,4 +222,17 @@ fn production_first_filters_are_applied_by_the_tools_that_advertise_them() {
             .any(|label| label.contains("/only-in-tests")),
         "include_tests reveals the test-only route"
     );
+    assert!(with_tests["endpoints_total"].as_u64().unwrap() >= 2);
+    let page = tools::call(
+        &mut engine,
+        "list_endpoints",
+        json!({"max_results": 1, "include_tests": true}),
+    )
+    .unwrap();
+    assert_eq!(page["endpoints"].as_array().unwrap().len(), 1);
+    assert_eq!(page["endpoints_total"], with_tests["endpoints_total"]);
+    assert_eq!(page["truncated"], json!(true));
+    assert!(page["endpoints"][0].get("attributes").is_none());
+    let rejected = tools::call(&mut engine, "list_endpoints", json!({"max_results": 0})).unwrap_err();
+    assert!(rejected.contains("max_results"), "{rejected}");
 }

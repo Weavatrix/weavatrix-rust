@@ -21,9 +21,9 @@ pub(super) fn execute(
     options: &SearchOptions,
     glob: Option<&str>,
 ) -> Result<SearchReport, String> {
+    let glob = glob.map(str::trim).filter(|pattern| !pattern.is_empty());
     if let Some(glob) = glob {
-        // An override rule can force-include a file the resident snapshot skipped.
-        return filesystem(root, query, options, Some(glob));
+        return execute_glob(root, query, options, glob);
     }
     match resident(root, query.clone(), options.clone()) {
         Ok(report) => Ok(report),
@@ -37,6 +37,99 @@ pub(super) fn execute(
             Ok(report)
         }
     }
+}
+
+fn execute_glob(
+    root: &Path,
+    query: SearchQuery,
+    options: &SearchOptions,
+    glob: &str,
+) -> Result<SearchReport, String> {
+    let asked = options.max_results.max(1);
+    let widened = options
+        .clone()
+        .with_max_results(asked.saturating_mul(32).clamp(asked, 10_000));
+    let Ok(mut report) = resident(root, query.clone(), widened) else {
+        return filesystem(root, query, options, Some(glob));
+    };
+    report.matches.retain(|item| path_matches_glob(&item.path, glob));
+    if report.truncated && report.matches.len() < asked {
+        return filesystem(root, query, options, Some(glob));
+    }
+    if report.matches.len() > asked {
+        report.matches.truncate(asked);
+        report.truncated = true;
+    }
+    recount(&mut report, glob);
+    Ok(report)
+}
+
+fn recount(report: &mut SearchReport, glob: &str) {
+    let mut lines = std::collections::BTreeSet::new();
+    let mut files = std::collections::BTreeSet::new();
+    let mut occurrences = 0u64;
+    for item in &report.matches {
+        lines.insert((item.path.clone(), item.line_number));
+        files.insert(item.path.clone());
+        occurrences =
+            occurrences.saturating_add(u64::try_from(item.spans.len().max(1)).unwrap_or(1));
+    }
+    report.matching_lines = u64::try_from(lines.len()).unwrap_or(u64::MAX);
+    report.files_with_matches = u64::try_from(files.len()).unwrap_or(u64::MAX);
+    report.occurrences = occurrences;
+    report
+        .matched_files
+        .retain(|item| path_matches_glob(&item.path, glob));
+}
+
+fn path_matches_glob(path: &str, pattern: &str) -> bool {
+    let path = path.replace('\\', "/");
+    let pattern = pattern.trim().trim_start_matches("./").replace('\\', "/");
+    if pattern.is_empty() {
+        return true;
+    }
+    if !pattern.contains('/') {
+        let name = path.rsplit('/').next().unwrap_or(path.as_str());
+        return glob_match(name.as_bytes(), pattern.as_bytes());
+    }
+    glob_match(path.as_bytes(), pattern.as_bytes())
+}
+
+fn glob_match(text: &[u8], pattern: &[u8]) -> bool {
+    fn rec(text: &[u8], pattern: &[u8]) -> bool {
+        if pattern.is_empty() {
+            return text.is_empty();
+        }
+        if pattern.starts_with(b"**") {
+            let mut rest = &pattern[2..];
+            if rest.starts_with(b"/") {
+                rest = &rest[1..];
+            }
+            if rec(text, rest) {
+                return true;
+            }
+            for (index, _) in text.iter().enumerate() {
+                if rec(&text[index + 1..], rest) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if text.is_empty() {
+            return pattern.iter().all(|byte| *byte == b'*');
+        }
+        if pattern[0] == b'*' {
+            if rec(text, &pattern[1..]) {
+                return true;
+            }
+            return text[0] != b'/' && rec(&text[1..], pattern);
+        }
+        if pattern[0] == b'?' {
+            return text[0] != b'/' && rec(&text[1..], &pattern[1..]);
+        }
+        text[0].eq_ignore_ascii_case(&pattern[0]) && rec(&text[1..], &pattern[1..])
+    }
+    rec(text, pattern)
 }
 
 fn resident(
@@ -137,4 +230,19 @@ fn fingerprint(root: &Path) -> String {
         let _ = write!(encoded, "{byte:02x}");
     }
     encoded
+}
+
+#[cfg(test)]
+mod tests {
+    use super::path_matches_glob;
+
+    #[test]
+    fn a_basename_glob_matches_the_file_name() {
+        assert!(path_matches_glob("src/server.go", "*.go"));
+        assert!(!path_matches_glob("src/server.go", "*.rs"));
+        assert!(path_matches_glob("src/nested/app.rs", "**/*.rs"));
+        assert!(!path_matches_glob("src/nested/app.rs", "src/*.rs"));
+        assert!(path_matches_glob("src/app.rs", "src/*.rs"));
+        assert!(path_matches_glob("src/app.rs", "*.rs"));
+    }
 }

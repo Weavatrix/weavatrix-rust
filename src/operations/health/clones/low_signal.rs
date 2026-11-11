@@ -63,7 +63,7 @@ pub(super) fn suppress(
 fn is_boilerplate(path: &str) -> bool {
     let lower = path.to_ascii_lowercase();
     let file = lower.rsplit(['/', '\\']).next().unwrap_or(&lower);
-    [".router.", ".routes.", ".handlers."]
+    [".router.", ".routes.", ".handlers.", ".gen.", ".generated."]
         .iter()
         .any(|marker| file.contains(marker))
 }
@@ -114,6 +114,9 @@ mod tests {
         assert!(is_boilerplate("src/app.router.ts"));
         assert!(is_boilerplate("src\\users.routes.js"));
         assert!(is_boilerplate("api.handlers.mjs"));
+        assert!(is_boilerplate("src/client/api.gen.ts"));
+        assert!(is_boilerplate("pkg/types.generated.go"));
+        assert!(!is_boilerplate("src/client/api.ts"));
         assert!(!is_boilerplate("src/model.ts"));
         assert!(is_semantic_contract_path("src/models/user.ts"));
         assert!(is_semantic_contract_path("pkg/schema/v1.json"));

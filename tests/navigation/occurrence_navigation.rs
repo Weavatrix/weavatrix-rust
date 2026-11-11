@@ -132,7 +132,7 @@ fn a_position_without_an_occurrence_stays_unresolved() {
         json!({"path": "src/app.js", "line": 1, "column": 1}),
     );
     assert_eq!(report["state"], "UNRESOLVED", "{report}");
-    assert!(report["definition"].is_null());
+    assert!(report.get("definition").is_none(), "{report}");
     assert_eq!(report["reason"], "no occurrence at this position");
 }
 
@@ -167,5 +167,5 @@ fn an_unresolved_method_call_does_not_bind_a_same_named_free_function() {
         json!({"path": "src/lib.rs", "line": line, "column": column}),
     );
     assert_eq!(report["state"], "UNRESOLVED", "{report}");
-    assert!(report["definition"].is_null());
+    assert!(report.get("definition").is_none(), "{report}");
 }

@@ -20,13 +20,11 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
     let changed_total = changed_all.len();
     let changed = changed_all.into_iter().take(100).collect::<Vec<_>>();
     let memberships = crate::operations::architecture::structural_memberships(state);
-    let root_component = crate::operations::architecture::root_structural_id(state);
     let build = crate::operations::build::model(state);
     let declaration = crate::operations::architecture::contract::load_optional(state);
-    let selected = selected_files(
+    let mut selected = selected_files(
         &changed,
         &memberships,
-        &root_component,
         declaration.as_ref().ok().and_then(Option::as_ref),
         &build,
     );
@@ -64,9 +62,13 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
     {
         diagnostics.push("ci_restrictions has unresolved evidence".to_owned());
     }
+    let (unresolved, unresolved_total) = unresolved_page(restrictions.as_ref().ok());
+    let unresolved_len = unresolved.as_array().map_or(0, Vec::len);
     let truncated = changed_total > changed.len()
         || checks_total.is_some_and(|total| total > candidates.len() as u64)
-        || bindings_total > rule_bindings.len();
+        || bindings_total > rule_bindings.len()
+        || unresolved_total.is_some_and(|total| total > unresolved_len);
+    present_membership(&build, &mut selected);
     Ok(json!({
         "status": if diagnostics.is_empty() && !truncated {"STATIC_CANDIDATES"} else {"INCOMPLETE"},
         "diagnostics": diagnostics,
@@ -74,7 +76,8 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
         "changed_total": changed_total,
         "candidate_checks_total": checks_total,
         "restrictions_status": restrictions.as_ref().ok().map(|child| &child["status"]),
-        "restrictions_unresolved": restrictions.as_ref().ok().map(|child| &child["unresolved"]),
+        "restrictions_unresolved": unresolved,
+        "restrictions_unresolved_total": unresolved_total,
         "declared_rule_bindings_total": bindings_total,
         "changed": selected,
         "candidate_checks": candidates,
@@ -83,10 +86,22 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
     }))
 }
 
+fn unresolved_page(restrictions: Option<&Value>) -> (Value, Option<usize>) {
+    let Some(report) = restrictions else {
+        return (Value::Null, None);
+    };
+    let Some(items) = report.get("unresolved").and_then(Value::as_array) else {
+        return (json!([]), Some(0));
+    };
+    (
+        json!(items.iter().take(20).cloned().collect::<Vec<_>>()),
+        Some(items.len()),
+    )
+}
+
 fn selected_files(
     changed: &[String],
     memberships: &[(String, String)],
-    root_component: &str,
     declaration: Option<&Value>,
     build: &crate::operations::build::BuildModel,
 ) -> Vec<Value> {
@@ -112,14 +127,19 @@ fn selected_files(
                     }
                 })
                 .max_by_key(|(path, _)| path.len());
-            let build_membership = build.file_membership(file);
+            let component = match component {
+                Some((path, _)) if path.is_empty() => json!("component:root-files:"),
+                Some((path, _)) => json!(format!("component:directory:{path}")),
+                None if !file.contains('/') => json!("component:root-files:"),
+                None => Value::Null,
+            };
+            // Full build ids stay here until candidate selection has used them.
             json!({
                 "file": file,
-                "component": component.map_or_else(|| if file.contains('/') { Value::Null }
-                        else { json!(root_component) }, |(_, id)| json!(id)),
+                "component": component,
                 "declared_component": unique,
                 "declared_components": declared,
-                "build_membership": build_membership
+                "build_membership": build.file_membership(file)
             })
         })
         .collect()
@@ -166,11 +186,44 @@ fn check_candidate(
         "id": check["id"],
         "kind": check["kind"],
         "relation": relation,
-        "selected_members": members,
-        "selected_targets": targets,
-        "selected_tasks": tasks,
+        "selected_members": members.iter().map(|id| build.member_label(id)).collect::<Vec<_>>(),
+        "selected_targets": targets.iter().map(|id| build.target_label(id)).collect::<Vec<_>>(),
+        "selected_tasks": tasks.iter().map(|id| build.task_label(id)).collect::<Vec<_>>(),
         "selection_basis": "STATIC_BUILD_MODEL",
         "failure_effect": check["failure_effect"],
         "recognition": check["recognition"]
     })
 }
+
+fn present_membership(
+    build: &crate::operations::build::BuildModel,
+    selected: &mut [Value],
+) {
+    for item in selected {
+        let Some(membership) = item.get("build_membership").cloned() else {
+            continue;
+        };
+        let labeled = json!({
+            "resolution": membership.get("resolution"),
+            "member_ids": labeled_ids(&membership, "member_ids", |id| build.member_label(id)),
+            "target_ids": labeled_ids(&membership, "target_ids", |id| build.target_label(id)),
+            "module_ids": labeled_ids(&membership, "module_ids", |id| build.module_label(id))
+        });
+        if let Some(object) = item.as_object_mut() {
+            object.insert("build_membership".to_owned(), labeled);
+        }
+    }
+}
+
+fn labeled_ids(membership: &Value, key: &str, label: impl Fn(&str) -> String) -> Vec<String> {
+    membership
+        .get(key)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(label)
+        .collect()
+}
+
+

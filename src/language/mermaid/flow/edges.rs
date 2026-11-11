@@ -93,9 +93,7 @@ fn parse_node(
     let id = scanner.take_ident()?;
     let explicit = take_shape(scanner);
     let label = explicit.clone().unwrap_or_else(|| id.clone());
-    let span = span_for(path, raw, start, scanner.absolute());
     if let Some(existing) = diagram.elements.iter_mut().find(|element| element.id == id) {
-        existing.occurrences.push(span);
         if explicit.is_some() {
             existing.label = label;
         }
@@ -104,9 +102,8 @@ fn parse_node(
     diagram.elements.push(Element {
         id: id.clone(),
         label,
-        span,
+        span: span_for(path, raw, start, scanner.absolute()),
         group: group.cloned(),
-        occurrences: Vec::new(),
     });
     Some(id)
 }

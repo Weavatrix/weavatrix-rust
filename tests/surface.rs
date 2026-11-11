@@ -21,5 +21,7 @@ mod perf_attribution;
 mod report_composition;
 #[path = "surface/search_excerpts.rs"]
 mod search_excerpts;
+#[path = "surface/snapshot_honesty.rs"]
+mod snapshot_honesty;
 #[path = "surface/token_budgets.rs"]
 mod token_budgets;

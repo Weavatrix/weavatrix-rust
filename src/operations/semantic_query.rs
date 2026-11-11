@@ -1,7 +1,9 @@
 //! Deterministic symbol ranking for a phrase.
 //!
-//! This is a local token hash of symbol names, paths, and the declaration
-//! line. It does not download a model and it is not a neural embedding.
+//! This is a local token hash of symbol names, paths, a short doc comment
+//! above the declaration, the declaration line, and a short body window.
+//! Test paths rank lower. It does not download a model and it is not a
+//! neural embedding.
 
 use crate::engine::RepositoryState;
 use crate::operations::{node_path, optional_u64};
@@ -34,7 +36,7 @@ pub(super) fn by_phrase(
             continue;
         }
         let matched = matched_tokens(&tokens, &name_tokens, &path_tokens);
-        let mut score = score_of(name_hits, path_hits, 0, tokens.len(), matched.len());
+        let mut score = score_of(name_hits, path_hits, 0, 0, 0, tokens.len(), matched.len());
         if node.label.eq_ignore_ascii_case(query.trim()) {
             score = 1_000;
         }
@@ -64,26 +66,29 @@ pub(super) fn by_phrase(
     hits.truncate(80);
     let mut files = HashMap::<String, String>::new();
     for hit in &mut hits {
-        let line = declaration_line(state, &mut files, &hit.path, hit.line);
-        let line_tokens = tokenize(&line);
-        let line_hits = overlap(&tokens, &line_tokens);
-        if line_hits == 0 || hit.score == 1_000 {
-            continue;
-        }
-        for token in &tokens {
-            if line_tokens.iter().any(|item| item == token)
-                && !hit.matched.iter().any(|item| item == token)
-            {
-                hit.matched.push(token.clone());
+        if hit.score != 1_000 {
+            let (line, doc, body) = evidence_window(state, &mut files, &hit.path, hit.line);
+            let line_hits = overlap(&tokens, &tokenize(&line));
+            let doc_hits = overlap(&tokens, &tokenize(&doc));
+            let body_hits = overlap(&tokens, &tokenize(&body));
+            if line_hits > 0 || doc_hits > 0 || body_hits > 0 {
+                absorb(&mut hit.matched, &tokens, &line);
+                absorb(&mut hit.matched, &tokens, &doc);
+                absorb(&mut hit.matched, &tokens, &body);
+                hit.score = score_of(
+                    overlap(&tokens, &tokenize(&hit.label)),
+                    overlap(&tokens, &tokenize(&hit.path)),
+                    line_hits,
+                    doc_hits,
+                    body_hits,
+                    tokens.len(),
+                    hit.matched.len(),
+                );
             }
         }
-        hit.score = score_of(
-            overlap(&tokens, &tokenize(&hit.label)),
-            overlap(&tokens, &tokenize(&hit.path)),
-            line_hits,
-            tokens.len(),
-            hit.matched.len(),
-        );
+        if super::health::ranks_as_test(&hit.path) {
+            hit.score = hit.score.saturating_sub(TEST_RANK_PENALTY);
+        }
     }
     hits.sort_by(|left, right| {
         right
@@ -149,23 +154,48 @@ fn searchable(kind: &NodeKind) -> bool {
     )
 }
 
+const TEST_RANK_PENALTY: usize = 250;
+const DOC_LINES: usize = 12;
+const BODY_LINES: usize = 24;
+
 fn score_of(
     name_hits: usize,
     path_hits: usize,
     line_hits: usize,
+    doc_hits: usize,
+    body_hits: usize,
     query_len: usize,
     covered_tokens: usize,
 ) -> usize {
     if query_len == 0 {
         return 0;
     }
-    let raw = name_hits * 700 + path_hits * 300 + line_hits * 200;
+    let raw = name_hits * 700
+        + path_hits * 300
+        + line_hits * 200
+        + doc_hits * 250
+        + body_hits * 120;
     // The bonus requires every query token to appear in the name, the path,
-    // or the declaration line. A sum of per-field hits is not that check:
-    // one token counted in three fields used to look like full coverage.
+    // the doc comment, the declaration line, or the short body. A sum of
+    // per-field hits is not that check.
     let bonus = if covered_tokens == query_len { 150 } else { 0 };
-    let all = name_hits.max(path_hits).max(line_hits);
+    let all = name_hits
+        .max(path_hits)
+        .max(line_hits)
+        .max(doc_hits)
+        .max(body_hits);
     ((raw / query_len) + bonus + all.min(1)).min(999)
+}
+
+fn absorb(matched: &mut Vec<String>, query: &[String], field: &str) {
+    let field_tokens = tokenize(field);
+    for token in query {
+        if field_tokens.iter().any(|item| item == token)
+            && !matched.iter().any(|item| item == token)
+        {
+            matched.push(token.clone());
+        }
+    }
 }
 
 fn overlap(query: &[String], field: &[String]) -> usize {
@@ -185,22 +215,61 @@ fn matched_tokens(query: &[String], name: &[String], path: &[String]) -> Vec<Str
         .collect()
 }
 
-fn declaration_line(
+fn evidence_window(
     state: &RepositoryState,
     files: &mut HashMap<String, String>,
     path: &str,
     line: u32,
-) -> String {
+) -> (String, String, String) {
     if path.is_empty() || line == 0 {
-        return String::new();
+        return (String::new(), String::new(), String::new());
     }
     let text = files
         .entry(path.to_owned())
         .or_insert_with(|| std::fs::read_to_string(state.root().join(path)).unwrap_or_default());
-    text.lines()
-        .nth(usize::try_from(line.saturating_sub(1)).unwrap_or(0))
-        .unwrap_or("")
-        .to_owned()
+    let lines = text.lines().collect::<Vec<_>>();
+    let index = usize::try_from(line.saturating_sub(1)).unwrap_or(0);
+    if index >= lines.len() {
+        return (String::new(), String::new(), String::new());
+    }
+    let mut doc = Vec::new();
+    let mut cursor = index;
+    let mut taken = 0;
+    while cursor > 0 && taken < DOC_LINES {
+        cursor -= 1;
+        taken += 1;
+        let trimmed = lines[cursor].trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if comment_line(trimmed) {
+            doc.push(lines[cursor]);
+            continue;
+        }
+        break;
+    }
+    doc.reverse();
+    let body_end = (index + 1 + BODY_LINES).min(lines.len());
+    (
+        lines[index].to_owned(),
+        bound(&doc.join("\n")),
+        bound(&lines[index + 1..body_end].join("\n")),
+    )
+}
+
+fn bound(text: &str) -> String {
+    text.chars().take(800).collect()
+}
+
+fn comment_line(trimmed: &str) -> bool {
+    trimmed.starts_with("//")
+        || trimmed.starts_with('#')
+        || trimmed.starts_with("/*")
+        || trimmed.starts_with('*')
+        || trimmed.starts_with("*/")
+        || trimmed.starts_with("--")
+        || trimmed.starts_with("'''")
+        || trimmed.starts_with("\"\"\"")
 }
 
 fn tokenize(text: &str) -> Vec<String> {

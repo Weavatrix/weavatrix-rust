@@ -1,9 +1,9 @@
 use super::detect::is_links_file;
-use super::model::binding_kind;
+use super::model::{binding_kind, meta_kind};
 use super::span::span_for;
 use crate::language::{DomainFact, FileFacts, SymbolFact, SymbolLocator};
 use blazingly_json::Value;
-use weavatrix_graph::{EdgeKind, NodeKind};
+use weavatrix_graph::EdgeKind;
 
 #[must_use]
 pub(crate) fn analyze_links(path: &str, raw: &str, value: &Value) -> Option<FileFacts> {
@@ -51,7 +51,7 @@ pub(crate) fn analyze_links(path: &str, raw: &str, value: &Value) -> Option<File
             {
                 facts.domains.push(DomainFact {
                     name: format!("{prefix}:{value}"),
-                    kind: NodeKind::Unknown,
+                    kind: meta_kind(),
                     relation: EdgeKind::Configures,
                     span: span.clone(),
                     owner: Some(owner.clone()),
@@ -60,7 +60,7 @@ pub(crate) fn analyze_links(path: &str, raw: &str, value: &Value) -> Option<File
         }
         facts.domains.push(DomainFact {
             name: format!("declared:{index}"),
-            kind: NodeKind::Unknown,
+            kind: meta_kind(),
             relation: EdgeKind::Configures,
             span,
             owner: Some(owner),

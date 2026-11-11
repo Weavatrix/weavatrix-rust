@@ -24,4 +24,4 @@ pub(super) use coverage::coverage;
 pub(super) use cycles::runtime_dependency_cycles;
 pub(super) use dead_code::dead_code;
 pub(super) use hot_paths::hot_paths;
-pub(super) use paths::{is_non_product, is_test_suite, path_is_visible};
+pub(super) use paths::{is_non_product, is_test_suite, path_is_visible, ranks_as_test};

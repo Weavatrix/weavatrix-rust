@@ -50,7 +50,14 @@ pub(super) fn compact_node(node: &weavatrix_graph::Node) -> Value {
 
 pub fn stats(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let census = state.census();
+    let fresh = if state.evidence().receipt().complete {
+        "CURRENT"
+    } else {
+        "INCOMPLETE"
+    };
+    let share = evidence_share(&census.evidence);
     // Static per build, not per repository or per call: opt in rather than pay for it every time.
+    // evidence counts edges. CURRENT means this loaded snapshot, not a new walk of the disk.
     let mut report = json!({
         "repository": state.snapshot().repository,
         "revision": state.snapshot().revision,
@@ -60,8 +67,11 @@ pub fn stats(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         "node_kinds": census.kinds,
         "relations": census.relations,
         "evidence": census.evidence,
+        "evidence_unit": "edges",
+        "evidence_share": share,
         "freshness": {
-            "state": "CURRENT",
+            "state": fresh,
+            "basis": "loaded_snapshot",
             "source_revision": state.snapshot().revision,
             "incremental_hashes_reused": state.scan_report().cache.reused_hashes,
             "content_reads": state.scan_report().cache.content_reads
@@ -116,12 +126,18 @@ pub fn neighbors(state: &RepositoryState, args: &Value) -> Result<Value, String>
             {
                 continue;
             }
+            let other = if direction == "outgoing" {
+                state.graph().node(edge.target.as_str())
+            } else {
+                state.graph().node(edge.source.as_str())
+            };
+            if let Some(node) = other
+                && let Some(slot) = state.graph().node_index(node.id.as_str())
+                && !crate::operations::node_is_visible(state, slot.index(), args)
+            {
+                continue;
+            }
             if total >= offset && items.len() < max_results {
-                let other = if direction == "outgoing" {
-                    state.graph().node(edge.target.as_str())
-                } else {
-                    state.graph().node(edge.source.as_str())
-                };
                 items.push(if full {
                     json!({"direction": direction, "edge": edge, "node": other})
                 } else {
@@ -143,8 +159,9 @@ pub fn neighbors(state: &RepositoryState, args: &Value) -> Result<Value, String>
     }
     let returned = items.len();
     let end = offset.saturating_add(returned);
+    let seed = state.node(index)?;
     Ok(json!({
-        "node": state.node(index)?,
+        "node": if full { json!(seed) } else { compact_node(seed) },
         "neighbors": items,
         "page": {
             "offset": offset,
@@ -163,26 +180,106 @@ pub fn hubs(state: &RepositoryState, args: &Value) -> Value {
         .nodes()
         .iter()
         .enumerate()
-        .filter(|(_, node)| !matches!(node.kind, NodeKind::Repository | NodeKind::Package))
+        .filter(|(_, node)| hub_candidate(node))
         .filter(|(slot, _)| crate::operations::node_is_visible(state, *slot, args))
         .map(|(slot, node)| {
             let index = NodeIndex::new(u32::try_from(slot).unwrap_or(u32::MAX));
             let incoming = state.graph().in_degree(index).unwrap_or(0);
             let outgoing = state.graph().out_degree(index).unwrap_or(0);
-            (incoming + outgoing, incoming, outgoing, node)
+            let outside = outside_files(state, index, node);
+            (outside, incoming + outgoing, incoming, outgoing, node)
         })
         .collect::<Vec<_>>();
     nodes.sort_unstable_by(|left, right| {
         right
             .0
             .cmp(&left.0)
-            .then_with(|| left.3.id.cmp(&right.3.id))
+            .then_with(|| right.1.cmp(&left.1))
+            .then_with(|| left.4.id.cmp(&right.4.id))
     });
     json!({
-        "hubs": nodes.into_iter().take(top).map(|(degree, incoming, outgoing, node)| {
+        "hubs": nodes.into_iter().take(top).map(|(_outside, degree, incoming, outgoing, node)| {
             json!({"node": compact_node(node), "degree": degree, "incoming": incoming, "outgoing": outgoing})
         }).collect::<Vec<_>>()
     })
+}
+
+fn evidence_share(evidence: &std::collections::BTreeMap<String, u64>) -> Value {
+    let total = evidence.values().copied().sum::<u64>();
+    if total == 0 {
+        return json!({});
+    }
+    let mut share = json!({});
+    if let Some(object) = share.as_object_mut() {
+        for (key, count) in evidence {
+            let rounded = ((*count as f64) / (total as f64) * 1000.0).round() / 1000.0;
+            object.insert(key.clone(), json!(rounded));
+        }
+    }
+    share
+}
+
+const HUB_LABELS: &[&str] = &[
+    "String",
+    "Log",
+    "Error",
+    "int",
+    "any",
+    "Object",
+    "Promise",
+    "Map",
+    "Array",
+    "console",
+    "number",
+    "string",
+    "boolean",
+];
+
+fn hub_candidate(node: &weavatrix_graph::Node) -> bool {
+    if matches!(
+        node.kind,
+        NodeKind::Repository
+            | NodeKind::Package
+            | NodeKind::File
+            | NodeKind::Module
+            | NodeKind::Unknown
+            | NodeKind::Constant
+            | NodeKind::ConfigKey
+    ) {
+        return false;
+    }
+    if HUB_LABELS.contains(&node.label.as_str()) {
+        return false;
+    }
+    let Some(span) = node.span.as_ref() else {
+        return true;
+    };
+    let file = span.file.as_str();
+    !(ends_with_ignore(file, ".css")
+        || ends_with_ignore(file, ".scss")
+        || ends_with_ignore(file, ".less"))
+}
+
+fn ends_with_ignore(path: &str, suffix: &str) -> bool {
+    path.len() >= suffix.len() && path[path.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+}
+
+fn outside_files(state: &RepositoryState, index: NodeIndex, node: &weavatrix_graph::Node) -> usize {
+    let mine = node.span.as_ref().map(|span| span.file.as_str());
+    let mut files = std::collections::BTreeSet::new();
+    for edge in state.graph().incoming_at(index) {
+        let Some(other) = state.graph().node(edge.source.as_str()) else {
+            continue;
+        };
+        let Some(span) = other.span.as_ref() else {
+            continue;
+        };
+        if mine.is_some_and(|file| file == span.file.as_str()) {
+            continue;
+        }
+        files.insert(span.file.as_str());
+    }
+    files.len()
 }
 
 pub(super) fn relation_filter(

@@ -150,6 +150,8 @@ fn is_auxiliary_content(segments: &[&str], file: &str) -> bool {
         .any(|extension| file.ends_with(extension))
         || file.contains(".min.")
         || file.contains(".openapi.")
+        || file.contains(".gen.")
+        || file.contains(".generated.")
 }
 
 fn is_tool_configuration(segments: &[&str], file: &str) -> bool {
@@ -244,6 +246,11 @@ pub(in crate::operations) fn is_test_suite(path: &str) -> bool {
         && (file.starts_with("test_") || file.ends_with("_test.py"));
 
     script_test || rust_test || go_test || python_test
+}
+
+/// Test-suite names plus directory conventions such as `tests/` and `__tests__`.
+pub(in crate::operations) fn ranks_as_test(path: &str) -> bool {
+    matches!(path_class(path), PathClass::Test) || is_test_suite(path)
 }
 
 /// Applies the `include_tests` and `include_classified` opt-ins to one path.

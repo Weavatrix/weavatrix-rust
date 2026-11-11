@@ -48,10 +48,6 @@ pub(crate) fn structural_memberships(state: &RepositoryState) -> Vec<(String, St
     observed::memberships(state)
 }
 
-pub(crate) fn root_structural_id(state: &RepositoryState) -> String {
-    observed::root_component_id(state)
-}
-
 pub fn prepare(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let files = args
         .get("files")

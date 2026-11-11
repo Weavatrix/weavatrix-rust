@@ -125,7 +125,7 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
         })),
         ("semantic_link", "query") => Some(json!({
             "type": "string",
-            "description": "Phrase ranked against symbol names, paths, and the declaration line with model weavatrix-token-hash-v1. Deterministic and local. Not a neural embedding. Omit it only when vectors is a non-empty caller-supplied embedding array"
+            "description": "Phrase ranked against symbol names, paths, a short doc comment, the declaration line, and a short body with model weavatrix-token-hash-v1. Test paths rank lower. Deterministic and local. Not a neural embedding. Omit it only when vectors is a non-empty caller-supplied embedding array"
         })),
         ("semantic_link", "vectors") => Some(json!({
             "type": "array",

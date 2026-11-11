@@ -1,5 +1,5 @@
 use super::model::{
-    Completeness, Diagram, declared_architecture, diagram_kind, element_kind, group_kind,
+    Diagram, declared_architecture, diagram_kind, element_kind, group_kind, meta_kind,
 };
 use crate::language::{
     BoundEdgeFact, DomainFact, FileFacts, ReferenceFact, SymbolFact, SymbolLocator,
@@ -47,7 +47,7 @@ fn emit_diagram(facts: &mut FileFacts, path: &str, diagram: &Diagram) {
             &owner,
             &group.span,
             &format!("group_title:{}", group.title),
-            NodeKind::Unknown,
+            meta_kind(),
             EdgeKind::Configures,
         );
     }
@@ -63,15 +63,7 @@ fn emit_diagram(facts: &mut FileFacts, path: &str, diagram: &Diagram) {
             locators.get(&element.id).unwrap_or(&owner),
             &element.span,
             &format!("label:{}", element.label),
-            NodeKind::Unknown,
-            EdgeKind::Configures,
-        );
-        push_named(
-            facts,
-            locators.get(&element.id).unwrap_or(&owner),
-            &element.span,
-            &format!("native_id:{}", element.id),
-            NodeKind::Unknown,
+            meta_kind(),
             EdgeKind::Configures,
         );
         if let Some(group) = &element.group
@@ -81,33 +73,10 @@ fn emit_diagram(facts: &mut FileFacts, path: &str, diagram: &Diagram) {
                 .references
                 .push(contains(group_loc, &element.id, element.span.clone()));
         }
-        for occurrence in &element.occurrences {
-            push_named(
-                facts,
-                locators.get(&element.id).unwrap_or(&owner),
-                occurrence,
-                &format!(
-                    "occurrence:{}:{}",
-                    occurrence.start.line, occurrence.start.column
-                ),
-                NodeKind::Unknown,
-                EdgeKind::Configures,
-            );
-        }
     }
     for relation in &diagram.relations {
         emit_relation(facts, &locators, relation);
     }
-    let known = diagram.elements.len();
-    let total = known + usize::from(diagram.completeness == Completeness::Partial);
-    push_named(
-        facts,
-        &owner,
-        &diagram.span,
-        &format!("coverage:elements:{known}/{total}"),
-        NodeKind::Unknown,
-        EdgeKind::Configures,
-    );
 }
 
 fn emit_relation(
@@ -176,7 +145,7 @@ fn push_meta(facts: &mut FileFacts, owner: &SymbolLocator, span: &SourceSpan, na
             owner,
             span,
             name,
-            NodeKind::Unknown,
+            meta_kind(),
             EdgeKind::Configures,
         );
     }
