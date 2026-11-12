@@ -124,6 +124,62 @@ fn refuse_bad_arguments(engine: &mut Weavatrix, remote: &Path) {
     assert!(extra.contains("depth"), "{extra}");
 }
 
+#[cfg(feature = "git")]
+#[test]
+fn git_history_treats_a_missing_parent_as_the_history_boundary() {
+    let fixture = GitFixture::new();
+    fixture.write("src/lib.rs", "pub fn first() {}\n");
+    fixture.commit("first");
+    let parent = git(&fixture.root, &["rev-parse", "HEAD"]);
+    fixture.write("src/lib.rs", "pub fn second() {}\n");
+    fixture.commit("second");
+    let head = git(&fixture.root, &["rev-parse", "HEAD"]);
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let full = tools::call(&mut engine, "git_history", json!({"max_commits": 10})).unwrap();
+    assert_eq!(full["history_truncated"], false, "{full}");
+    assert_eq!(full["commits"].as_array().map(Vec::len), Some(2), "{full}");
+
+    let object = loose_object(&fixture.root, &parent);
+    assert!(object.is_file(), "loose parent {}", object.display());
+    fs::remove_file(&object).unwrap();
+    let history = tools::call(&mut engine, "git_history", json!({"max_commits": 10})).unwrap();
+    assert_eq!(history["history_truncated"], true, "{history}");
+    let ids = commit_ids(&history);
+    assert!(ids.contains(&head), "{history}");
+    assert!(!ids.contains(&parent), "{history}");
+    let by_path = tools::call(
+        &mut engine,
+        "git_history",
+        json!({"path": "src/lib.rs", "max_commits": 10}),
+    )
+    .unwrap();
+    assert_eq!(by_path["status"], "COMPLETE", "{by_path}");
+    assert_eq!(by_path["history_truncated"], true, "{by_path}");
+    let missing = tools::call(
+        &mut engine,
+        "git_history",
+        json!({"revision": "0123456789abcdef0123456789abcdef01234567"}),
+    )
+    .unwrap_err();
+    assert!(missing.contains("Git object not found"), "{missing}");
+}
+
+#[cfg(feature = "git")]
+fn loose_object(root: &Path, id: &str) -> PathBuf {
+    let (prefix, rest) = id.split_at(2);
+    root.join(".git").join("objects").join(prefix).join(rest)
+}
+
+#[cfg(feature = "git")]
+fn commit_ids(history: &Value) -> Vec<String> {
+    history["commits"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|commit| commit["id"].as_str().map(str::to_owned))
+        .collect()
+}
+
 fn assert_launch_history(engine: &mut Weavatrix, pinned: &Path) {
     #[cfg(feature = "git")]
     {

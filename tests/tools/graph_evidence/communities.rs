@@ -121,6 +121,40 @@ fn list_communities_keeps_keys_when_an_unrelated_group_is_added() {
 }
 
 #[test]
+fn get_community_reads_a_numeric_string_as_one_community() {
+    let fixture = Fixture::new();
+    write_bridge(&fixture);
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let selected = tools::call(&mut engine, "get_community", json!({"community_id": "0"})).unwrap();
+    assert!(selected["communities"].as_array().is_none(), "{selected}");
+    assert_eq!(selected["community_id"], 0);
+    assert!(selected["nodes"].as_array().is_some(), "{selected}");
+    let numbered = tools::call(&mut engine, "get_community", json!({"community_id": 0})).unwrap();
+    assert_eq!(numbered["community_id"], selected["community_id"]);
+    assert!(numbered["communities"].as_array().is_none(), "{numbered}");
+    let connected = tools::call(
+        &mut engine,
+        "get_community",
+        json!({"view": "connectivity", "community_id": "0"}),
+    )
+    .unwrap();
+    assert!(connected["communities"].as_array().is_none(), "{connected}");
+    assert_eq!(connected["community_id"], 0);
+    let listed = tools::call(&mut engine, "list_communities", json!({})).unwrap();
+    assert!(listed["communities"].as_array().is_some(), "{listed}");
+    let invalid = tools::call(
+        &mut engine,
+        "get_community",
+        json!({"community_id": "nope"}),
+    )
+    .unwrap_err();
+    assert!(
+        invalid.contains("community_id must be a non-negative integer"),
+        "{invalid}"
+    );
+}
+
+#[test]
 fn list_communities_is_stable_across_write_order() {
     let left_first = Fixture::new();
     write_bridge(&left_first);

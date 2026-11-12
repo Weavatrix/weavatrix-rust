@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.17.15 - 2026-11-12
+
+- `git_history` returns the commits that are present when a parent object is
+  missing, and sets `history_truncated`. A missing start revision stays an
+  error.
+- `get_community` accepts `community_id` as a number or a numeric string and
+  returns that one community. An invalid id is an error. Omitting the id
+  still lists communities.
+
 ## 2.17.14 - 2026-11-12
 
 - `shortest_path` returns `AMBIGUOUS` and a candidate list when a label matches

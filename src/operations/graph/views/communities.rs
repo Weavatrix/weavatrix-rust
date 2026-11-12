@@ -14,9 +14,30 @@ pub fn communities(state: &RepositoryState, args: &Value) -> Result<Value, Strin
     }
 }
 
+fn selected_community(args: &Value) -> Result<Option<u64>, String> {
+    match args.get("community_id") {
+        None => Ok(None),
+        Some(value) => community_number(value).map(Some),
+    }
+}
+
+fn community_number(value: &Value) -> Result<u64, String> {
+    if let Some(id) = value.as_u64() {
+        return Ok(id);
+    }
+    if let Some(text) = value.as_str() {
+        if !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit()) {
+            if let Ok(id) = text.parse::<u64>() {
+                return Ok(id);
+            }
+        }
+    }
+    Err("community_id must be a non-negative integer".to_owned())
+}
+
 fn connectivity(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let components = state.coupled_components();
-    if let Ok(id) = arg_u64(args, "community_id") {
+    if let Some(id) = selected_community(args)? {
         return one_component(state, components, id, args);
     }
     let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(20)).unwrap_or(20);
@@ -65,7 +86,7 @@ fn subsystems(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         return Err("resolution and hub_degree must be at least 1".to_owned());
     }
     let projection = project(state, include_non_product, resolution, hub_degree);
-    if let Ok(id) = arg_u64(args, "community_id") {
+    if let Some(id) = selected_community(args)? {
         return one_cluster(state, &projection, id, args, declaration.as_ref());
     }
     let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(20)).unwrap_or(20);

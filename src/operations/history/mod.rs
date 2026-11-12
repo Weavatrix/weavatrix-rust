@@ -24,6 +24,8 @@ mod blob;
 pub(in crate::operations) mod diff;
 #[cfg(feature = "git")]
 pub(in crate::operations) mod revision;
+#[cfg(feature = "git")]
+mod walk;
 
 #[cfg(feature = "git")]
 pub(in crate::operations) use blob::read_blob;
@@ -66,19 +68,18 @@ pub fn history(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let (records, scanned, truncated) = if let Some(path) = path.as_deref() {
         file_history(&repository, start, path, max, since, first_parent)?
     } else {
-        let records = repository
-            .history(
-                start,
-                HistoryOptions {
-                    max_commits: max,
-                    since,
-                    first_parent,
-                    ..HistoryOptions::default()
-                },
-            )
-            .map_err(|error| error.to_string())?;
-        let scanned = records.len();
-        (records, scanned, false)
+        let walked = walk::commits(
+            &repository,
+            start,
+            HistoryOptions {
+                max_commits: max,
+                since,
+                first_parent,
+                ..HistoryOptions::default()
+            },
+        )?;
+        let scanned = walked.records.len();
+        (walked.records, scanned, walked.boundary)
     };
     let budget = crate::operations::token_budget::requested(args)?;
     // Hotspots and co-change cost one `diff_commits` per commit and are the
@@ -144,21 +145,20 @@ fn file_history(
     // Filtering only the first `max` repository commits hides a file whose
     // latest edit is older than that page.
     let scan_cap = max.saturating_mul(40).clamp(max, 2_000);
-    let scanned_records = repository
-        .history(
-            start,
-            HistoryOptions {
-                max_commits: scan_cap,
-                since,
-                first_parent,
-                ..HistoryOptions::default()
-            },
-        )
-        .map_err(|error| error.to_string())?;
-    let scanned = scanned_records.len();
-    let truncated = scanned == scan_cap;
+    let walked = walk::commits(
+        repository,
+        start,
+        HistoryOptions {
+            max_commits: scan_cap,
+            since,
+            first_parent,
+            ..HistoryOptions::default()
+        },
+    )?;
+    let scanned = walked.records.len();
+    let truncated = scanned == scan_cap || walked.boundary;
     let mut matched = Vec::new();
-    for record in scanned_records {
+    for record in walked.records {
         if commit_touches(repository, &record, path)? {
             matched.push(record);
             if matched.len() == max {
@@ -179,6 +179,9 @@ fn commit_touches(
     let Some(parent) = record.commit.parents.first().copied() else {
         return path_in_tree(repository, record.commit.tree, wanted);
     };
+    if !repository.contains(parent) {
+        return Ok(false);
+    }
     let changes = repository
         .diff_commits(parent, record.id)
         .map_err(|error| error.to_string())?;
