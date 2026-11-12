@@ -15,6 +15,8 @@ mod web3_support;
 mod duplicate_evidence;
 #[path = "repo/duplicate_visibility.rs"]
 mod duplicate_visibility;
+#[path = "repo/git_fetch.rs"]
+mod git_fetch;
 #[path = "repo/git_graph_diff.rs"]
 mod git_graph_diff;
 #[path = "repo/git_graph_diff_detail.rs"]

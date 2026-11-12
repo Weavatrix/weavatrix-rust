@@ -37,6 +37,18 @@ fn get_neighbors_applies_an_array_relation_filter() {
         neighbors.iter().all(|item| item["relation"] == "imports"),
         "an array relation_filter must filter every edge kind: {report}"
     );
+    assert!(
+        neighbors
+            .iter()
+            .all(|item| item.get("provenance").is_none() && item.get("edge").is_none()),
+        "a compact neighbor keeps the call line, not the provenance object: {report}"
+    );
+    assert!(
+        neighbors
+            .iter()
+            .any(|item| item["coupling"] == "runtime" && item["line"].is_number()),
+        "an import keeps its coupling and call line: {report}"
+    );
     let error = tools::call(
         &mut engine,
         "get_neighbors",

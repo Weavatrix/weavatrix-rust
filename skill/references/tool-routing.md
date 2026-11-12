@@ -26,6 +26,9 @@ repositories: the call fails instead of answering about the wrong root.
 - `git_history`: churn and co-change in one repository.
 - `git_read_blob`: the file as it was - bounded UTF-8 content at a revision
   or blob OID after a diff, without a checkout; binary blobs are refused.
+- `git_fetch`: shallow-clone one URL at one ref into a cache and return
+  `checkout`. Depth is 1. The process root stays pinned. `git_history` still
+  reads the active repository.
 - `cross_repo_git`: histories, shared commits, or diffs across repositories.
 - `verified_change`: composite plan/verify evidence envelope.
 

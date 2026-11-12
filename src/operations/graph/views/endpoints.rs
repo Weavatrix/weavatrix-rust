@@ -40,10 +40,7 @@ pub fn endpoints(state: &RepositoryState, args: &Value) -> Result<Value, String>
         false
     };
     let returned = endpoints.len();
-    let endpoints = endpoints
-        .into_iter()
-        .map(compact_node)
-        .collect::<Vec<_>>();
+    let endpoints = endpoints.into_iter().map(compact_node).collect::<Vec<_>>();
     Ok(json!({
         "endpoints": endpoints,
         "endpoints_total": total,

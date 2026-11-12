@@ -90,6 +90,16 @@ fn max_references_caps_the_relationship_evidence() {
         7,
         "max_references must cap the returned relationships: {report}"
     );
+    assert!(
+        neighbors
+            .iter()
+            .all(|item| item.get("provenance").is_none()),
+        "bundle relationships use the compact neighbor row: {report}"
+    );
+    assert!(
+        report["inspection"]["node"].get("attributes").is_none(),
+        "bundle subject attributes stay on get_node: {report}"
+    );
     let error = tools::call(
         &mut engine,
         "inspect_symbol",

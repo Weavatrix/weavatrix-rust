@@ -63,7 +63,13 @@ fn god_nodes_skip_files_constants_and_stylesheets() {
         assert!(
             !matches!(
                 kind,
-                "file" | "module" | "unknown" | "constant" | "config_key" | "repository" | "package"
+                "file"
+                    | "module"
+                    | "unknown"
+                    | "constant"
+                    | "config_key"
+                    | "repository"
+                    | "package"
             ),
             "{row}"
         );

@@ -50,6 +50,16 @@ fn nestjs_constructor_injection_is_visible_in_the_blast_radius() {
         labels.iter().any(|label| label == "UsersController"),
         "constructor injection couples the controller to its provider: {report:?}"
     );
+    assert!(report["seed"].get("attributes").is_none(), "{report}");
+    assert!(report["seed"]["id"].as_str().is_some());
+    assert!(
+        report["dependents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["node"].get("attributes").is_none()),
+        "{report}"
+    );
 }
 
 #[test]

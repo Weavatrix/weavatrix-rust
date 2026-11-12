@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.17.10 - 2026-11-12
+
+- Depend on `weavatrix-parse` 0.3.5. A protobuf field or enum value named
+  `message`, `enum`, `service`, `package`, or `import` keeps the file.
+- Generated `protoc-gen-go` files (`.pb.go`) contribute no symbols, so they
+  stay out of hubs and the method census. `.pb.go` paths and an OpenAPI
+  Generator header stay out of duplicate families unless `include_boilerplate`
+  is set.
+- A Go struct that embeds `Unimplemented*Server` contributes
+  `GRPC Service/Method` for each exported method.
+- Next.js App Router `route` files contribute HTTP methods from the path. A
+  file whose first statement is `"use server"` contributes `ACTION /path/name`.
+  Page, layout, and route modules stay on their own rules.
+- `git_fetch` shallow-clones one Git URL at one ref, depth 1, into a cache.
+  The process root stays pinned. A URL with credentials is refused.
+- `get_neighbors`, `query_graph`, `get_dependents`, `context_bundle`, and
+  `verified_change` return compact nodes and edges. A compact edge keeps
+  source, target, kind, and, when present, coupling and the call line.
+- `verified_change` accepts `impact_depth` and `max_impact_nodes`.
+- The default full build exposes 66 operations.
+
 ## 2.17.9 - 2026-11-11
 
 - `graph_stats` counts edges in `evidence`, adds `evidence_share`, and sets

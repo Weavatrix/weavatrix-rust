@@ -31,7 +31,7 @@ pub(super) fn counts(state: &RepositoryState) -> Value {
     })
 }
 
-pub(super) fn compact_node(node: &weavatrix_graph::Node) -> Value {
+pub(crate) fn compact_node(node: &weavatrix_graph::Node) -> Value {
     let mut value = json!({
         "id": node.id,
         "label": node.label,
@@ -43,6 +43,48 @@ pub(super) fn compact_node(node: &weavatrix_graph::Node) -> Value {
         }
         if let Some(span) = &node.span {
             object.insert("span".to_owned(), json!(span));
+        }
+    }
+    value
+}
+
+fn compact_neighbor(
+    direction: &str,
+    edge: &weavatrix_graph::Edge,
+    other: Option<&weavatrix_graph::Node>,
+) -> Value {
+    let mut row = json!({
+        "direction": direction,
+        "relation": edge.kind,
+        "node": other.map(compact_node)
+    });
+    if let Some(object) = row.as_object_mut() {
+        if let Some(weavatrix_graph::AttributeValue::String(coupling)) =
+            edge.attributes.get("coupling")
+        {
+            object.insert("coupling".to_owned(), json!(coupling));
+        }
+        if let Some(line) = edge.provenance.span.as_ref().map(|span| span.start.line) {
+            object.insert("line".to_owned(), json!(line));
+        }
+    }
+    row
+}
+
+pub(crate) fn compact_edge(edge: &weavatrix_graph::Edge) -> Value {
+    let mut value = json!({
+        "source": edge.source,
+        "target": edge.target,
+        "kind": edge.kind
+    });
+    if let Some(object) = value.as_object_mut() {
+        if let Some(weavatrix_graph::AttributeValue::String(coupling)) =
+            edge.attributes.get("coupling")
+        {
+            object.insert("coupling".to_owned(), json!(coupling));
+        }
+        if let Some(line) = edge.provenance.span.as_ref().map(|span| span.start.line) {
+            object.insert("line".to_owned(), json!(line));
         }
     }
     value
@@ -141,17 +183,7 @@ pub fn neighbors(state: &RepositoryState, args: &Value) -> Result<Value, String>
                 items.push(if full {
                     json!({"direction": direction, "edge": edge, "node": other})
                 } else {
-                    json!({
-                        "direction": direction,
-                        "relation": edge.kind,
-                        "provenance": edge.provenance,
-                        "node": other.map(|node| json!({
-                            "id": node.id,
-                            "label": node.label,
-                            "kind": node.kind,
-                            "span": node.span
-                        }))
-                    })
+                    compact_neighbor(direction, edge, other)
                 });
             }
             total = total.saturating_add(1);
@@ -220,19 +252,8 @@ fn evidence_share(evidence: &std::collections::BTreeMap<String, u64>) -> Value {
 }
 
 const HUB_LABELS: &[&str] = &[
-    "String",
-    "Log",
-    "Error",
-    "int",
-    "any",
-    "Object",
-    "Promise",
-    "Map",
-    "Array",
-    "console",
-    "number",
-    "string",
-    "boolean",
+    "String", "Log", "Error", "int", "any", "Object", "Promise", "Map", "Array", "console",
+    "number", "string", "boolean",
 ];
 
 fn hub_candidate(node: &weavatrix_graph::Node) -> bool {

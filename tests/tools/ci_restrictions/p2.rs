@@ -71,7 +71,10 @@ fn root_file_membership_and_composite_caps_are_visible() {
         50
     );
     let component = protection["changed"][0]["component"].as_str().unwrap();
-    assert!(component.starts_with("component:root-files:"), "{component}");
+    assert!(
+        component.starts_with("component:root-files:"),
+        "{component}"
+    );
     assert!(component.len() < 40, "{component}");
     assert_eq!(
         protection["changed"][0]["declared_components"],
@@ -148,7 +151,12 @@ fn ci_candidates_select_build_targets_and_tasks() {
         prepared["changed"][0]["build_membership"]["resolution"],
         "EXACT_TARGET_PATH"
     );
-    assert!(prepared["changed"][0]["build_membership"].get("file").is_none());
-    let membership = blazingly_json::to_string(&prepared["changed"][0]["build_membership"]).unwrap();
+    assert!(
+        prepared["changed"][0]["build_membership"]
+            .get("file")
+            .is_none()
+    );
+    let membership =
+        blazingly_json::to_string(&prepared["changed"][0]["build_membership"]).unwrap();
     assert!(membership.len() < 500, "{membership}");
 }

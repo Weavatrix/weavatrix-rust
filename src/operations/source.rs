@@ -181,7 +181,7 @@ pub fn inspect(state: &RepositoryState, args: &Value) -> Result<Value, String> {
 }
 
 pub fn context(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    let inspection = inspect(state, args)?;
+    let mut inspection = inspect(state, args)?;
     if inspection.get("state").and_then(Value::as_str) == Some("UNRESOLVED") {
         return Ok(json!({
             "inspection": inspection,
@@ -193,12 +193,18 @@ pub fn context(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let id = inspection
         .pointer("/node/id")
         .and_then(Value::as_str)
-        .ok_or_else(|| "resolved inspection is missing a node id".to_owned())?;
-    let index = state.resolve_node(id)?;
+        .ok_or_else(|| "resolved inspection is missing a node id".to_owned())?
+        .to_owned();
+    let index = state.resolve_node(&id)?;
+    if let Some(node) = state.graph().node_at(index)
+        && let Some(object) = inspection.as_object_mut()
+    {
+        object.insert("node".to_owned(), super::graph::compact_node(node));
+    }
     let intent = args.get("intent").and_then(Value::as_str);
     let mut sources = Vec::new();
     let mut categories = Vec::new();
-    for pick in super::graph::pick_related(state, index, id, related, intent) {
+    for pick in super::graph::pick_related(state, index, &id, related, intent) {
         let Some(node) = state.graph().node(&pick.other_id) else {
             continue;
         };

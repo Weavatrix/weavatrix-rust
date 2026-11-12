@@ -14,6 +14,23 @@ use context::build_context;
 use test_plan::build_test_evidence;
 use verdict::assess;
 
+fn impact_arguments(args: &Value) -> Value {
+    let mut impact_args = args.clone();
+    if let Some(object) = impact_args.as_object_mut() {
+        if !object.contains_key("depth")
+            && let Some(value) = object.get("impact_depth").cloned()
+        {
+            object.insert("depth".to_owned(), value);
+        }
+        if !object.contains_key("max_nodes")
+            && let Some(value) = object.get("max_impact_nodes").cloned()
+        {
+            object.insert("max_nodes".to_owned(), value);
+        }
+    }
+    impact_args
+}
+
 pub(in crate::operations) fn verified_change(
     state: &RepositoryState,
     args: &Value,
@@ -24,7 +41,7 @@ pub(in crate::operations) fn verified_change(
         return Err("phase must be plan or verify".to_owned());
     }
     let base_ref = optional_str(args, "base_ref")?.unwrap_or("HEAD");
-    let impact = super::change::change_impact_unchecked(state, args)?;
+    let impact = super::change::change_impact_unchecked(state, &impact_arguments(args))?;
     let files = impact["changed_files"]
         .as_array()
         .into_iter()

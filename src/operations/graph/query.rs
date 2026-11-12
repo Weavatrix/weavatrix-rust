@@ -39,7 +39,7 @@ pub fn query(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let edges = walk
         .edges
         .iter()
-        .filter_map(|index| state.graph().edge_at(*index))
+        .filter_map(|index| state.graph().edge_at(*index).map(super::compact_edge))
         .collect::<Vec<_>>();
     let budget = crate::operations::token_budget::requested(args)?;
     let mut bounds = walk.report();
@@ -87,12 +87,12 @@ pub fn dependents(state: &RepositoryState, args: &Value) -> Result<Value, String
         .filter(|(index, _)| *index != seed)
         .filter_map(|(index, distance)| {
             let node = state.graph().node_at(*index)?;
-            Some(json!({"node": node, "distance": distance}))
+            Some(json!({"node": super::compact_node(node), "distance": distance}))
         })
         .take(max)
         .collect::<Vec<_>>();
     let mut report = json!({
-        "seed": state.node(seed)?,
+        "seed": super::compact_node(state.node(seed)?),
         "dependents": nodes,
         "relations": super::coupling::coupling_relations().iter().collect::<Vec<_>>(),
         "precision": "graph",

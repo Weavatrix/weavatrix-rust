@@ -52,7 +52,9 @@ fn execute_glob(
     let Ok(mut report) = resident(root, query.clone(), widened) else {
         return filesystem(root, query, options, Some(glob));
     };
-    report.matches.retain(|item| path_matches_glob(&item.path, glob));
+    report
+        .matches
+        .retain(|item| path_matches_glob(&item.path, glob));
     if report.truncated && report.matches.len() < asked {
         return filesystem(root, query, options, Some(glob));
     }

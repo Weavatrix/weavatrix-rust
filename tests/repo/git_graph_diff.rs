@@ -226,3 +226,74 @@ fn verified_change_passes_an_unchanged_worktree_without_running_processes() {
         "no test command was requested"
     );
 }
+
+#[test]
+fn verified_change_plan_bounds_impact_and_keeps_compact_evidence() {
+    let fixture = GitFixture::new();
+    fixture.write("src/lib.js", "export function core() { return 1; }\n");
+    fixture.write(
+        "src/app.js",
+        "import { core } from './lib.js';\nexport function caller() { return core(); }\n",
+    );
+    fixture.commit("baseline");
+    fixture.write("src/lib.js", "export function core() { return 2; }\n");
+
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let open = tools::call(
+        &mut engine,
+        "verified_change",
+        json!({"task": "adjust core", "phase": "plan", "impact_depth": 2, "max_symbols": 6}),
+    )
+    .unwrap();
+    assert!(
+        open["changeImpact"]["impacted_nodes"]
+            .as_array()
+            .is_some_and(|nodes| !nodes.is_empty()),
+        "depth 2 must reach the caller: {open}"
+    );
+    let closed = tools::call(
+        &mut engine,
+        "verified_change",
+        json!({"task": "adjust core", "phase": "plan", "impact_depth": 0, "max_symbols": 6}),
+    )
+    .unwrap();
+    assert_eq!(
+        closed["changeImpact"]["impacted_nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0,
+        "impact_depth 0 must not walk dependents: {closed}"
+    );
+    assert!(
+        closed["retrieval"]["selected"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|node| node.get("attributes").is_none() && node["id"].as_str().is_some()),
+        "selected symbols are compact nodes: {closed}"
+    );
+    assert!(
+        closed["dataFlow"]["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|edge| { edge.get("provenance").is_none() && edge["kind"].as_str().is_some() }),
+        "data-flow edges stay compact: {closed}"
+    );
+    assert!(
+        closed["editContexts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| {
+                item["evidence"]["inspection"]["relationships"]["neighbors"]
+                    .as_array()
+                    .is_some_and(|neighbors| neighbors.len() <= 8)
+                    && item["evidence"]["inspection"]["node"]
+                        .get("attributes")
+                        .is_none()
+            }),
+        "each edit context keeps a short compact neighborhood: {closed}"
+    );
+}

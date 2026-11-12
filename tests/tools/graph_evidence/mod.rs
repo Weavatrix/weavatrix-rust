@@ -76,3 +76,40 @@ fn query_graph_does_not_return_dangling_edge_endpoints() {
     assert_eq!(report["evidence_completeness"], "INCOMPLETE");
     assert_eq!(report["truncated"], true);
 }
+
+#[test]
+fn query_graph_edges_keep_kind_and_coupling_without_provenance() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "src/hub.js",
+        "import { left } from './left.js';\nexport function hub() { return left(); }\n",
+    );
+    fixture.write("src/left.js", "export function left() { return 1; }\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "query_graph",
+        json!({
+            "seed_files": ["src/hub.js"],
+            "relation_filter": "imports",
+            "depth": 1,
+            "max_nodes": 12
+        }),
+    )
+    .unwrap();
+    let edges = report["edges"].as_array().unwrap();
+    assert!(!edges.is_empty(), "{report}");
+    for edge in edges {
+        assert!(edge.get("provenance").is_none(), "{edge}");
+        assert!(edge.get("attributes").is_none(), "{edge}");
+        assert!(edge["source"].as_str().is_some(), "{edge}");
+        assert!(edge["target"].as_str().is_some(), "{edge}");
+        assert!(edge["kind"].as_str().is_some(), "{edge}");
+    }
+    assert!(
+        edges
+            .iter()
+            .any(|edge| edge["coupling"] == "runtime" && edge["line"].is_number()),
+        "{edges:?}"
+    );
+}

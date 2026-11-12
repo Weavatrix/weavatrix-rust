@@ -35,6 +35,9 @@ fn measurement_field(name: &str) -> Option<Value> {
 
 /// The documented schema for one field, when its behaviour needs stating.
 pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
+    if tool == "git_fetch" {
+        return git_fetch_field(name);
+    }
     if tool == "ci_protection" && name == "files" {
         return Some(json!({
             "type": "array",
@@ -96,6 +99,20 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
         return Some(schema);
     }
     domain_field(tool, name).or_else(|| tool_field(tool, name))
+}
+
+fn git_fetch_field(name: &str) -> Option<Value> {
+    match name {
+        "url" => Some(json!({
+            "type": "string",
+            "description": "Git remote: https, http, ssh, git, or file URL, scp-style git@host:path, or an absolute local path. A URL that embeds credentials is refused. A trailing .git names the same cache entry"
+        })),
+        "ref" => Some(json!({
+            "type": "string",
+            "description": "Branch, tag, or commit to fetch. Omit it to fetch the remote HEAD. Depth is always 1"
+        })),
+        _ => None,
+    }
 }
 
 fn tool_field(tool: &str, name: &str) -> Option<Value> {

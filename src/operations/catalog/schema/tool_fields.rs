@@ -99,6 +99,7 @@ pub(super) fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
             "left",
             "right",
         ]),
+        "git_fetch" => Some(&["ref"]),
         "verified_change" => Some(&[
             "phase",
             "base_ref",

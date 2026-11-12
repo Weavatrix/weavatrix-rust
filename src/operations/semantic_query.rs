@@ -170,11 +170,8 @@ fn score_of(
     if query_len == 0 {
         return 0;
     }
-    let raw = name_hits * 700
-        + path_hits * 300
-        + line_hits * 200
-        + doc_hits * 250
-        + body_hits * 120;
+    let raw =
+        name_hits * 700 + path_hits * 300 + line_hits * 200 + doc_hits * 250 + body_hits * 120;
     // The bonus requires every query token to appear in the name, the path,
     // the doc comment, the declaration line, or the short body. A sum of
     // per-field hits is not that check.

@@ -30,6 +30,7 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         "git_history",
         "git_read_blob",
         "cross_repo_git",
+        "git_fetch",
         "verified_change",
         "trace_api_contract",
         "get_community",
@@ -89,7 +90,7 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
             "{closed} is a library method, not an MCP tool"
         );
     }
-    assert_eq!(actual.len(), 65, "the full catalog is 65 MCP tools");
+    assert_eq!(actual.len(), 66, "the full catalog is 66 MCP tools");
 }
 
 #[test]

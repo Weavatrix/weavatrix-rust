@@ -140,14 +140,7 @@ fn contains(owner: &SymbolLocator, name: &str, span: SourceSpan) -> ReferenceFac
 
 fn push_meta(facts: &mut FileFacts, owner: &SymbolLocator, span: &SourceSpan, names: &[String]) {
     for name in names {
-        push_named(
-            facts,
-            owner,
-            span,
-            name,
-            meta_kind(),
-            EdgeKind::Configures,
-        );
+        push_named(facts, owner, span, name, meta_kind(), EdgeKind::Configures);
     }
 }
 

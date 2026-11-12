@@ -45,6 +45,7 @@ fn edit_contexts(state: &RepositoryState, seeds: &[NodeIndex]) -> Result<Vec<Val
                 &json!({
                     "label": node.id.as_str(),
                     "max_related": 8,
+                    "max_references": 8,
                     "context_lines": 4
                 }),
             )
@@ -111,6 +112,7 @@ fn retrieve_change_context(
     let evidence = selected
         .iter()
         .filter_map(|index| state.graph().node_at(*index))
+        .map(crate::operations::graph::compact_node)
         .collect::<Vec<_>>();
     Ok((
         json!({
@@ -150,7 +152,12 @@ fn data_flow_evidence(
     let edges = walk
         .edges
         .iter()
-        .filter_map(|index| state.graph().edge_at(*index))
+        .filter_map(|index| {
+            state
+                .graph()
+                .edge_at(*index)
+                .map(crate::operations::graph::compact_edge)
+        })
         .take(max)
         .collect::<Vec<_>>();
     Ok(json!({

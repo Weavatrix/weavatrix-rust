@@ -195,10 +195,7 @@ fn check_candidate(
     })
 }
 
-fn present_membership(
-    build: &crate::operations::build::BuildModel,
-    selected: &mut [Value],
-) {
+fn present_membership(build: &crate::operations::build::BuildModel, selected: &mut [Value]) {
     for item in selected {
         let Some(membership) = item.get("build_membership").cloned() else {
             continue;
@@ -225,5 +222,3 @@ fn labeled_ids(membership: &Value, key: &str, label: impl Fn(&str) -> String) ->
         .map(label)
         .collect()
 }
-
-

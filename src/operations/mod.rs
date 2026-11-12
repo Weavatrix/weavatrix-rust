@@ -139,6 +139,7 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "git_history" => history::history(state, arguments),
         "git_read_blob" => history::read_blob(state, arguments),
         "cross_repo_git" => history::cross_repo(state, arguments),
+        "git_fetch" => history::fetch(state, arguments),
         "verified_change" => workflow::verified_change(state, arguments),
         "get_community" | "list_communities" => graph::communities(state, arguments),
         "search_code" => source::search(state, arguments),

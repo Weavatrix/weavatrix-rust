@@ -43,6 +43,11 @@ pub(super) fn convert(
     text: &str,
     parse: weavatrix_parse::Language,
 ) -> FileFacts {
+    // protoc-gen-go emits one method per field accessor. The `.proto` file is
+    // the contract; these getters would own the method census and the hubs.
+    if parse == weavatrix_parse::Language::Go && generated_protobuf_go(path, text) {
+        return FileFacts::default();
+    }
     let mut converted = FileFacts::default();
     let class_route_prefixes = class_route_prefixes(facts);
 
@@ -133,6 +138,24 @@ pub(super) fn convert(
     if super::node_http::is_script_source(path) {
         super::node_http::apply(path, text, parse, &mut converted);
     }
+    super::next_route::apply(path, facts, &mut converted);
+    super::next_route::apply_actions(path, text, facts, &mut converted);
+    if parse == weavatrix_parse::Language::Go {
+        super::go_grpc::apply(path, text, facts, &mut converted);
+    }
 
     converted
+}
+
+fn generated_protobuf_go(path: &str, text: &str) -> bool {
+    let file = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    if file.ends_with(".pb.go") {
+        return true;
+    }
+    let head = text
+        .chars()
+        .take(512)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    head.contains("protoc-gen-go")
 }

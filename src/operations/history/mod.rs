@@ -1,9 +1,13 @@
 use crate::engine::RepositoryState;
 #[cfg(feature = "git")]
 use crate::operations::{arg_str, optional_bool, optional_str, optional_u64};
+
+mod fetch;
+
 use blazingly_json::Value;
 #[cfg(feature = "git")]
 use blazingly_json::json;
+pub(in crate::operations) use fetch::fetch;
 #[cfg(feature = "git")]
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

@@ -14,7 +14,7 @@ prompt, or compile a query database.**
 `weavatrix-rust` is the crate you link when the program — not a chat client —
 must own the graph. It builds a `Snapshot` with exact spans, extractor
 identity, and `proven` / `undetermined` / `BLOCKED` verdicts. The default
-full build exposes **65** bounded operations: impact, architecture, APIs,
+full build exposes **66** bounded operations: impact, architecture, APIs,
 health, Git, search, and semantic links, plus the domains agents actually ask about
 now — n8n, Dify, Agent catalogs, Mermaid, and Web3 ABI.
 
@@ -24,7 +24,7 @@ Use it to:
 - serialize a `Snapshot` for CI, indexing, or review;
 - identify changed declarations by a content-safe symbol fingerprint and retain
   parser-proven `exported` evidence for public-surface consumers;
-- run 65 bounded read-only operations in the default full build;
+- run 66 bounded operations in the default full build;
 - enforce the current v1 architecture contract foundation;
 - hang a measured LCOV / Istanbul / Tarpaulin / LLVM report onto the same
   graph with `coverage_map` (the crate does not run the tests);
@@ -123,7 +123,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.17.9"
+weavatrix-rust = "2.17.10"
 ```
 
 ```rust
@@ -158,7 +158,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.17.9", default-features = false }
+weavatrix-rust = { version = "2.17.10", default-features = false }
 ```
 
 ## MCP product
@@ -250,7 +250,7 @@ See the [evidence model](docs/evidence-model.md) and
 
 ## Operations
 
-The default full build exposes 65 operations:
+The default full build exposes 66 operations:
 
 | Workflow | Operations |
 | --- | --- |
@@ -262,7 +262,7 @@ The default full build exposes 65 operations:
 | APIs | `list_endpoints`, `trace_endpoint`, `trace_api_contract` |
 | Architecture | `architecture_inventory`, `get_architecture_contract`, `verify_architecture`, `verify_capabilities`, explain/propose exception |
 | Local CI | `ci_restrictions`, `ci_protection`, `explain_restriction` |
-| Repository | Git history, cross-repo, open/list/rebuild operations |
+| Repository | Git history, `git_fetch`, cross-repo, open/list/rebuild operations |
 | Extensions | `semantic_link`. Vector search, SEO page links, and the event journal stay in their library crates |
 | n8n | `n8n_inventory`, `n8n_trace`, `n8n_context` |
 | Dify | `dify_inventory`, `dify_trace`, `dify_context` |
