@@ -91,6 +91,20 @@ fn tool(
                                 graph age."
             }),
         ),
+        (
+            "repository".to_owned(),
+            json!({
+                "type": "string",
+                "description": "Child directory inside the launch root. The call reads that graph and leaves the process pin unchanged. A relative path is joined to the launch root. An absolute path outside that root is refused"
+            }),
+        ),
+        (
+            "agent".to_owned(),
+            json!({
+                "type": "string",
+                "description": "Caller name stored on this call in list_known_repos recent_requests. Omitted calls are stored as unset"
+            }),
+        ),
     ]);
     for name in schema::optional_fields(tool_name) {
         properties.insert((*name).to_owned(), schema::field_schema(tool_name, name));

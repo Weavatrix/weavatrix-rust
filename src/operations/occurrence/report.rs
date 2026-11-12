@@ -52,6 +52,38 @@ pub(super) fn node_json(node: &Node) -> Value {
     })
 }
 
+/// Candidates for a label that matches more than one node. The next call can
+/// pass a candidate `id`, which resolves as that exact node.
+pub(super) fn ambiguous_label(
+    state: &RepositoryState,
+    label: &str,
+    indexes: &[weavatrix_graph::NodeIndex],
+) -> Value {
+    const CAP: usize = 32;
+    let total = indexes.len();
+    let candidates = indexes
+        .iter()
+        .take(CAP)
+        .filter_map(|index| state.node(*index).ok().map(candidate_json))
+        .collect::<Vec<_>>();
+    json!({
+        "state": "AMBIGUOUS",
+        "label": label,
+        "candidates": candidates,
+        "candidates_total": total,
+        "truncated": total > CAP,
+        "reason": "ambiguous node label; pass a candidate id or a source position"
+    })
+}
+
+fn candidate_json(node: &Node) -> Value {
+    let mut value = node_json(node);
+    if let (Some(object), Some(language)) = (value.as_object_mut(), node.language.as_ref()) {
+        object.insert("language".to_owned(), json!(language));
+    }
+    value
+}
+
 pub(super) fn graph_definition(state: &RepositoryState, hit: &GraphHit) -> Result<Value, String> {
     Ok(node_json(state.node(hit.index)?))
 }

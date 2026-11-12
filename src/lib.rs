@@ -12,7 +12,7 @@ pub mod report;
 pub use operations as tools;
 
 pub use analyzer::{Analyzer, AnalyzerConfig, SourceInput};
-pub use engine::{RepositoryState, Weavatrix};
+pub use engine::{ParallelEngine, RepositoryState, Weavatrix};
 pub use language::Language;
 pub use model::{
     Capability, CapabilityState, Diagnostic, Error, Result, SNAPSHOT_SCHEMA_VERSION, Snapshot,

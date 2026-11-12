@@ -161,6 +161,22 @@ fn tool_field(tool: &str, name: &str) -> Option<Value> {
             "minimum": 0,
             "description": "Combined cap on impacted nodes across every seed, including a file_scope file. Production callers are kept ahead of tests. The answer reports MAX_NODES when nodes were omitted. Default 40"
         })),
+        ("get_dependents" | "list_endpoints", "repository") => Some(json!({
+            "type": "string",
+            "description": "Child directory inside the launch root. The call reads that graph and leaves the process pin unchanged. A relative path is joined to the launch root. An absolute path outside that root is refused"
+        })),
+        ("get_dependents", "path") => Some(json!({
+            "type": "string",
+            "description": "Repository-relative file. Seeds are the nodes in that file. Omit label to start from the file. With an ambiguous label, the file picks the declaration that lives there"
+        })),
+        ("get_dependents", "label") => Some(json!({
+            "type": "string",
+            "description": "Symbol label or exact graph id. Required when path is omitted"
+        })),
+        ("go_to_definition", "label") => Some(json!({
+            "type": "string",
+            "description": "Symbol label or exact graph id. One match resolves. Several matches return candidates and do not pick. Omit it when path, line, and column are set"
+        })),
         ("git_history", "path") => Some(json!({
             "type": "string",
             "description": "Repository-relative file or directory. The commits are those that touch this path. Omit it for repository HEAD history. The default six-month window applies only when path is omitted or months is set"

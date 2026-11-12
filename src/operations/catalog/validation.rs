@@ -2,7 +2,12 @@ use blazingly_json::{Value, json};
 use std::collections::BTreeSet;
 
 /// Shared keys every tool accepts beside its own contract.
-pub(crate) const SHARED_ARGUMENT_KEYS: &[&str] = &["output_format", "expected_repository"];
+pub(crate) const SHARED_ARGUMENT_KEYS: &[&str] = &[
+    "output_format",
+    "expected_repository",
+    "repository",
+    "agent",
+];
 
 /// Rejects tool-specific keys that are not advertised for `tool`.
 ///

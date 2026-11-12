@@ -56,6 +56,9 @@ pub(super) fn graph_fields(tool: &str) -> Option<&'static [&'static str]> {
 pub(super) fn change_fields(tool: &str) -> Option<&'static [&'static str]> {
     match tool {
         "get_dependents" => Some(&[
+            "label",
+            "path",
+            "repository",
             "depth",
             "max_nodes",
             "precision",
@@ -188,7 +191,13 @@ pub(super) fn source_and_api_fields(tool: &str) -> Option<&'static [&'static str
             "after",
             "token_budget",
         ]),
-        "list_endpoints" => Some(&["method", "path", "max_results", "include_classified"]),
+        "list_endpoints" => Some(&[
+            "method",
+            "path",
+            "repository",
+            "max_results",
+            "include_classified",
+        ]),
         "trace_endpoint" => Some(&[
             "method",
             "match",

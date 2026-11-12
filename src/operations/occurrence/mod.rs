@@ -11,14 +11,15 @@ mod references;
 mod report;
 mod scip;
 
+use crate::engine::LabelMatch;
 use crate::engine::RepositoryState;
 use crate::operations::optional_str;
 use blazingly_json::{Value, json};
 use position::Query;
 use references::unresolved;
 use report::{
-    graph_definition, occurrence_json, optional_query, query_json, required_query, scip_definition,
-    sources,
+    ambiguous_label, graph_definition, node_json, occurrence_json, optional_query, query_json,
+    required_query, scip_definition, sources,
 };
 use weavatrix_graph::NodeIndex;
 
@@ -30,6 +31,11 @@ pub(crate) enum InspectSubject {
 }
 
 pub fn go_to_definition(state: &RepositoryState, args: &Value) -> Result<Value, String> {
+    if optional_query(args)?.is_none() {
+        if let Some(label) = optional_str(args, "label")? {
+            return definition_by_label(state, label);
+        }
+    }
     let query = required_query(args)?;
     let loaded = scip::load(state, optional_str(args, "scip_path")?)?;
     if let Some(hit) = position::resolve(state, &query) {
@@ -70,6 +76,32 @@ pub fn go_to_definition(state: &RepositoryState, args: &Value) -> Result<Value, 
 
 pub fn find_references(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     references::find_references(state, args)
+}
+
+fn definition_by_label(state: &RepositoryState, label: &str) -> Result<Value, String> {
+    match state.match_label(label)? {
+        LabelMatch::One(index) => {
+            let node = state.node(index)?;
+            Ok(json!({
+                "state": "RESOLVED",
+                "query": {"label": label},
+                "definition": node_json(node),
+                "precision": "parser_plus_graph",
+                "semantic_precision": "BOUNDED_STATIC",
+                "sources": sources(None)
+            }))
+        }
+        LabelMatch::None => Ok(json!({
+            "state": "UNRESOLVED",
+            "query": {"label": label},
+            "definition": Value::Null,
+            "precision": "parser_plus_graph",
+            "semantic_precision": "BOUNDED_STATIC",
+            "sources": sources(None),
+            "reason": format!("node not found: {label}")
+        })),
+        LabelMatch::Many(indexes) => Ok(ambiguous_label(state, label, &indexes)),
+    }
 }
 
 pub(crate) fn inspect_subject(

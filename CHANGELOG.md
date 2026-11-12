@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.17.11 - 2026-11-12
+
+- `find_references` and `go_to_definition` return `AMBIGUOUS` and a candidate
+  list when a label matches more than one node. An exact node id still
+  resolves. A source position is unchanged.
+- `list_endpoints` and `get_dependents` accept `repository`, a child directory
+  of the launch root. The process pin stays put.
+- `get_dependents` accepts `path` and seeds the nodes in that file. A label
+  plus that path keeps the declaration that lives in the file.
+- Every tool except `open_repo` accepts `repository`, a child directory of the
+  launch root. The process pin stays put. Calls for one repository share a
+  lane: an unchanged scan revision reuses the graph, and calls within one
+  second share that scan.
+- `list_known_repos` adds `recent_requests` (agent, repository, tool, time,
+  reused, ok, elapsed_ms) and `requests_total`. Pass `agent` on any call.
+  Omitted agents are stored as `unset`.
+
 ## 2.17.10 - 2026-11-12
 
 - Depend on `weavatrix-parse` 0.3.5. A protobuf field or enum value named

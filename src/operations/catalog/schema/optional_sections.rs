@@ -78,7 +78,7 @@ pub(super) fn occurrence_fields(tool: &str) -> Option<&'static [&'static str]> {
             "context_lines",
             "timeout_ms",
         ]),
-        "go_to_definition" => Some(&["scip_path"]),
+        "go_to_definition" => Some(&["label", "path", "line", "column", "scip_path"]),
         "find_references" => Some(&[
             "label",
             "path",

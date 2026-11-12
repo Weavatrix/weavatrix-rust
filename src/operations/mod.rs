@@ -38,8 +38,9 @@ pub(crate) use args::{
 };
 pub(crate) use visibility::{node_is_visible, node_path};
 
-use crate::engine::Weavatrix;
+use crate::engine::{RepositoryState, Weavatrix};
 use blazingly_json::{Value, json};
+use std::path::{Path, PathBuf};
 
 /// Executes one bounded read-only repository tool.
 ///
@@ -52,11 +53,90 @@ pub fn call(weavatrix: &mut Weavatrix, name: &str, arguments: Value) -> Result<V
     weavatrix.prepare();
     require_valid_output_format(&arguments)?;
     expect_repository(weavatrix, &arguments)?;
+    if let Some(root) = scoped_repository(weavatrix, name, &arguments)? {
+        let mut report = dispatch_scoped(weavatrix, &root, name, &arguments)?;
+        token_budget::annotate_unapplied(name, &arguments, &mut report)?;
+        if let Some(state) = weavatrix.known_state(&root) {
+            attach_state_context(state, &mut report);
+        }
+        return Ok(report);
+    }
     let mut report = dispatch(weavatrix, name, &arguments)?;
     // A budget an operation cannot apply is reported, not refused: the answer
     // itself is never withheld.
     token_budget::annotate_unapplied(name, &arguments, &mut report)?;
     attach_repository_context(weavatrix, &mut report);
+    Ok(report)
+}
+
+/// Any tool except `open_repo` may name a child directory. The process pin
+/// stays on the launch root.
+fn scoped_repository(
+    weavatrix: &mut Weavatrix,
+    name: &str,
+    args: &Value,
+) -> Result<Option<PathBuf>, String> {
+    if name == "open_repo" {
+        return Ok(None);
+    }
+    let Some(requested) = optional_str(args, "repository")? else {
+        return Ok(None);
+    };
+    let requested = requested.trim();
+    if requested.is_empty() {
+        return Ok(None);
+    }
+    let active = weavatrix.state().root().to_path_buf();
+    let active = active.canonicalize().unwrap_or(active);
+    let raw = Path::new(requested);
+    let joined = if raw.is_absolute() {
+        raw.to_path_buf()
+    } else {
+        active.join(raw)
+    };
+    let canonical = joined.canonicalize().map_err(|_| {
+        format!(
+            "repository {requested} is not a directory inside {}",
+            active.display()
+        )
+    })?;
+    if !canonical.is_dir() {
+        return Err(format!("repository {requested} is not a directory"));
+    }
+    if canonical != active && !canonical.starts_with(&active) {
+        return Err(format!(
+            "repository {requested} is outside the launch root {}",
+            active.display()
+        ));
+    }
+    if canonical == active {
+        return Ok(None);
+    }
+    weavatrix
+        .ensure_repository_state(&canonical)
+        .map_err(|error| error.to_string())?;
+    Ok(Some(canonical))
+}
+
+fn dispatch_scoped(
+    weavatrix: &mut Weavatrix,
+    root: &Path,
+    name: &str,
+    arguments: &Value,
+) -> Result<Value, String> {
+    let state = weavatrix
+        .known_state(root)
+        .cloned()
+        .ok_or_else(|| format!("child repository {} is not loaded", root.display()))?;
+    let mut local = Weavatrix::from_state(state);
+    let mut arguments = arguments.clone();
+    if let Some(object) = arguments.as_object_mut() {
+        object.remove("repository");
+    }
+    let report = dispatch(&mut local, name, &arguments)?;
+    if name == "rebuild_graph" {
+        weavatrix.store_child(local.state().clone());
+    }
     Ok(report)
 }
 
@@ -90,7 +170,10 @@ fn expect_repository(weavatrix: &Weavatrix, args: &Value) -> Result<(), String> 
 /// a caller can detect a stale graph or a wrong active repository without a
 /// second round trip.
 fn attach_repository_context(weavatrix: &Weavatrix, report: &mut Value) {
-    let state = weavatrix.state();
+    attach_state_context(weavatrix.state(), report);
+}
+
+fn attach_state_context(state: &RepositoryState, report: &mut Value) {
     let Some(object) = report.as_object_mut() else {
         return;
     };

@@ -1,4 +1,5 @@
 use super::RepositoryState;
+use super::label_match::LabelMatch;
 use crate::analyzer::Analyzer;
 use crate::model::captured::EvidenceSnapshot;
 use crate::model::{Error, Result, Snapshot};
@@ -126,61 +127,35 @@ impl RepositoryState {
     }
 
     pub(crate) fn resolve_node(&self, label: &str) -> std::result::Result<NodeIndex, String> {
-        if let Some(index) = self.graph.node_index(label) {
-            return Ok(index);
-        }
-        let matches = self
-            .graph
-            .nodes()
-            .iter()
-            .enumerate()
-            .filter(|(_, node)| node.label == label)
-            .collect::<Vec<_>>();
-        let candidates = prefer_non_test_only(&matches);
-        match candidates.as_slice() {
-            [] => Err(format!("node not found: {label}")),
-            [(index, _)] => Ok(NodeIndex::new(
-                u32::try_from(*index).map_err(|_| "node index overflow")?,
-            )),
-            _ => Err(format!(
-                "ambiguous node label {label:?}; use one of: {}",
-                candidates
+        match self.match_label(label)? {
+            LabelMatch::One(index) => Ok(index),
+            LabelMatch::None => Err(format!("node not found: {label}")),
+            LabelMatch::Many(indexes) => {
+                let listed = indexes
                     .iter()
                     .take(8)
-                    .map(|(_, node)| node.id.as_str())
+                    .filter_map(|index| self.node(*index).ok().map(|node| node.id.as_str()))
                     .collect::<Vec<_>>()
-                    .join(", ")
-            )),
+                    .join(", ");
+                Err(format!(
+                    "ambiguous node label {label:?}; use one of: {listed}"
+                ))
+            }
         }
+    }
+
+    /// One node, none, or every production node that shares `label`.
+    pub(crate) fn match_label(
+        &self,
+        label: &str,
+    ) -> std::result::Result<super::LabelMatch, String> {
+        super::label_match::match_label(self.graph.as_ref(), label)
     }
 
     pub(crate) fn node(&self, index: NodeIndex) -> std::result::Result<&Node, String> {
         self.graph
             .node_at(index)
             .ok_or_else(|| format!("node index out of range: {}", index.index()))
-    }
-}
-
-fn prefer_non_test_only<'a>(matches: &'a [(usize, &'a Node)]) -> Vec<(usize, &'a Node)> {
-    if matches.len() <= 1 {
-        return matches.to_vec();
-    }
-    let production = matches
-        .iter()
-        .copied()
-        .filter(|(_, node)| {
-            !matches!(
-                node.attributes.get("test_only"),
-                Some(weavatrix_graph::AttributeValue::Bool(true))
-            )
-        })
-        .collect::<Vec<_>>();
-    if production.len() == 1 {
-        production
-    } else if production.is_empty() {
-        matches.to_vec()
-    } else {
-        production
     }
 }
 

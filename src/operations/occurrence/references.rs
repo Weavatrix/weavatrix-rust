@@ -6,16 +6,21 @@ use weavatrix_graph::NodeIndex;
 use super::path;
 use super::position::{self, Query};
 use super::report::{
-    node_json, optional_query, page_json, page_limit, query_json, scip_definition, sources,
-    span_key,
+    ambiguous_label, node_json, optional_query, page_json, page_limit, query_json, scip_definition,
+    sources, span_key,
 };
 use super::scip;
+use crate::engine::LabelMatch;
 
 pub(super) fn find_references(state: &RepositoryState, args: &Value) -> Result<Value, String> {
     let loaded = scip::load(state, optional_str(args, "scip_path")?)?;
     let (offset, max) = page_limit(args)?;
-    let Some(subject) = reference_subject(state, args, loaded.as_ref())? else {
-        return scip_only_or_unresolved(state, args, loaded.as_ref());
+    let subject = match reference_subject(state, args, loaded.as_ref())? {
+        ReferenceLookup::Hit(subject) => subject,
+        ReferenceLookup::Ambiguous(report) => return Ok(report),
+        ReferenceLookup::Unresolved => {
+            return scip_only_or_unresolved(state, args, loaded.as_ref());
+        }
     };
     let mut rows = graph_references(state, subject.index)?;
     if let Some(symbol) = subject.scip_symbol.as_deref()
@@ -63,14 +68,20 @@ struct ReferenceSubject {
     scip_symbol: Option<String>,
 }
 
+enum ReferenceLookup {
+    Hit(ReferenceSubject),
+    Ambiguous(Value),
+    Unresolved,
+}
+
 fn reference_subject(
     state: &RepositoryState,
     args: &Value,
     loaded: Option<&scip::Loaded>,
-) -> Result<Option<ReferenceSubject>, String> {
+) -> Result<ReferenceLookup, String> {
     if let Some(query) = optional_query(args)? {
         if let Some(hit) = position::resolve(state, &query) {
-            return Ok(Some(ReferenceSubject {
+            return Ok(ReferenceLookup::Hit(ReferenceSubject {
                 index: hit.index,
                 scip_symbol: loaded.and_then(|index| index.symbol_at(&query).map(str::to_owned)),
                 query: Some(query),
@@ -85,22 +96,30 @@ fn reference_subject(
                 column: span.start.column,
             };
             if let Some(mapped) = position::resolve(state, &at) {
-                return Ok(Some(ReferenceSubject {
+                return Ok(ReferenceLookup::Hit(ReferenceSubject {
                     index: mapped.index,
                     query: Some(query),
                     scip_symbol: Some(hit.symbol),
                 }));
             }
         }
-        return Ok(None);
+        return Ok(ReferenceLookup::Unresolved);
     }
     let label = optional_str(args, "label")?
         .ok_or_else(|| "find_references requires label or path, line, and column".to_owned())?;
-    Ok(Some(ReferenceSubject {
-        index: state.resolve_node(label)?,
-        query: None,
-        scip_symbol: None,
-    }))
+    Ok(match state.match_label(label)? {
+        LabelMatch::One(index) => ReferenceLookup::Hit(ReferenceSubject {
+            index,
+            query: None,
+            scip_symbol: None,
+        }),
+        LabelMatch::None => {
+            return Err(format!("node not found: {label}"));
+        }
+        LabelMatch::Many(indexes) => {
+            ReferenceLookup::Ambiguous(ambiguous_label(state, label, &indexes))
+        }
+    })
 }
 
 fn graph_references(state: &RepositoryState, index: NodeIndex) -> Result<Vec<Value>, String> {

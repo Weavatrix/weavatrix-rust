@@ -37,8 +37,8 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "get_dependents",
-        description: "Bounded transitive reverse blast radius. The seed and each dependent are id, label, kind, language, and span.",
-        required: &["label"],
+        description: "Bounded transitive reverse blast radius. Pass label for one symbol, or path for the declarations in that file. repository reads a child directory of the launch root and does not move the process pin. The seed and each dependent are id, label, kind, language, and span.",
+        required: &[],
     },
     ToolSpec {
         name: "change_impact",
@@ -107,12 +107,12 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "go_to_definition",
-        description: "Resolve the symbol at a source position to its definition without guessing by name. An unresolved position omits definition.",
-        required: &["path", "line", "column"],
+        description: "Resolve a symbol to its definition. A source position does not guess by name. A label that matches one node resolves. A label that matches several returns candidates and does not pick. An unresolved position omits definition.",
+        required: &[],
     },
     ToolSpec {
         name: "find_references",
-        description: "Occurrences of the symbol at a position or label, from the graph and an on-disk SCIP index if present. Test and classified rows stay out unless include_tests or include_classified is set. The definition row stays.",
+        description: "Occurrences of the symbol at a position or label, from the graph and an on-disk SCIP index if present. An ambiguous label returns candidates instead of failing. Test and classified rows stay out unless include_tests or include_classified is set. The definition row stays.",
         required: &[],
     },
     ToolSpec {
@@ -167,7 +167,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "list_endpoints",
-        description: "Inventory statically extracted HTTP endpoints as compact nodes (id, label, kind, language, span). max_results pages the list and reports endpoints_total; omit it to return every visible endpoint. Includes hand-rolled req.method/pathname conditions and Next.js App Router route files: an exported HTTP method under an app directory, with the URL taken from the file path. A Go struct that embeds Unimplemented*Server contributes GRPC Service/Method. A file whose first statement is \"use server\" contributes ACTION /path/name for each exported function. Page, layout, and route modules stay on their own rules.",
+        description: "Inventory statically extracted HTTP endpoints as compact nodes (id, label, kind, language, span). max_results pages the list and reports endpoints_total; omit it to return every visible endpoint. repository reads a child directory of the launch root and does not move the process pin. Includes hand-rolled req.method/pathname conditions and Next.js App Router route files: an exported HTTP method under an app directory, with the URL taken from the file path. A Go struct that embeds Unimplemented*Server contributes GRPC Service/Method. A file whose first statement is \"use server\" contributes ACTION /path/name for each exported function. Page, layout, and route modules stay on their own rules.",
         required: &[],
     },
     ToolSpec {
@@ -242,7 +242,7 @@ pub(super) const SPECS: &[ToolSpec] = &[
     },
     ToolSpec {
         name: "list_known_repos",
-        description: "List repositories with an in-process graph.",
+        description: "List in-process graphs and recent_requests: agent, repository, tool, time, reused, and ok. requests_total counts completed calls.",
         required: &[],
     },
     ToolSpec {
