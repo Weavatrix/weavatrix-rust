@@ -50,11 +50,13 @@ pub struct ParallelEngine {
 }
 
 impl ParallelEngine {
-    /// Analyzes `root` and keeps that directory as the launch pin.
+    /// Keeps `root` as the launch pin. Its graph waits for the first call that
+    /// uses it, so another MCP can read a child repository immediately.
     ///
     /// # Errors
     ///
-    /// Returns scan, parser, or graph failures for the launch root.
+    /// Returns an I/O error when `root` cannot be canonicalized, or
+    /// `InvalidRepository` when it is not a directory.
     pub fn open(root: impl AsRef<Path>, allow_retarget: bool) -> ModelResult<Self> {
         let launch = root
             .as_ref()
@@ -63,19 +65,15 @@ impl ParallelEngine {
         if !launch.is_dir() {
             return Err(Error::InvalidRepository(launch));
         }
-        let engine = Self {
-            launch: launch.clone(),
+        let pin = Mutex::new(launch.clone());
+        Ok(Self {
+            launch,
             allow_retarget,
-            pin: Mutex::new(launch.clone()),
+            pin,
             lanes: Mutex::new(BTreeMap::new()),
             log: Mutex::new(VecDeque::new()),
             requests: AtomicU64::new(0),
-        };
-        let mut reused = false;
-        engine
-            .lane_state(&launch, &mut reused)
-            .map_err(Error::Analysis)?;
-        Ok(engine)
+        })
     }
 
     /// Directory this process was started on. `open_repo` does not move it.
@@ -121,10 +119,14 @@ impl ParallelEngine {
     }
 
     fn known_report(&self, reused: &mut bool) -> Result<Value, String> {
-        let pin = self.pin_root();
-        let state = self.lane_state(&pin, reused)?;
-        let mut local = Weavatrix::from_state(state);
-        let mut report = operations::call(&mut local, "list_known_repos", json!({}))?;
+        let mut report = if self.pin_ready() {
+            let state = self.lane_state(&self.pin_root(), reused)?;
+            let mut local = Weavatrix::from_state(state);
+            operations::call(&mut local, "list_known_repos", json!({}))?
+        } else {
+            *reused = true;
+            json!({"repositories": []})
+        };
         let Some(object) = report.as_object_mut() else {
             return Ok(report);
         };
@@ -211,6 +213,13 @@ impl ParallelEngine {
 
     fn pin_root(&self) -> PathBuf {
         lock(&self.pin).clone()
+    }
+
+    fn pin_ready(&self) -> bool {
+        let pin = self.pin_root();
+        lock(&self.lanes)
+            .get(&pin)
+            .is_some_and(|lane| support::state_ready(lane))
     }
 
     fn loaded_roots(&self) -> Vec<String> {

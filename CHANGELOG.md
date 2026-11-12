@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The launch root is scanned on the first call that uses it. A child
+  `repository` from another MCP does not wait for that scan.
+  `list_known_repos` lists loaded lanes without building the pin.
+
 ## 2.17.11 - 2026-11-12
 
 - `find_references` and `go_to_definition` return `AMBIGUOUS` and a candidate

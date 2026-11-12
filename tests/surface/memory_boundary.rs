@@ -84,6 +84,36 @@ fn many_agents_share_one_process_and_a_warm_graph_is_reused() {
     let _ = fs::remove_dir_all(&outside);
 }
 
+#[test]
+fn many_agents_on_a_child_skip_the_launch_scan() {
+    use std::fs;
+
+    use blazingly_json::json;
+    use weavatrix_rust::ParallelEngine;
+
+    let parent = scratch("lazy");
+    fs::create_dir_all(parent.join("shop/src")).unwrap();
+    fs::write(parent.join("shop/src/lib.rs"), "pub fn shop() {}\n").unwrap();
+    let engine = ParallelEngine::open(&parent, false).expect("open");
+    let launch = engine.launch().to_path_buf();
+    let before = engine.call("list_known_repos", json!({})).expect("before");
+    assert!(
+        before["repositories"].as_array().expect("repos").is_empty(),
+        "{before}"
+    );
+    engine
+        .call(
+            "graph_stats",
+            json!({"agent": "shop", "repository": "shop"}),
+        )
+        .expect("shop");
+    let after = engine.call("list_known_repos", json!({})).expect("after");
+    let repos = after["repositories"].as_array().expect("repos");
+    assert!(repos.iter().any(|value| canon(value) == canon_path(&parent.join("shop"))));
+    assert!(repos.iter().all(|value| canon(value) != launch));
+    let _ = fs::remove_dir_all(&parent);
+}
+
 fn scratch(name: &str) -> std::path::PathBuf {
     let root =
         std::env::temp_dir().join(format!("weavatrix-lanes-{}-{}", std::process::id(), name));

@@ -34,6 +34,13 @@ pub(super) fn clip(value: &str, max: usize) -> String {
     value.chars().take(max).collect()
 }
 
+pub(super) fn state_ready(lane: &Lane) -> bool {
+    match lane.inner.try_lock() {
+        Ok(inner) => inner.state.is_some(),
+        Err(_) => false,
+    }
+}
+
 pub(super) fn lane_loaded(lane: &Lane) -> bool {
     match lane.inner.try_lock() {
         Ok(inner) => inner.state.is_some(),
