@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.17.12 - 2026-11-12
 
 - The launch root is scanned on the first call that uses it. A child
   `repository` from another MCP does not wait for that scan.
