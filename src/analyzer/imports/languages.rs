@@ -226,7 +226,10 @@ pub(super) fn extensions(language: &Language) -> &'static [&'static str] {
         Language::Python => &["py", "pyi"],
         Language::Go => &["go"],
         Language::C => &["c", "h"],
-        Language::Cpp => &["cpp", "cc", "cxx", "h", "hpp", "hh"],
+        Language::Cpp => &[
+            "cpp", "cc", "cxx", "h", "hpp", "hh", "hxx", "inl", "ipp", "cu", "cuh", "mm", "ixx",
+            "cppm",
+        ],
         Language::Bash => &["sh", "bash"],
         Language::Protobuf => &["proto"],
         Language::Swift => &["swift"],

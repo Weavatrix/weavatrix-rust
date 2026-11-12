@@ -46,7 +46,10 @@ impl TokenizedAdapter {
             (
                 Language::Cpp,
                 Parsed::Cpp,
-                &["cc", "cpp", "cxx", "hh", "hpp", "hxx"][..],
+                &[
+                    "cc", "cpp", "cxx", "hh", "hpp", "hxx", "inl", "ipp", "cu", "cuh", "mm", "ixx",
+                    "cppm",
+                ][..],
             ),
             (Language::Sql, Parsed::Sql, &["sql", "psql"][..]),
             (Language::Bash, Parsed::Bash, &["sh", "bash", "zsh"][..]),
@@ -169,6 +172,13 @@ impl LanguageAdapter for TokenizedAdapter {
         ) {
             super::web3::overlay_clients(source.path, source.text, &mut facts);
         }
+        if self.parse == weavatrix_parse::Language::Xml {
+            super::appstore::augment_plist(&mut facts, source.path, source.text);
+        }
+        if self.parse == weavatrix_parse::Language::Swift {
+            super::appstore::augment_swift(&mut facts, source.path, source.text);
+        }
+        super::frameworks::augment_source(&mut facts, source.path, source.text);
         Ok(facts)
     }
 }

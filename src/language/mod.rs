@@ -3,8 +3,10 @@ use std::fmt::{Display, Formatter};
 use weavatrix_graph::{EdgeKind, NodeKind, SourceSpan};
 
 mod agent;
+mod appstore;
 mod contract;
 mod dify;
+pub(crate) mod frameworks;
 mod graphql;
 mod json;
 mod mermaid;
@@ -259,8 +261,8 @@ impl Default for LanguageRegistry {
             Box::new(json::JsonAdapter) as Box<dyn LanguageAdapter>,
             Box::new(yaml::YamlAdapter) as Box<dyn LanguageAdapter>,
             Box::new(mermaid::MermaidAdapter) as Box<dyn LanguageAdapter>,
+            Box::new(appstore::AppStoreAdapter) as Box<dyn LanguageAdapter>,
         ]);
-        // First adapter claiming an extension wins; the tokenizer owns comments and strings.
         adapters.extend(
             tokenized::TokenizedAdapter::defaults()
                 // Full builds keep the syn `.rs` adapter; the lossless path stays for the rest.

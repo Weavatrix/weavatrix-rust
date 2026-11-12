@@ -251,3 +251,32 @@ fn swift_stdlib_map_does_not_bind_to_a_local_helper() {
         "values.map must not bind to the local map helper"
     );
 }
+
+#[test]
+fn swift_app_store_application_lands_in_the_graph() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "ios/GrantTap/Info.plist",
+        "<plist><dict>\
+         <key>CFBundleIdentifier</key><string>com.example.GrantTap</string>\
+         <key>CFBundlePackageType</key><string>APPL</string>\
+         </dict></plist>",
+    );
+    fixture.write(
+        "ios/GrantTap/GrantTapApp.swift",
+        "@main\nstruct GrantTapApp: App {\n var body: some Scene { WindowGroup {} }\n}\n",
+    );
+    fixture.write(
+        "ios/Products.storekit",
+        r#"{"products":[{"productID":"com.example.coins"}]}"#,
+    );
+    let snapshot = Analyzer::default().analyze(&fixture.root).unwrap();
+    let labels = snapshot
+        .nodes
+        .iter()
+        .map(|node| node.label.as_str())
+        .collect::<Vec<_>>();
+    assert!(labels.contains(&"APP com.example.GrantTap"), "{labels:?}");
+    assert!(labels.contains(&"APP ENTRY GrantTapApp"), "{labels:?}");
+    assert!(labels.contains(&"IAP com.example.coins"), "{labels:?}");
+}

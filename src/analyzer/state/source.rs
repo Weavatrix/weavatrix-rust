@@ -43,18 +43,31 @@ pub(in crate::analyzer) fn parse_source(
     let Ok(text) = std::str::from_utf8(bytes) else {
         return Ok(sourced(ParseOutcome::NonUtf8));
     };
-    let extension = Path::new(relative)
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(str::to_ascii_lowercase)
-        .unwrap_or_default();
-    let Some(adapter) = registry.adapter_for_extension(&extension) else {
-        return Ok(sourced(ParseOutcome::Skipped));
-    };
-    let mut facts = adapter.parse(crate::language::SourceFile {
-        path: relative,
-        text,
-    })?;
+    let (language, extractor, mut facts) =
+        if let Some(facts) = crate::language::frameworks::spec_file(relative, text) {
+            (
+                Language::Custom("application".to_owned()),
+                "weavatrix.application",
+                facts,
+            )
+        } else {
+            let extension = Path::new(relative)
+                .extension()
+                .and_then(|value| value.to_str())
+                .map(str::to_ascii_lowercase)
+                .unwrap_or_default();
+            let Some(adapter) = registry.adapter_for_extension(&extension) else {
+                return Ok(sourced(ParseOutcome::Skipped));
+            };
+            (
+                adapter.language(),
+                adapter.extractor(),
+                adapter.parse(crate::language::SourceFile {
+                    path: relative,
+                    text,
+                })?,
+            )
+        };
     for symbol in &mut facts.symbols {
         let source_extent = symbol.source_extent.as_ref().unwrap_or(&symbol.span);
         symbol.source_fingerprint = declaration_text(text, source_extent).map(stable_fingerprint);
@@ -68,8 +81,8 @@ pub(in crate::analyzer) fn parse_source(
     }
     let transport_candidate = crate::language::file_facts_have_transport_evidence(&facts);
     let mut parsed = sourced(ParseOutcome::Parsed {
-        language: adapter.language(),
-        extractor: adapter.extractor(),
+        language,
+        extractor,
         facts: Box::new(facts),
     });
     parsed.transport_candidate = transport_candidate;

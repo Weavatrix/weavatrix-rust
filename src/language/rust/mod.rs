@@ -65,6 +65,7 @@ impl LanguageAdapter for RustAdapter {
             collector.facts.domains.extend(regs.domains);
             collector.facts.diagnostics.extend(regs.diagnostics);
         }
+        super::frameworks::augment_source(&mut collector.facts, source.path, source.text);
         Ok(collector.facts)
     }
 }

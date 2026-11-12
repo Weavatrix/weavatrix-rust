@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use weavatrix_scan::{
     ContentDiscoveryMode, ContentFileStatus, ContentVisitControl, ContentVisitEvent, EvidenceMode,
-    ScanOptions, ScanReport, Scanner,
+    NamedFileTypes, ScanOptions, ScanReport, Scanner,
 };
 
 /// Runs `fetch` across available cores and restores index order before the
@@ -228,6 +228,18 @@ impl Analyzer {
             .into_iter()
             .map(str::to_owned),
         );
+        options.file_types = NamedFileTypes::new()
+            .with_globs(
+                "native-build",
+                [
+                    "CMakeLists.txt",
+                    "Makefile",
+                    "makefile",
+                    "meson.build",
+                    "conanfile.txt",
+                ],
+            )
+            .select(["native-build"]);
         options
     }
 }

@@ -43,6 +43,7 @@ impl LanguageAdapter for JsonAdapter {
             if let Some(web3) = super::web3::analyze(source.path, json, &value) {
                 return Ok(web3);
             }
+            super::frameworks::augment_json(&mut facts, source.path, json, &value);
             return Ok(facts);
         }
         let normalized = normalize_jsonc(json);

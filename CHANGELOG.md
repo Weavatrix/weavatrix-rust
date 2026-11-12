@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.17.13 - 2026-11-12
+
+- App Store targets, StoreKit products, entitlements, privacy manifests, and a
+  Swift `@main` entry become application nodes.
+- Android applications, NDK builds, and package frameworks (Next.js, Nuxt,
+  React Native, Expo, Electron), plus Django, Flask, FastAPI, Gin, Fiber,
+  Nest, ASP.NET, PyTorch, and Hugging Face models, become `FRAMEWORK`, `APP`,
+  and `MODEL` nodes. A client and a server of the same `METHOD /path` share
+  one endpoint.
+- C and C++ frameworks and bindings from Python, Java, Go, C#, Node, and Rust
+  share those nodes. Studio specs do too: Visual Studio, Qt, Unreal, JUCE,
+  Godot, Unity, CMake, Meson, Conan, vcpkg, Code::Blocks, and Xcode.
+  `CMakeLists.txt`, `Makefile`, `meson.build`, and `conanfile.txt` are read
+  by file name.
+- The registry recognizes 92 extensions.
+
 ## 2.17.12 - 2026-11-12
 
 - The launch root is scanned on the first call that uses it. A child
