@@ -123,7 +123,7 @@ Use the default native engine:
 
 ```toml
 [dependencies]
-weavatrix-rust = "2.17.13"
+weavatrix-rust = "2.17.14"
 ```
 
 ```rust
@@ -158,7 +158,7 @@ standalone CLI:
 
 ```toml
 [dependencies]
-weavatrix-rust = { version = "2.17.13", default-features = false }
+weavatrix-rust = { version = "2.17.14", default-features = false }
 ```
 
 ## MCP product

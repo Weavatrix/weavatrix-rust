@@ -1,8 +1,9 @@
 mod graph;
 
-use crate::engine::RepositoryState;
+use crate::engine::{LabelMatch, RepositoryState};
 use blazingly_json::{Value, json};
 use std::collections::BTreeSet;
+use weavatrix_graph::NodeIndex;
 
 pub(super) struct WalkSpec<'a> {
     pub start: &'a str,
@@ -124,6 +125,26 @@ pub(super) fn parse_trace(
         label,
         depth,
         max_nodes,
+    })
+}
+
+pub(super) fn resolve_index(
+    state: &RepositoryState,
+    label: &str,
+) -> Result<Result<NodeIndex, Value>, String> {
+    match state.match_label(label)? {
+        LabelMatch::One(index) => Ok(Ok(index)),
+        LabelMatch::None => Ok(Err(empty_label(label))),
+        LabelMatch::Many(_) => Err(state.resolve_node(label).unwrap_err()),
+    }
+}
+
+pub(super) fn empty_label(label: &str) -> Value {
+    json!({
+        "label": label,
+        "state": "EMPTY",
+        "reason": "no matching node",
+        "items": []
     })
 }
 

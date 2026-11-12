@@ -153,3 +153,23 @@ pub(super) fn list_contains(value: Option<&Value>, expected: &str) -> bool {
         .and_then(Value::as_array)
         .is_some_and(|values| values.iter().any(|value| value.as_str() == Some(expected)))
 }
+
+/// One fingerprint, without the embedded rule body or the path witness list.
+pub(super) fn brief(violation: &Value) -> Value {
+    let rule = violation
+        .get("rule")
+        .and_then(|rule| rule.get("id"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    json!({
+        "fingerprint": violation.get("fingerprint").cloned().unwrap_or(Value::Null),
+        "category": violation.get("category").cloned().unwrap_or(Value::Null),
+        "rule": rule,
+        "source": violation.get("source").cloned().unwrap_or(Value::Null),
+        "target": violation.get("target").cloned().unwrap_or(Value::Null),
+        "evidence": {
+            "kind": violation.pointer("/evidence/kind").cloned().unwrap_or(Value::Null),
+            "hops": violation.pointer("/evidence/hops").cloned().unwrap_or(Value::Null)
+        }
+    })
+}

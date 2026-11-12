@@ -54,7 +54,7 @@ pub(super) fn node_json(node: &Node) -> Value {
 
 /// Candidates for a label that matches more than one node. The next call can
 /// pass a candidate `id`, which resolves as that exact node.
-pub(super) fn ambiguous_label(
+pub(crate) fn ambiguous_label(
     state: &RepositoryState,
     label: &str,
     indexes: &[weavatrix_graph::NodeIndex],

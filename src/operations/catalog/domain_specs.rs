@@ -79,7 +79,7 @@ pub(super) const DOMAIN_SPECS: &[ToolSpec] = &[
     ToolSpec {
         name: "web3_impact",
         description: "Compare supplied ABI revisions and report consumer-specific interface deltas, including silent event misdecode risk.",
-        required: &[],
+        required: &["baseline", "candidate"],
     },
     ToolSpec {
         name: "web3_context",

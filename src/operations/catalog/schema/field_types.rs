@@ -106,6 +106,23 @@ fn documented_object_array(tool: &str, name: &str) -> Option<Value> {
                 }
             }
         })),
+        ("cross_repo_git", "repositories") => Some(json!({
+            "type": "array",
+            "description": "Local repositories. A path string, or an object with path and an optional name.",
+            "items": {
+                "oneOf": [
+                    {"type": "string"},
+                    {
+                        "type": "object",
+                        "required": ["path"],
+                        "properties": {
+                            "path": {"type": "string"},
+                            "name": {"type": "string"}
+                        }
+                    }
+                ]
+            }
+        })),
         _ => None,
     }
 }

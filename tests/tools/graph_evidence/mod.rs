@@ -41,6 +41,13 @@ fn query_graph_ranks_a_question_without_the_whole_phrase() {
     );
     assert_eq!(report["intent"], "callers");
     assert_eq!(report["execution_status"], "OK");
+    let alias = tools::call(
+        &mut engine,
+        "query_graph",
+        json!({"query": "who calls validateSession", "depth": 1, "max_nodes": 12}),
+    )
+    .unwrap();
+    assert_eq!(alias["intent"], "callers");
 }
 
 #[test]

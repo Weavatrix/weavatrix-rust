@@ -71,7 +71,10 @@ pub(super) fn context(state: &RepositoryState, args: &Value) -> Result<Value, St
     if max_related == 0 || max_related > 200 {
         return Err("max_related must be between 1 and 200".to_owned());
     }
-    let index = state.resolve_node(label)?;
+    let index = match crate::operations::domain_walk::resolve_index(state, label)? {
+        Ok(index) => index,
+        Err(empty) => return Ok(empty),
+    };
     let node = state.node(index)?;
     let domains = view::owned_domains(state, node.id.as_str());
     let relations = declared_neighbors(state, node, max_related);

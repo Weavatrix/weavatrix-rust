@@ -38,7 +38,7 @@ pub(super) fn resolve_seeds(
             tokens: Vec::new(),
         });
     }
-    let question = arg_str(args, "question")?;
+    let question = arg_str(args, "question").or_else(|_| arg_str(args, "query"))?;
     let (intent, direction) = intent_of(question);
     let tokens = query_tokens(question);
     if tokens.is_empty() {

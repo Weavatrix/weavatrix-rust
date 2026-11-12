@@ -19,7 +19,10 @@ pub(super) fn trace(state: &RepositoryState, args: &Value) -> Result<Value, Stri
     let revision = state.snapshot().revision.as_str();
     let offset = domain_walk::page_offset_for(args, revision)?;
     let incoming = domain_walk::incoming_arg(args)?;
-    let start = state.resolve_node(&request.label)?;
+    let start = match domain_walk::resolve_index(state, &request.label)? {
+        Ok(index) => index,
+        Err(empty) => return Ok(empty),
+    };
     let start_id = state.node(start)?.id.clone();
     let mut report = domain_walk::trace(
         state,

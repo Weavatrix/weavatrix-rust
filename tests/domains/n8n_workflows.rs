@@ -142,6 +142,12 @@ fn same_display_names_in_different_workflows_do_not_merge() {
     let error =
         tools::call(&mut engine, "n8n_trace", json!({"label": "Load Customer"})).unwrap_err();
     assert!(error.contains("ambiguous"), "{error}");
+    let empty = tools::call(&mut engine, "n8n_trace", json!({"label": "no-such-node"})).unwrap();
+    assert_eq!(empty["state"], "EMPTY");
+    assert_eq!(empty["items"], json!([]));
+    let context =
+        tools::call(&mut engine, "n8n_context", json!({"label": "no-such-node"})).unwrap();
+    assert_eq!(context["state"], "EMPTY");
 }
 
 #[test]

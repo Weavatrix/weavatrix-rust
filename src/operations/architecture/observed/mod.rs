@@ -17,7 +17,7 @@ pub(super) fn attach(state: &RepositoryState, mut report: Value) -> Value {
     if let Some(object) = report.as_object_mut() {
         object.insert(
             "observed".to_owned(),
-            facts(state, None).expect("unpaginated projection"),
+            summary::from_full(&facts(state, None).expect("unpaginated projection")),
         );
     }
     report
@@ -71,6 +71,9 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
     }
     let cursor = optional_str(args, "edge_cursor")?;
     let mut report = facts(state, Some((max, cursor)))?;
+    if args.get("max_results").is_some() {
+        cap_lists(&mut report, max);
+    }
     report["detail"] = json!("full");
     let budget = crate::operations::token_budget::requested(args)?;
     crate::operations::token_budget::fit(
@@ -198,6 +201,29 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
         "internal_connectivity_total": relations.internal.len(),
         "cycles": cycles
     }))
+}
+
+fn cap_lists(report: &mut Value, max: usize) {
+    for pointer in [
+        "/components",
+        "/packages",
+        "/internal_connectivity",
+        "/architecture_hypotheses",
+        "/build_topology/workspaces",
+        "/build_topology/runners",
+        "/input_capture/excluded",
+    ] {
+        let Some(array) = report.pointer(pointer).and_then(Value::as_array) else {
+            continue;
+        };
+        if array.len() <= max {
+            continue;
+        }
+        let kept = array.iter().take(max).cloned().collect::<Vec<_>>();
+        if let Some(slot) = report.pointer_mut(pointer) {
+            *slot = json!(kept);
+        }
+    }
 }
 
 fn component_json(component: &components::Component) -> Value {

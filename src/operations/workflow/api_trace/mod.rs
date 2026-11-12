@@ -23,17 +23,10 @@ pub(in crate::operations) fn trace_api_cached(
 ) -> Result<Value, String> {
     let backend_selector = crate::operations::arg_str(args, "backend")?;
     let clients = clients(args)?;
-    let backend_root = engine
-        .ensure_repository_state(backend_selector)
-        .map_err(|error| error.to_string())?;
+    let backend_root = locate(engine, backend_selector)?;
     let client_roots = clients
         .iter()
-        .map(|client| {
-            engine
-                .ensure_repository_state(client)
-                .map(|root| ((*client).to_owned(), root))
-                .map_err(|error| error.to_string())
-        })
+        .map(|client| locate(engine, client).map(|root| ((*client).to_owned(), root)))
         .collect::<Result<Vec<_>, _>>()?;
     let backend = engine
         .known_state(&backend_root)
@@ -60,11 +53,34 @@ pub(in crate::operations) fn trace_api_cached(
     Ok(result)
 }
 
+fn locate(engine: &mut Weavatrix, selector: &str) -> Result<std::path::PathBuf, String> {
+    let raw = std::path::Path::new(selector);
+    let rooted = if raw.is_absolute() {
+        raw.to_path_buf()
+    } else {
+        engine.state().root().join(raw)
+    };
+    let chosen = if rooted.is_dir() {
+        rooted
+    } else {
+        raw.to_path_buf()
+    };
+    if !chosen.is_dir() {
+        return Err(format!("{selector} is not a repository directory"));
+    }
+    engine
+        .ensure_repository_state(&chosen)
+        .map_err(|error| error.to_string())
+}
+
 fn clients(args: &Value) -> Result<BTreeSet<&str>, String> {
+    if let Some(text) = args.get("clients").and_then(Value::as_str) {
+        return Ok(BTreeSet::from([text]));
+    }
     let clients = args
         .get("clients")
         .and_then(Value::as_array)
-        .ok_or_else(|| "clients must be an array".to_owned())?
+        .ok_or_else(|| "clients must be an array of repository paths, or one path".to_owned())?
         .iter()
         .map(|client| {
             client

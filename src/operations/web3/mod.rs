@@ -53,7 +53,10 @@ pub(super) fn trace(state: &RepositoryState, args: &Value) -> Result<Value, Stri
     }
     let max = bounded(optional_u64(args, "max_nodes")?.unwrap_or(64), 200)?;
     let offset = domain_walk::page_offset_for(args, &state.snapshot().revision)?;
-    let index = state.resolve_node(label)?;
+    let index = match domain_walk::resolve_index(state, label)? {
+        Ok(index) => index,
+        Err(empty) => return Ok(empty),
+    };
     let node = state.node(index)?;
     let (steps, depth_cut) = walk_steps(state, node, depth);
     let total = steps.len();
@@ -103,7 +106,10 @@ pub(super) fn context(state: &RepositoryState, args: &Value) -> Result<Value, St
     let label = arg_str(args, "label")?;
     let task = optional_str(args, "task")?.unwrap_or("change-event");
     let max = bounded(optional_u64(args, "max_related")?.unwrap_or(24), 200)?;
-    let index = state.resolve_node(label)?;
+    let index = match domain_walk::resolve_index(state, label)? {
+        Ok(index) => index,
+        Err(empty) => return Ok(empty),
+    };
     let node = state.node(index)?;
     let domains = view::domain_names(state, node.id.as_str());
     let all_consumers = view::consumers_of(state, node.id.as_str());

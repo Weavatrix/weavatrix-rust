@@ -77,6 +77,53 @@ fn shortest_path_does_not_follow_a_reverse_call_when_directed() {
 }
 
 #[test]
+fn shortest_path_returns_candidates_when_the_label_is_shared() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "src/a.js",
+        "import { only } from './c.js';\nexport function open() { return only(); }\n",
+    );
+    fixture.write("src/b.js", "export function open() { return 1; }\n");
+    fixture.write("src/c.js", "export function only() { return 1; }\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let ambiguous = tools::call(
+        &mut engine,
+        "shortest_path",
+        json!({"source": "open", "target": "only"}),
+    )
+    .unwrap();
+    assert_eq!(ambiguous["state"], "AMBIGUOUS");
+    assert_eq!(ambiguous["found"], false);
+    assert_eq!(ambiguous["role"], "source");
+    assert!(
+        ambiguous["candidates_total"].as_u64().unwrap() >= 2,
+        "{ambiguous}"
+    );
+    let id = ambiguous["candidates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["span"]["file"].as_str().unwrap().ends_with("a.js"))
+        .unwrap()["id"]
+        .as_str()
+        .unwrap();
+    let found = tools::call(
+        &mut engine,
+        "shortest_path",
+        json!({"source": id, "target": "only"}),
+    )
+    .unwrap();
+    assert_eq!(found["found"], true, "{found}");
+    let missing = tools::call(
+        &mut engine,
+        "shortest_path",
+        json!({"source": "missing", "target": "only"}),
+    )
+    .unwrap_err();
+    assert!(missing.contains("node not found"), "{missing}");
+}
+
+#[test]
 fn shortest_path_keeps_parallel_relations_as_separate_witnesses() {
     let fixture = Fixture::new();
     fixture.write(

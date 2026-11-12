@@ -17,9 +17,10 @@ use crate::operations::optional_str;
 use blazingly_json::{Value, json};
 use position::Query;
 use references::unresolved;
+pub(crate) use report::ambiguous_label;
 use report::{
-    ambiguous_label, graph_definition, node_json, occurrence_json, optional_query, query_json,
-    required_query, scip_definition, sources,
+    graph_definition, node_json, occurrence_json, optional_query, query_json, required_query,
+    scip_definition, sources,
 };
 use weavatrix_graph::NodeIndex;
 

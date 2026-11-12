@@ -1,13 +1,19 @@
 use super::relation_filter;
-use crate::engine::RepositoryState;
-use crate::operations::{arg_str, arg_u64, optional_bool, optional_str};
+use crate::engine::{LabelMatch, RepositoryState};
+use crate::operations::{ambiguous_label, arg_str, arg_u64, optional_bool, optional_str};
 use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use weavatrix_graph::{Direction, EdgeIndex, NodeIndex};
 
 pub fn path(state: &RepositoryState, args: &Value) -> Result<Value, String> {
-    let source = state.resolve_node(arg_str(args, "source")?)?;
-    let target = state.resolve_node(arg_str(args, "target")?)?;
+    let source = match endpoint(state, "source", arg_str(args, "source")?)? {
+        End::Node(index) => index,
+        End::Ambiguous(value) => return Ok(value),
+    };
+    let target = match endpoint(state, "target", arg_str(args, "target")?)? {
+        End::Node(index) => index,
+        End::Ambiguous(value) => return Ok(value),
+    };
     let max_hops = usize::try_from(arg_u64(args, "max_hops").unwrap_or(8)).unwrap_or(8);
     let max_edges = usize::try_from(arg_u64(args, "max_edges").unwrap_or(4096)).unwrap_or(4096);
     if max_edges == 0 {
@@ -41,6 +47,24 @@ pub fn path(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         "evidence_completeness": if incomplete { "INCOMPLETE" } else { "COMPLETE" },
         "stop_reason": stop_reason(!search.nodes.is_empty(), search.bounded_hops, search.bounded_work)
     }))
+}
+
+#[rustfmt::skip]
+enum End { Node(NodeIndex), Ambiguous(Value) }
+
+fn endpoint(state: &RepositoryState, role: &str, label: &str) -> Result<End, String> {
+    match state.match_label(label)? {
+        LabelMatch::One(index) => Ok(End::Node(index)),
+        LabelMatch::None => Err(format!("node not found: {label}")),
+        LabelMatch::Many(indexes) => {
+            let mut value = ambiguous_label(state, label, &indexes);
+            if let Some(object) = value.as_object_mut() {
+                object.insert("role".to_owned(), json!(role));
+                object.insert("found".to_owned(), json!(false));
+            }
+            Ok(End::Ambiguous(value))
+        }
+    }
 }
 
 fn path_relations(args: &Value) -> Result<Option<BTreeSet<String>>, String> {

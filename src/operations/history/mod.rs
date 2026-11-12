@@ -213,9 +213,11 @@ pub fn cross_repo(_state: &RepositoryState, args: &Value) -> Result<Value, Strin
         .enumerate()
         .map(|(index, item)| {
             let path = item
-                .get("path")
-                .and_then(Value::as_str)
-                .ok_or_else(|| "repository.path must be a string".to_owned())?;
+                .as_str()
+                .or_else(|| item.get("path").and_then(Value::as_str))
+                .ok_or_else(|| {
+                    "repository path must be a string or an object with path".to_owned()
+                })?;
             let name = item
                 .get("name")
                 .map(|value| {

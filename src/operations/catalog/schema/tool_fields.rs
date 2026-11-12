@@ -8,6 +8,7 @@ pub(super) fn graph_fields(tool: &str) -> Option<&'static [&'static str]> {
         ]),
         "query_graph" => Some(&[
             "question",
+            "query",
             "mode",
             "depth",
             "max_nodes",

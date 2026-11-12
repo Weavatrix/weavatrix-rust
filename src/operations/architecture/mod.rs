@@ -211,7 +211,9 @@ pub fn explain(state: &RepositoryState, args: &Value) -> Result<Value, String> {
             "reason": "the fingerprint is not an active architecture violation"
         }));
     };
-    Ok(json!({"violation": violation, "contract": ".weavatrix/architecture.json"}))
+    Ok(
+        json!({"state": "EXPLAINED", "fingerprint": fingerprint, "violation": contract::brief(&violation), "contract": ".weavatrix/architecture.json"}),
+    )
 }
 
 pub fn propose_exception(state: &RepositoryState, args: &Value) -> Result<Value, String> {
@@ -237,7 +239,7 @@ pub fn propose_exception(state: &RepositoryState, args: &Value) -> Result<Value,
             "fingerprint": fingerprint,
             "reason": reason,
             "expires": args.get("expires"),
-            "violation": violation
+            "violation": contract::brief(&violation)
         },
         "write": "NONE"
     }))

@@ -36,6 +36,7 @@ pub(crate) use catalog::{reject_unknown_arguments, require_valid_output_format};
 pub(crate) use args::{
     arg_bool, arg_str, arg_u64, optional_bool, optional_str, optional_u64, require_graph_precision,
 };
+pub(crate) use occurrence::ambiguous_label;
 pub(crate) use visibility::{node_is_visible, node_path};
 
 use crate::engine::{RepositoryState, Weavatrix};

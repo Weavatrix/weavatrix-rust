@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.17.14 - 2026-11-12
+
+- `shortest_path` returns `AMBIGUOUS` and a candidate list when a label matches
+  more than one node. An exact node id still resolves. A missing label stays
+  an error.
+- `architecture_inventory` caps the bulk lists when `max_results` is set.
+  `get_architecture_contract` attaches the summary view, and that sample keeps
+  component `id` and `declared_id`.
+- `explain_architecture_violation` and `propose_architecture_exception` return
+  one fingerprint and the rule id, source, target, and evidence kind.
+- n8n, Dify, diagram, Web3, and agent trace and context return `EMPTY` when
+  the label matches nothing. An ambiguous label stays an error.
+- `web3_impact` requires `baseline` and `candidate`. `cross_repo_git`
+  repositories accept a path string or an object with `path`. `query_graph`
+  accepts `query` as an alias of `question`. `trace_api_contract` resolves a
+  relative repository against the launch root and accepts one client path.
+
 ## 2.17.13 - 2026-11-12
 
 - App Store targets, StoreKit products, entitlements, privacy manifests, and a

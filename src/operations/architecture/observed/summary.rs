@@ -76,9 +76,11 @@ fn component_sample(full: &Value) -> Vec<Value> {
         .flatten()
         .map(|component| {
             json!({
+                "id": component["id"],
                 "path": component["path"],
                 "files": component["files"],
-                "declared_ids": component["declared_ids"]
+                "declared_ids": component["declared_ids"],
+                "declared_id": component["declared_id"]
             })
         })
         .collect::<Vec<_>>();
