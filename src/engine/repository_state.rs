@@ -32,7 +32,11 @@ impl RepositoryState {
         })
     }
 
-    pub(super) fn from_scan(analyzer: &Analyzer, root: &Path, scan: ScanReport) -> Result<Self> {
+    pub(in crate::engine) fn from_scan(
+        analyzer: &Analyzer,
+        root: &Path,
+        scan: ScanReport,
+    ) -> Result<Self> {
         let started = Instant::now();
         let snapshot = analyzer.analyze_report(root, &scan)?;
         let graph = Graph::try_from_sorted_parts(snapshot.nodes.clone(), snapshot.edges.clone())?;

@@ -208,6 +208,12 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
     if name == "trace_api_contract" {
         return workflow::trace_api_cached(weavatrix, arguments);
     }
+    if name == "rebuild_graph" {
+        return graph::rebuild(weavatrix, arguments);
+    }
+    if name == "open_repo" {
+        return graph::open_repository(weavatrix, arguments);
+    }
     let state = weavatrix.state();
     match name {
         "graph_stats" => graph::stats(state, arguments),
@@ -274,23 +280,6 @@ fn dispatch(weavatrix: &mut Weavatrix, name: &str, arguments: &Value) -> Result<
         "web3_trace" => web3::trace(state, arguments),
         "web3_impact" => web3::impact(state, arguments),
         "web3_context" => web3::context(state, arguments),
-        "rebuild_graph" => {
-            let before = graph::counts(state);
-            weavatrix.rebuild().map_err(|error| error.to_string())?;
-            Ok(json!({"before": before, "after": graph::counts(weavatrix.state())}))
-        }
-        "open_repo" => {
-            let path = arg_str(arguments, "path")?.to_owned();
-            let should_build = arg_bool(arguments, "build").unwrap_or(true);
-            let graph_built = weavatrix
-                .open_repository_with_build(&path, should_build)
-                .map_err(|error| error.to_string())?;
-            Ok(json!({
-                "repository": weavatrix.state().root(),
-                "built": graph_built,
-                "graph": graph::stats(weavatrix.state(), arguments)?
-            }))
-        }
         "list_known_repos" => Ok(json!({
             "repositories": weavatrix.known_roots().collect::<Vec<_>>(),
         })),

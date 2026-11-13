@@ -2,6 +2,7 @@
 
 mod label_match;
 mod parallel;
+mod rebuild;
 mod repository_state;
 mod session;
 
@@ -18,6 +19,7 @@ use weavatrix_scan::ScanReport;
 
 pub(crate) use label_match::LabelMatch;
 pub use parallel::ParallelEngine;
+pub(crate) use rebuild::{KeptBuild, OpenCut};
 pub use repository_state::git_head;
 
 impl Weavatrix {

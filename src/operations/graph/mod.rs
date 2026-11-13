@@ -5,6 +5,7 @@ use weavatrix_graph::{NodeIndex, NodeKind};
 
 mod bounds;
 mod coupling;
+mod lane;
 mod pagination;
 mod path;
 mod query;
@@ -15,6 +16,7 @@ mod views;
 mod walk;
 
 pub(crate) use coupling::coupling_relations;
+pub(super) use lane::{open_repository, rebuild};
 pub(crate) use pagination::page_offset;
 pub use path::path;
 pub use query::{dependents, query};

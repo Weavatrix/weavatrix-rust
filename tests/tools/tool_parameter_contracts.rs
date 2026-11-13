@@ -2,7 +2,7 @@
 //! several accepted and ignored, which is worse than rejecting them.
 
 use crate::language_fixture::Fixture;
-use blazingly_json::json;
+use blazingly_json::{Value, json};
 use weavatrix_rust::{Weavatrix, tools};
 
 fn small_app() -> Fixture {
@@ -257,4 +257,44 @@ fn a_commented_empty_catch_is_review_not_high_severity() {
         ],
         "a stated best-effort intent is review, silence stays high: {findings:?}"
     );
+}
+
+fn graph_call(engine: &mut Weavatrix, tool: &str, args: Value) -> Value {
+    tools::call(engine, tool, args).unwrap()
+}
+
+#[test]
+fn rebuild_graph_mode_precision_and_scope_bound_the_parse() {
+    let fixture = Fixture::new();
+    fixture.write("src/a.js", "export function p(){return 1}\n");
+    fixture.write("tests/t.test.js", "import { p } from '../src/a.js';\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let path = fixture.root.display().to_string();
+    let full = graph_call(&mut engine, "rebuild_graph", json!({}));
+    assert!(full["mode"] == "full" && full["scope"].is_null(), "{full}");
+    let nodes = full["after"]["nodes"].as_u64().unwrap();
+    let mut spec = json!({"precision": "graph"});
+    spec["mode"] = json!("no-tests");
+    spec["scope"] = json!("src");
+    let cut = graph_call(&mut engine, "rebuild_graph", spec);
+    let parsed = cut["files_parsed"].as_u64().unwrap();
+    assert!(parsed < cut["files_scanned"].as_u64().unwrap());
+    assert!(cut["after"]["nodes"].as_u64().unwrap() < nodes);
+    let only = graph_call(&mut engine, "rebuild_graph", json!({"mode": "tests-only"}));
+    assert!(only["files_parsed"].as_u64().unwrap() >= 1);
+    assert!(only["after"]["nodes"].as_u64().unwrap() < nodes);
+    let kept = graph_call(&mut engine, "graph_stats", json!({}))["nodes"].clone();
+    let off = tools::call(&mut engine, "rebuild_graph", json!({"precision": "off"}));
+    assert!(off.unwrap_err().contains("precision"));
+    let same = graph_call(&mut engine, "graph_stats", json!({}));
+    assert_eq!(same["nodes"], kept);
+    assert!(tools::call(&mut engine, "rebuild_graph", json!({"mode": "nope"})).is_err());
+    let mut open = json!({"mode": "no-tests", "precision": "graph"});
+    open["path"] = json!(path);
+    let opened = graph_call(&mut engine, "open_repo", open);
+    assert_eq!(opened["mode_applied"].as_bool(), Some(true));
+    let mut again = json!({"build": false, "mode": "tests-only"});
+    again["path"] = json!(path);
+    let reused = graph_call(&mut engine, "open_repo", again);
+    assert_eq!(reused["mode_applied"].as_bool(), Some(false));
 }

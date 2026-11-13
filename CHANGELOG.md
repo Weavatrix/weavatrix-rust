@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.17.17 - 2026-11-13
+
+- `rebuild_graph` applies `mode`, `precision`, and `scope`. `full` parses every
+  scanned file. `no-tests` drops test paths. `tests-only` keeps test paths.
+  `scope` is a repository-relative file or directory. `precision` is `graph`
+  or omitted. A bad value is an error and does not rebuild. A cut that leaves
+  files out marks the snapshot incomplete.
+- `open_repo` applies `mode` and `precision` when a build runs. `scope` is not
+  an `open_repo` argument. `build: false` reuses a graph that is already
+  loaded and does not apply `mode` to that cache. The catalog stays 66 tools.
+
 ## 2.17.16 - 2026-11-13
 
 - Every MCP tool description now states the arguments, the answer, and the

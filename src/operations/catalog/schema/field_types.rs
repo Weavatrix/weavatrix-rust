@@ -72,6 +72,12 @@ pub(crate) fn field_schema(tool: &str, name: &str) -> Value {
     ) {
         return json!({"type": "boolean"});
     }
+    if tool == "rebuild_graph" && name == "scope" {
+        return json!({
+            "type": "string",
+            "description": "Repository-relative file or directory. Files outside it are not parsed. Omit it for the whole tree."
+        });
+    }
     if name == "min_similarity" {
         return json!({
             "type": "number",
