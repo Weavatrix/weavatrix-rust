@@ -2,6 +2,7 @@ use blazingly_json::Value;
 pub(super) struct ContextEvidence {
     pub(super) retrieval: Value,
     pub(super) edit_contexts: Vec<Value>,
+    pub(super) edit_contexts_total: usize,
     pub(super) data_flow: Value,
 }
 

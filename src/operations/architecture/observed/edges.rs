@@ -6,6 +6,7 @@ use blazingly_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_SAMPLE: usize = 3;
+const INDEX_SAMPLE: usize = 8;
 
 pub(super) struct Collection {
     pub cross: Vec<Value>,
@@ -106,7 +107,9 @@ fn aggregate_json(from: &str, to: Option<&str>, relation: &str, aggregate: &Aggr
         "distinct_file_pairs": aggregate.file_pairs.len(),
         "count": aggregate.base_edge_indices.len(),
         "file_pairs": aggregate.file_pairs.len(),
-        "base_edge_indices": aggregate.base_edge_indices,
+        "base_edge_indices": aggregate.base_edge_indices.iter().take(INDEX_SAMPLE).copied().collect::<Vec<_>>(),
+        "base_edge_indices_total": aggregate.base_edge_indices.len(),
+        "base_edge_indices_truncated": aggregate.base_edge_indices.len() > INDEX_SAMPLE,
         "evidence_histogram": aggregate.evidence_histogram,
         "condition_groups": {"UNSPECIFIED": aggregate.file_pairs.len()},
         "evidence_sample": aggregate.evidence_sample,

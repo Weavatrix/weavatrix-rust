@@ -64,7 +64,7 @@ pub(super) fn documented(tool: &str, name: &str) -> Option<Value> {
             "type": "integer",
             "minimum": 1,
             "maximum": 500,
-            "description": "Maximum edges on one detail=full page (200 if omitted in full mode); not an overview size control"
+            "description": "Present key forces detail=full and also caps components, packages, cycles, workspaces, and runners. Full mode without the key pages 200 edges. Summary plus this key is an error"
         }));
     }
     if name == "token_budget" && tool != "context_bundle" {
@@ -307,11 +307,11 @@ fn domain_field(tool: &str, name: &str) -> Option<Value> {
         })),
         ("agent_change_impact", "before") => Some(json!({
             "type": "string",
-            "description": "Repository-relative catalog snapshot used as the previous contract"
+            "description": "Repository-relative catalog snapshot used as the previous contract. A missing file matches no tools: changes stays empty and found is 0"
         })),
         ("agent_change_impact", "after") => Some(json!({
             "type": "string",
-            "description": "Repository-relative catalog snapshot used as the current contract"
+            "description": "Repository-relative catalog snapshot used as the current contract. A missing file matches no tools: changes stays empty and found is 0"
         })),
         ("dify_trace", "cursor") => Some(json!({
             "type": "string",
@@ -335,11 +335,11 @@ fn domain_field(tool: &str, name: &str) -> Option<Value> {
         })),
         ("web3_impact", "baseline") => Some(json!({
             "type": "string",
-            "description": "Repository-relative consumer or previous ABI path"
+            "description": "Repository-relative previous ABI or artifact path. A missing file returns kind missing_input, not an empty ABI and not MEMBER_REMOVED"
         })),
         ("web3_impact", "candidate") => Some(json!({
             "type": "string",
-            "description": "Repository-relative provider or new ABI path"
+            "description": "Repository-relative new ABI or artifact path. A missing file returns kind missing_input. provider is an alias of this field"
         })),
         ("web3_impact", "provider") => Some(json!({
             "type": "string",

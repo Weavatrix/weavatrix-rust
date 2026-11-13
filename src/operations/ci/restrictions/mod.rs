@@ -7,7 +7,9 @@ use super::workflow::{self, Job, Step, Workflow};
 use crate::operations::{optional_str, optional_u64};
 use blazingly_json::{Value, json};
 pub(super) use output::explain;
-use output::{condition_class, matrix_summary, permissions, public_uses, step_summary};
+use output::{
+    condition_class, matrix_summary, page_side_channels, permissions, public_uses, step_summary,
+};
 use std::collections::BTreeMap;
 pub(super) fn report(
     state: &crate::engine::RepositoryState,
@@ -58,6 +60,9 @@ pub(super) fn report(
         "execution": "NOT_OBSERVED"
     });
     super::attach_inventory(state, &collection.inventory, &mut result);
+    if args.get("max_results").is_some() {
+        page_side_channels(&mut result, max);
+    }
     let budget = crate::operations::token_budget::requested(args)?;
     crate::operations::token_budget::fit(
         &mut result,

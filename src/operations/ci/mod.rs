@@ -56,11 +56,10 @@ fn attach_inventory(state: &RepositoryState, inventory: &inventory::Inventory, r
                 let evidence = EvidenceRef::observed_file(&item.path, &item.digest, &item.bytes);
                 json!({
                     "path": item.path,
-                    "content_digest": item.digest,
+                    "content_digest": evidence.content_digest,
                     "bytes": item.bytes.len(),
                     "bom": item.bom,
-                    "crlf": item.crlf,
-                    "evidence": evidence
+                    "crlf": item.crlf
                 })
             }).collect::<Vec<_>>(),
             "excluded": inventory.excluded.iter().map(|(path, reason)| {

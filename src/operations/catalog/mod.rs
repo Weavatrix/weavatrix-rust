@@ -4,6 +4,7 @@ use serde::Serialize;
 mod definitions;
 mod domain_specs;
 mod profile;
+mod prose;
 mod schema;
 mod validation;
 

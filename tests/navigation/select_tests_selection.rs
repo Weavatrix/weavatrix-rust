@@ -141,3 +141,40 @@ fn python_and_go_conventions_select_by_name() {
         "{report:?}"
     );
 }
+
+#[test]
+fn a_test_that_names_the_parent_module_is_selected_without_an_import_edge() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "src/operations/history/walk.rs",
+        "pub fn commits() -> u8 { 1 }\n",
+    );
+    fixture.write(
+        "tests/repo/git_fetch.rs",
+        "fn boundary() { let _ = \"git_history\"; }\n",
+    );
+    fixture.write("tests/other.rs", "fn unrelated() { let _ = 1; }\n");
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "select_tests",
+        json!({"files": ["src/operations/history/walk.rs"]}),
+    )
+    .unwrap();
+    let tests = report["tests"].as_array().unwrap();
+    assert!(
+        tests.iter().any(|test| {
+            test["path"] == "tests/repo/git_fetch.rs"
+                && test["reasons"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|reason| reason["kind"] == "module_mention")
+        }),
+        "{report}"
+    );
+    assert!(
+        tests.iter().all(|test| test["path"] != "tests/other.rs"),
+        "{report}"
+    );
+}

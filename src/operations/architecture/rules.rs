@@ -209,10 +209,10 @@ fn direct_violation(
         return json!({
             "fingerprint": fingerprint,
             "category": "dependency",
-            "rule": rule,
-            "source": source,
-            "target": target,
-            "edge": edge,
+            "rule": {"id": rule["id"], "action": rule["action"], "severity": rule.get("severity").cloned().unwrap_or(Value::Null)},
+            "source": present_node(source),
+            "target": present_node(target),
+            "edge": present_edge(edge),
             "evidence": {
                 "kind": "dependency_outside_allow_list",
                 "source_component": from,
@@ -223,10 +223,10 @@ fn direct_violation(
     }
     json!({
         "fingerprint": fingerprint,
-        "rule": rule,
-        "source": source,
-        "target": target,
-        "edge": edge
+        "rule": {"id": rule["id"], "action": rule["action"], "severity": rule.get("severity").cloned().unwrap_or(Value::Null)},
+        "source": present_node(source),
+        "target": present_node(target),
+        "edge": present_edge(edge)
     })
 }
 
@@ -277,4 +277,21 @@ fn matching_rules<'contract>(
         })
         .filter(|rule| rule_selects_edge(rule, edge))
         .collect()
+}
+
+fn present_node(node: &weavatrix_graph::Node) -> Value {
+    let mut value = crate::operations::graph::compact_node(node);
+    if let Some(object) = value.as_object_mut() {
+        object.remove("span");
+    }
+    value
+}
+
+fn present_edge(edge: &weavatrix_graph::Edge) -> Value {
+    let mut value = crate::operations::graph::compact_edge(edge);
+    if let Some(object) = value.as_object_mut() {
+        object.remove("source");
+        object.remove("target");
+    }
+    value
 }

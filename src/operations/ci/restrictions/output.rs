@@ -123,6 +123,72 @@ pub(super) fn step_summary(step: &Step, working: Option<&str>) -> Value {
     })
 }
 
+pub(super) fn page_side_channels(result: &mut Value, max: usize) {
+    let workflow_total = result["workflows"].as_array().map_or(0, Vec::len);
+    let workflows = result["workflows"].as_array().map(|workflows| {
+        workflows
+            .iter()
+            .take(max)
+            .map(slim_workflow)
+            .collect::<Vec<_>>()
+    });
+    if let Some(workflows) = workflows {
+        result["workflows"] = json!(workflows);
+    }
+    result["workflows_total"] = json!(workflow_total);
+    result["workflows_truncated"] = json!(workflow_total > max);
+    let read_total = result
+        .pointer("/config_inputs/read")
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len);
+    let read = result
+        .pointer("/config_inputs/read")
+        .and_then(Value::as_array)
+        .map(|read| {
+            read.iter()
+                .take(max)
+                .map(|item| {
+                    json!({
+                        "path": item["path"],
+                        "content_digest": item["content_digest"],
+                        "bytes": item["bytes"]
+                    })
+                })
+                .collect::<Vec<_>>()
+        });
+    if let Some(read) = read
+        && let Some(slot) = result.pointer_mut("/config_inputs/read")
+    {
+        *slot = json!(read);
+    }
+    if let Some(object) = result
+        .pointer_mut("/config_inputs")
+        .and_then(Value::as_object_mut)
+    {
+        object.insert("read_total".to_owned(), json!(read_total));
+        object.insert("read_truncated".to_owned(), json!(read_total > max));
+    }
+}
+
+fn slim_workflow(workflow: &Value) -> Value {
+    let jobs = workflow["jobs"].as_array().map(|jobs| {
+        jobs.iter()
+            .map(|job| {
+                json!({
+                    "id": job["id"],
+                    "steps": job["steps"].as_array().map_or(0, Vec::len)
+                })
+            })
+            .collect::<Vec<_>>()
+    });
+    json!({
+        "path": workflow["path"],
+        "content_digest": workflow["content_digest"],
+        "triggers": workflow["triggers"],
+        "jobs": jobs
+    })
+}
+
 pub(in crate::operations::ci) fn explain(
     state: &crate::engine::RepositoryState,
     args: &Value,

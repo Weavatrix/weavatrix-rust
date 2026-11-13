@@ -90,6 +90,22 @@ fn subsystems(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         return one_cluster(state, &projection, id, args, declaration.as_ref());
     }
     let top = usize::try_from(arg_u64(args, "top_n").unwrap_or(20)).unwrap_or(20);
+    let shown = projection
+        .clusters
+        .iter()
+        .take(top)
+        .map(|cluster| cluster.key.clone())
+        .collect::<Vec<_>>();
+    let touching = projection
+        .boundaries
+        .iter()
+        .filter(|item| {
+            shown
+                .iter()
+                .any(|key| item.from_key == *key || item.to_key == *key)
+        })
+        .collect::<Vec<_>>();
+    let boundaries_total = touching.len();
     Ok(json!({
         "view": "subsystems",
         "algorithm": "directory-resolution",
@@ -102,7 +118,7 @@ fn subsystems(state: &RepositoryState, args: &Value) -> Result<Value, String> {
         "communities": projection.clusters.iter().take(top).enumerate().map(|(id, cluster)| {
             summary(id, cluster, declaration.as_ref())
         }).collect::<Vec<_>>(),
-        "boundaries": projection.boundaries.iter().take(40).map(|item| {
+        "boundaries": touching.iter().take(top).map(|item| {
             json!({
                 "from": item.from,
                 "to": item.to,
@@ -111,7 +127,9 @@ fn subsystems(state: &RepositoryState, args: &Value) -> Result<Value, String> {
                 "relation": item.relation,
                 "why": item.why
             })
-        }).collect::<Vec<_>>()
+        }).collect::<Vec<_>>(),
+        "boundaries_total": boundaries_total,
+        "boundaries_truncated": boundaries_total > top
     }))
 }
 

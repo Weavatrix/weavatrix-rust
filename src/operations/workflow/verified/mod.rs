@@ -64,6 +64,8 @@ pub(in crate::operations) fn verified_change(
         "changeImpact": impact,
         "retrieval": context.retrieval,
         "editContexts": context.edit_contexts,
+        "editContextsTotal": context.edit_contexts_total,
+        "editContextsTruncated": context.edit_contexts_total > context.edit_contexts.len(),
         "dataFlow": context.data_flow,
         "graphBaseline": checks.graph_baseline,
         "architecture": checks.architecture,

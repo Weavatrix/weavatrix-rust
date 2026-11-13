@@ -120,3 +120,29 @@ fn query_graph_edges_keep_kind_and_coupling_without_provenance() {
         "{edges:?}"
     );
 }
+
+#[test]
+fn query_graph_prefers_a_symbol_that_matches_more_than_one_token() {
+    let fixture = Fixture::new();
+    fixture.write("src/git.js", "export function git() { return 1; }\n");
+    fixture.write(
+        "src/history.js",
+        "export function history() { return 1; }\n",
+    );
+    fixture.write(
+        "src/history/walk.js",
+        "export function commits() { return 1; }\n",
+    );
+    let mut engine = Weavatrix::open(&fixture.root).unwrap();
+    let report = tools::call(
+        &mut engine,
+        "query_graph",
+        json!({"question": "who walks git history", "max_nodes": 8}),
+    )
+    .unwrap();
+    let first = report["resolved_seeds"][0]["id"].as_str().unwrap_or("");
+    assert!(
+        first.contains("history/walk.js"),
+        "a path matching walk and history outranks a one-token name: {report}"
+    );
+}

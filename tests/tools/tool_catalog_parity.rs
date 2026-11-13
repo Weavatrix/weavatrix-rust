@@ -91,6 +91,13 @@ fn catalog_covers_the_javascript_read_only_core_and_rust_extensions() {
         );
     }
     assert_eq!(actual.len(), 66, "the full catalog is 66 MCP tools");
+    for tool in tools::catalog() {
+        assert!(
+            tool.description.len() > 180,
+            "{} description is too thin to call",
+            tool.name
+        );
+    }
 }
 
 #[test]

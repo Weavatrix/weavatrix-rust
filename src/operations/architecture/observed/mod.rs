@@ -6,6 +6,7 @@ mod cycles;
 mod edges;
 mod hypotheses;
 mod packages;
+mod page;
 mod summary;
 
 use crate::engine::RepositoryState;
@@ -72,7 +73,7 @@ pub(super) fn report(state: &RepositoryState, args: &Value) -> Result<Value, Str
     let cursor = optional_str(args, "edge_cursor")?;
     let mut report = facts(state, Some((max, cursor)))?;
     if args.get("max_results").is_some() {
-        cap_lists(&mut report, max);
+        page::apply(&mut report, max);
     }
     report["detail"] = json!("full");
     let budget = crate::operations::token_budget::requested(args)?;
@@ -201,29 +202,6 @@ fn facts(state: &RepositoryState, page: Option<(usize, Option<&str>)>) -> Result
         "internal_connectivity_total": relations.internal.len(),
         "cycles": cycles
     }))
-}
-
-fn cap_lists(report: &mut Value, max: usize) {
-    for pointer in [
-        "/components",
-        "/packages",
-        "/internal_connectivity",
-        "/architecture_hypotheses",
-        "/build_topology/workspaces",
-        "/build_topology/runners",
-        "/input_capture/excluded",
-    ] {
-        let Some(array) = report.pointer(pointer).and_then(Value::as_array) else {
-            continue;
-        };
-        if array.len() <= max {
-            continue;
-        }
-        let kept = array.iter().take(max).cloned().collect::<Vec<_>>();
-        if let Some(slot) = report.pointer_mut(pointer) {
-            *slot = json!(kept);
-        }
-    }
 }
 
 fn component_json(component: &components::Component) -> Value {

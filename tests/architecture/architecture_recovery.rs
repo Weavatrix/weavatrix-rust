@@ -211,3 +211,81 @@ fn tiny_token_budget_preserves_identity_totals_and_continuation() {
     assert!(report["edges_total"].as_u64().unwrap() >= report["edges_returned"].as_u64().unwrap());
     assert!(report["next_edge_cursor"].as_str().is_some());
 }
+
+#[test]
+fn paged_reports_on_this_repository_stay_readable() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut engine = Weavatrix::open(root).unwrap();
+    let inventory = call(
+        "architecture_inventory",
+        json!({"max_results": 4}),
+        &mut engine,
+    );
+    assert!(
+        blazingly_json::to_vec(&inventory).unwrap().len() < 16_000,
+        "{inventory}"
+    );
+    assert!(
+        inventory["cycles"]["cyclic_scc"][0]["members"]
+            .as_array()
+            .unwrap()
+            .len()
+            <= 4
+    );
+    assert!(
+        inventory["edges"][0]["evidence_sample"][0]
+            .get("provenance")
+            .is_none()
+    );
+    let communities = call("list_communities", json!({"top_n": 2}), &mut engine);
+    assert!(communities["boundaries"].as_array().unwrap().len() <= 2);
+    let build = call("build_graph", json!({"max_members": 5}), &mut engine);
+    assert!(
+        blazingly_json::to_vec(&build).unwrap().len() < 20_000,
+        "{build}"
+    );
+    let restrictions = call("ci_restrictions", json!({"max_results": 3}), &mut engine);
+    assert!(restrictions["workflows"][0]["jobs"][0]["steps"].is_number());
+    assert!(
+        blazingly_json::to_vec(&restrictions).unwrap().len() < 12_000,
+        "{restrictions}"
+    );
+    let verification = call("verify_architecture", json!({}), &mut engine);
+    assert!(
+        blazingly_json::to_vec(&verification).unwrap().len() < 16_000,
+        "{verification}"
+    );
+    let selected = call(
+        "select_tests",
+        json!({"files": ["src/operations/history/walk.rs"], "max_tests": 8}),
+        &mut engine,
+    );
+    assert!(
+        selected["tests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|test| test["path"] == "tests/repo/git_fetch.rs"),
+        "{selected}"
+    );
+    let planned = call(
+        "verified_change",
+        json!({"task": "review the history walk", "phase": "plan", "files": ["src/operations/history/walk.rs"], "impact_depth": 1, "max_impact_nodes": 10}),
+        &mut engine,
+    );
+    assert!(
+        blazingly_json::to_vec(&planned).unwrap().len() < 24_000,
+        "{planned}"
+    );
+    let query = call(
+        "query_graph",
+        json!({"question": "who walks git history", "max_nodes": 8}),
+        &mut engine,
+    );
+    let first = query["resolved_seeds"][0]["id"].as_str().unwrap_or("");
+    assert!(first.contains("history/walk.rs"), "{first}");
+}
+
+fn call(name: &str, args: blazingly_json::Value, engine: &mut Weavatrix) -> blazingly_json::Value {
+    tools::call(engine, name, args).unwrap()
+}

@@ -1,19 +1,22 @@
 use super::ManifestIndex;
 use super::cargo_manifest::{CargoManifest, cargo_default_target_path};
 use super::model::{
-    BuildCondition, BuildDependency, BuildModel, BuildTarget, BuildTask, Member, TargetOptions,
-    entity_id,
+    BuildCondition, BuildDependency, BuildModel, BuildTarget, BuildTask, TargetOptions, entity_id,
 };
 use crate::operations::optional_u64;
 use blazingly_json::{Value, json};
 use std::collections::BTreeMap;
-
-const MAX_TARGETS: usize = 50;
-
+const MAX_TARGETS: usize = 16;
+const MAX_DEPENDENCIES: usize = 32;
+const MAX_MODULES: usize = 24;
 pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> {
     let max_members = usize::try_from(optional_u64(args, "max_members")?.unwrap_or(500))
         .unwrap_or(500)
         .clamp(1, 2_000);
+    let page = args.get("max_members").is_some();
+    let target_limit = if page { 4 } else { MAX_TARGETS };
+    let dependency_limit = if page { 8 } else { MAX_DEPENDENCIES };
+    let module_limit = if page { 4 } else { MAX_MODULES };
     let workspaces_total = model.workspaces.len();
     let members_total = model
         .workspaces
@@ -24,7 +27,7 @@ pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> 
         .workspaces
         .iter()
         .flat_map(|workspace| &workspace.members)
-        .any(|member| member.targets.len() > MAX_TARGETS);
+        .any(|member| member.targets.len() > target_limit);
     let tasks_truncated = model
         .workspaces
         .iter()
@@ -45,7 +48,7 @@ pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> 
                 "default_members": workspace.default_members,
                 "excluded_paths": workspace.excluded_paths,
                 "members_total": workspace.members.len(),
-                "members": workspace.members.iter().take(take).map(member).collect::<Vec<_>>()
+                "members": workspace.members.iter().take(take).map(|item| super::ecosystem_details::page_member(item, page, (target_limit, dependency_limit, module_limit))).collect::<Vec<_>>()
             })
         })
         .collect::<Vec<_>>();
@@ -67,27 +70,6 @@ pub(super) fn report(args: &Value, model: &BuildModel) -> Result<Value, String> 
         "semantic_precision": "BOUNDED_STATIC"
     }))
 }
-
-fn member(member: &Member) -> Value {
-    json!({
-        "id": member.id,
-        "kind": member.kind,
-        "name": member.name,
-        "path": member.path,
-        "manifest": member.manifest,
-        "targets": member.targets.iter().take(MAX_TARGETS).collect::<Vec<_>>(),
-        "targets_total": member.targets.len(),
-        "targets_truncated": member.targets.len() > MAX_TARGETS,
-        "modules": member.modules,
-        "modules_total": member.modules.len(),
-        "tasks": member.tasks.iter().take(50).collect::<Vec<_>>(),
-        "tasks_total": member.tasks.len(),
-        "tasks_truncated": member.tasks.len() > 50,
-        "dependencies": member.dependencies,
-        "internal_dependencies": member.internal_dependencies
-    })
-}
-
 pub(super) fn script_tasks(
     repository: &str,
     manifest: &str,
@@ -133,7 +115,6 @@ pub(super) fn script_tasks(
         })
         .collect()
 }
-
 pub(super) fn npm_dependencies(
     repository: &str,
     manifest: &str,
@@ -160,7 +141,6 @@ pub(super) fn npm_dependencies(
         })
         .collect()
 }
-
 pub(super) fn cargo_targets(
     repository: &str,
     parsed: &CargoManifest,
@@ -263,7 +243,6 @@ pub(super) fn cargo_targets(
     }
     targets
 }
-
 fn build_target(
     context: (&str, &str),
     kind: &'static str,

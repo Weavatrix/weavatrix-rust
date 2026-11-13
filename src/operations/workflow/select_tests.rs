@@ -67,6 +67,7 @@ pub(in crate::operations) fn select_tests(
         }
         select_by_name(state, &mut selected, file);
         select_by_dependents(state, &mut selected, file, depth, max_nodes)?;
+        select_by_module_mention(state, &mut selected, file);
     }
 
     let mut tests = selected.into_iter().collect::<Vec<_>>();
@@ -91,7 +92,7 @@ pub(in crate::operations) fn select_tests(
         "semantic_precision": "BOUNDED_STATIC",
         "coverage_evidence": {
             "present": false,
-            "reason": "selection is static: runner naming plus reverse dependencies; no measured per-test coverage was consumed"
+            "reason": "selection is static: runner naming, reverse dependencies, and parent-module mentions in test source; no measured per-test coverage was consumed"
         }
     }))
 }
@@ -169,6 +170,55 @@ fn select_by_dependents(
         }
     }
     Ok(())
+}
+
+fn select_by_module_mention(
+    state: &RepositoryState,
+    selected: &mut BTreeMap<String, Selection>,
+    file: &str,
+) {
+    let Some(module) = parent_module(file) else {
+        return;
+    };
+    for node in state.graph().nodes() {
+        if node.kind != NodeKind::File || !is_test_suite(&node.label) {
+            continue;
+        }
+        let Some(text) = state.evidence().text(&node.label) else {
+            continue;
+        };
+        if mentions_module(text, &module) {
+            record(
+                selected,
+                &node.label,
+                json!({"kind": "module_mention", "via": file, "module": module}),
+                2,
+            );
+        }
+    }
+}
+
+fn parent_module(path: &str) -> Option<String> {
+    let normalized = path.replace('\\', "/");
+    let parent = Path::new(&normalized).parent()?.file_name()?.to_str()?;
+    let module = parent.to_ascii_lowercase();
+    const SKIP: &[&str] = &[
+        "src", "test", "tests", "source", "crate", "lib", "main", "internal", "common", "core",
+    ];
+    (module.len() >= 5 && !SKIP.contains(&module.as_str())).then_some(module)
+}
+
+fn mentions_module(text: &str, module: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    if lower.contains(&format!("/{module}/"))
+        || lower.contains(&format!("/{module}."))
+        || lower.contains(&format!("{module}::"))
+    {
+        return true;
+    }
+    lower
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .any(|token| token == module || token.split('_').any(|part| part == module))
 }
 
 /// The module name a test would carry: the file stem, lowercased.

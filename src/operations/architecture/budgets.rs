@@ -93,6 +93,12 @@ pub(super) fn violations(state: &RepositoryState, value: &Value) -> Result<Vec<V
             .collect::<Vec<_>>();
         let actual = u64::try_from(cycles.len()).unwrap_or(u64::MAX);
         if actual > maximum {
+            let cycles_total = cycles.len();
+            let cycles = cycles
+                .into_iter()
+                .take(4)
+                .map(|cycle| cycle.into_iter().take(8).collect::<Vec<_>>())
+                .collect::<Vec<_>>();
             insert(
                 &mut output,
                 "budget.runtimeCycles",
@@ -102,7 +108,8 @@ pub(super) fn violations(state: &RepositoryState, value: &Value) -> Result<Vec<V
                     "kind": "runtime_cycles",
                     "actual": actual,
                     "maximum": maximum,
-                    "cycles": cycles
+                    "cycles": cycles,
+                    "cycles_truncated": cycles_total > cycles.len()
                 }),
             );
         }

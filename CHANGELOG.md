@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.17.16 - 2026-11-13
+
+- Every MCP tool description now states the arguments, the answer, and the
+  honest empty or error result. The same text is in the README.
+- Paged `architecture_inventory`, `build_graph`, `verify_architecture`,
+  `ci_restrictions`, `list_communities`, `select_tests`, `verified_change`,
+  and `query_graph` keep the bounds shipped with this description pass.
+  The catalog stays 66 tools.
+
 ## 2.17.15 - 2026-11-12
 
 - `git_history` returns the commits that are present when a parent object is

@@ -25,11 +25,14 @@ pub(super) fn build_context(
     } else {
         retrieve_change_context(state, task, files, impact, args)?
     };
-    let edit_contexts = edit_contexts(state, &seeds)?;
+    let edit_total = seeds.len();
+    let edit_seeds = seeds.iter().copied().take(4).collect::<Vec<_>>();
+    let edit_contexts = edit_contexts(state, &edit_seeds)?;
     let data_flow = data_flow_evidence(state, &seeds, args)?;
     Ok(ContextEvidence {
         retrieval,
         edit_contexts,
+        edit_contexts_total: edit_total,
         data_flow,
     })
 }
@@ -44,9 +47,9 @@ fn edit_contexts(state: &RepositoryState, seeds: &[NodeIndex]) -> Result<Vec<Val
                 state,
                 &json!({
                     "label": node.id.as_str(),
-                    "max_related": 8,
+                    "max_related": 0,
                     "max_references": 8,
-                    "context_lines": 4
+                    "context_lines": 2
                 }),
             )
             .map(|evidence| {
@@ -132,7 +135,7 @@ fn data_flow_evidence(
     let depth = usize::try_from(optional_u64(args, "data_flow_depth")?.unwrap_or(2))
         .map_err(|_| "data_flow_depth is too large".to_owned())?
         .clamp(1, 3);
-    let max = usize::try_from(optional_u64(args, "max_data_flow_edges")?.unwrap_or(30))
+    let max = usize::try_from(optional_u64(args, "max_data_flow_edges")?.unwrap_or(12))
         .map_err(|_| "max_data_flow_edges is too large".to_owned())?
         .clamp(1, 60);
     let relations = [EdgeKind::Calls.as_str(), EdgeKind::References.as_str()]

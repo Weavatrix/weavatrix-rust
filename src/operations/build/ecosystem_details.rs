@@ -2,10 +2,10 @@
 
 use super::manifests::normalize_relative;
 use super::model::{
-    BuildCondition, BuildDependency, BuildTarget, Member, TargetOptions, entity_id,
+    BuildCondition, BuildDependency, BuildTarget, Member, SourceModule, TargetOptions, entity_id,
 };
 use crate::engine::RepositoryState;
-use blazingly_json::Value;
+use blazingly_json::{Value, json};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -239,4 +239,58 @@ pub(super) fn join(root: &str, path: &str) -> String {
 
 pub(super) fn cargo_owns_source(kind: &str, target_path: &str, file: &str) -> bool {
     matches!(kind, "lib" | "bin") && target_path.starts_with("src/") && file.starts_with("src/")
+}
+
+pub(super) fn page_member(member: &Member, page: bool, limits: (usize, usize, usize)) -> Value {
+    let (targets, dependencies, modules) = limits;
+    json!({
+        "id": member.id,
+        "kind": member.kind,
+        "name": member.name,
+        "path": member.path,
+        "manifest": member.manifest,
+        "targets": member.targets.iter().take(targets).map(|item| target_value(item, page)).collect::<Vec<_>>(),
+        "targets_total": member.targets.len(),
+        "targets_truncated": member.targets.len() > targets,
+        "modules": member.modules.iter().take(modules).map(|item| module_value(item, page)).collect::<Vec<_>>(),
+        "modules_total": member.modules.len(),
+        "modules_truncated": member.modules.len() > modules,
+        "tasks": member.tasks.iter().take(50).collect::<Vec<_>>(),
+        "tasks_total": member.tasks.len(),
+        "tasks_truncated": member.tasks.len() > 50,
+        "dependencies": member.dependencies.iter().take(dependencies).map(|item| dependency_value(item, page)).collect::<Vec<_>>(),
+        "dependencies_total": member.dependencies.len(),
+        "dependencies_truncated": member.dependencies.len() > dependencies,
+        "internal_dependencies": member.internal_dependencies
+    })
+}
+
+pub(super) fn dependency_value(dependency: &BuildDependency, page: bool) -> Value {
+    if !page {
+        return blazingly_json::to_value(dependency).unwrap_or(Value::Null);
+    }
+    json!({
+        "name": dependency.name,
+        "scope": dependency.scope,
+        "resolution": dependency.resolution
+    })
+}
+
+pub(super) fn target_value(target: &BuildTarget, page: bool) -> Value {
+    if !page {
+        return blazingly_json::to_value(target).unwrap_or(Value::Null);
+    }
+    json!({
+        "kind": target.kind,
+        "name": target.name,
+        "path": target.path,
+        "implicit": target.implicit
+    })
+}
+
+pub(super) fn module_value(module: &SourceModule, page: bool) -> Value {
+    if !page {
+        return blazingly_json::to_value(module).unwrap_or(Value::Null);
+    }
+    json!({"name": module.name, "path": module.path})
 }
